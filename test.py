@@ -11,9 +11,9 @@ pll = ADF4351(spi, le_pin, ref_clk_hz=25000000)
 
 print("\n=== Testing RF Enable Toggle ===")
 
-pll.set_frequency(400)
+pll.set_frequency(200)
 time.sleep(1)
 
-for i in range(2700000000):
+for i in range(27000000):
     print("  RF ON")
     pll.rf_enable(True)
