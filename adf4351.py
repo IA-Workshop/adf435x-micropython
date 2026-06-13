@@ -19,7 +19,7 @@ class ADF4351:
         # Set default register values (from ADF4351 datasheet)
         self.regs[5] = 0x580005   # R5: Lock detect, digital
         self.regs[4] = 0x7C003C   # R4: Output enabled, +5dBm, divider=1
-        self.regs[3] = 0x4B3      # R3: Clock divider off
+        self.regs[3] = 0x0      # R3: Clock divider off
         self.regs[2] = 0x4E42     # R2: R=1, CP=2.5mA, LDF=1
         self.regs[1] = 0x8008029  # R1: Phase=1, MOD=4095
         self.regs[0] = 0x400000   # R0: Initial frequency
