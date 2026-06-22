@@ -14,7 +14,7 @@ build/
 # --- IDEs and Extensions ---
 # VS Code / MicroPico (formerly Pico-W-Go)
 .vscode/
-.micropico/
+.micropico
 *.vsix
 
 # Thonny IDE
