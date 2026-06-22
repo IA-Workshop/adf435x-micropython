@@ -17,10 +17,13 @@ ADF435X_CE_PIN     = 14
 ADF435X_MUXOUT_PIN = 15
 
 # 1. Create an SPI channel
-RP2350_SPI_CHANNEL = 1
+SPI_CHANNEL = 1
 
-print(f"Opening SPI channel {RP2350_SPI_CHANNEL} on pins {SPI_SCK_PIN} (SCK), {SPI_MOSI_PIN} (MOSI)")
-spi_handle = SPI(RP2350_SPI_CHANNEL,
+print(f"Opening SPI channel {SPI_CHANNEL} on pins " \
+      f"{SPI_SCK_PIN} (SCK), " \
+      f"{SPI_MOSI_PIN} (MOSI)")
+
+spi_handle = SPI(SPI_CHANNEL,
                  baudrate=1000000,
                  polarity=0,
                  phase=0,
