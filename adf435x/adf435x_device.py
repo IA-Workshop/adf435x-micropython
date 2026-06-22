@@ -1,6 +1,6 @@
 from machine import Pin, SPI
 
-class ADF435x:
+class ADF435xDevice:
     """
     MicroPython device handler for the ADF435x family of frequency
     synthesizers. This class manages basic SPI and GPIO communications between
