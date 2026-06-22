@@ -2,50 +2,59 @@ from machine import Pin, SPI
 
 class ADF435x:
     """
-    MicroPython driver for the ADF435x family of frequency synthesizers. This
-    class is a basic transport-level controller that handles SPI and GPIO
-    communications with the device.
+    MicroPython device handler for the ADF435x family of frequency
+    synthesizers. This class manages basic SPI and GPIO communications between
+    the host and device.
 
     Parameters
     ----------
     spi : machine.SPI
-        A configured, transmit-capable SPI peripheral in mode 0 (polarity 0,
-        phase 0), 8-bit frames, clock at or below the device maximum.
-    le_pin : int
+        A configured, transmit-capable SPI peripheral.
+    load_enable_pin : int
         GPIO number for the load-enable (latch) line.
-    ce_pin : int
+    chip_enable_pin : int
         GPIO number for chip enable.
-    muxout_pin : int
-        GPIO number for the MUXOUT status line.
-
+    muxout_pin : int or None
+        GPIO number for the MUXOUT status line, or None if MUXOUT is not used.
     """
-    def __init__(self, spi: SPI, le_pin: int, ce_pin: int, muxout_pin: int):
+    def __init__(self,
+                 spi: SPI,
+                 load_enable_pin: int,
+                 chip_enable_pin: int,
+                 muxout_pin:  int | None = None):
+        """
+        Constructor for ADF435xDevice.
+        """
         # Initialize SPI and GPIO interfaces
         self.spi = spi
-        self.le = Pin(le_pin, Pin.OUT, value=0)
-        self.ce = Pin(ce_pin, Pin.OUT, value=0)
-        self.muxout = Pin(muxout_pin, Pin.IN)
+        self.load_enable_pin = Pin(load_enable_pin, Pin.OUT, value=0)
+        self.chip_enable_pin = Pin(chip_enable_pin, Pin.OUT, value=0)
+        if muxout_pin is None:
+            self.muxout_pin = None
+        else:
+            self.muxout_pin = Pin(muxout_pin, Pin.IN)
 
-        # Power on
-        self.chip_enable()
 
     def chip_enable(self):
         """
         Power on the chip by setting the CE pin to logic high.
         """
-        self.ce.high()
+        self.chip_enable_pin.high()
 
     def chip_disable(self):
         """
         Power off the chip by setting the CE pin to logic low.
         """
-        self.ce.low()
+        self.chip_enable_pin.low()
 
     def read_muxout(self):
         """
-        Read the state of the MUXOUT pin.
+        Read the raw level of the MUXOUT pin.
         """
-        return self.muxout.value()
+        if self.muxout_pin is None:
+            raise RuntimeError("MUXOUT pin was not configured")
+        return self.muxout_pin.value()
+
 
     def write_register(self, word:int):
         """
@@ -53,10 +62,24 @@ class ADF435x:
         writing the data to the device's input shift register over SPI, then
         latching it by toggling the LE pin.
         """
-        # 1. Write the data to the device input shift register over SPI
+        # 1. Enforce that the LE pin is set to low before sending data.
+        self.load_enable_pin.low()
+
+        # 2. Write the data to the device input shift register over SPI
         self.spi.write(word.to_bytes(4, 'big'))
 
-        # 2. Toggle the LE pin to latch the register value on the device
-        self.le.high()
-        self.le.low()
+        # 3. Toggle the LE pin to latch the register value on the device
+        self.load_enable_pin.high()
+        self.load_enable_pin.low()
 
+    def write_registers(self, words):
+        """
+        Write a sequence of register words in the order provided.
+
+        Caution
+        -------
+        The caller is responsible for correctly ordering the register words to
+        be written.
+        """
+        for word in words:
+            self.write_register(word)
