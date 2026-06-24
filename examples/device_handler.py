@@ -6,7 +6,7 @@ Modify the pin values to correspond to your specific setup.
 """
 from machine import SPI
 
-from adf435x.adf435x_device import ADF435xDevice
+from adf435x.device import ADF435xDevice
 
 # Default pin values, modify as needed
 SPI_SCK_PIN        = 10
