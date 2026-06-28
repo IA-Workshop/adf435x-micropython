@@ -56,6 +56,43 @@ class ADF435xRegisterMapper:
             raise ValueError(f"{name}={value} does not fit in {bits} bits")
         return value
 
+    def check_pll(self, int_n: int, frac: int, mod: int, prescaler: int) -> None:
+        """Validate cross-field PLL constraints for R0/R1 encoding.
+
+        Parameters
+        ----------
+        int_n : int
+            Integer part of the feedback divider (INT).
+        frac : int
+            Fractional numerator (FRAC).
+        mod : int
+            Fractional modulus (MOD).
+        prescaler : int
+            Dual-modulus prescaler select (``REG1_PRESCALER_4_5`` or
+            ``REG1_PRESCALER_8_9``).
+
+        Raises
+        ------
+        ValueError
+            If ``frac >= mod`` or ``int_n`` is outside the datasheet range for
+            the selected prescaler.
+        """
+        profile = self._profile
+        if frac >= mod:
+            raise ValueError("FRAC=%d must be less than MOD=%d" % (frac, mod))
+        if prescaler == consts.REG1_PRESCALER_4_5:
+            int_min = profile.int_min_4_5
+        elif prescaler == consts.REG1_PRESCALER_8_9:
+            int_min = profile.int_min_8_9
+        else:
+            raise ValueError("prescaler=%d invalid" % prescaler)
+        if int_n < int_min:
+            raise ValueError(
+                "INT=%d below minimum %d for prescaler" % (int_n, int_min))
+        if int_n > profile.int_max:
+            raise ValueError(
+                "INT=%d above maximum %d" % (int_n, profile.int_max))
+
     @property
     def profile(self) -> ADF435xDeviceProfile:
         """The device profile this mapper encodes for."""
@@ -132,6 +169,10 @@ class ADF435xRegisterMapper:
         """
         self._check_field(mod, consts.REG1_MOD_WIDTH, "MOD")
         self._check_field(phase, consts.REG1_PHASE_WIDTH, "phase")
+        self._check_field(prescaler, 1, "prescaler")
+        if mod < self._profile.mod_min:
+            raise ValueError(
+                "MOD=%d below minimum %d" % (mod, self._profile.mod_min))
         if phase_adjust and not self._profile.has_phase_adjust:
             raise ValueError(
                 f"{self._profile.name} does not support phase adjust")
@@ -206,6 +247,8 @@ class ADF435xRegisterMapper:
         See datasheet Figure 26 (Register 2).
         """
         self._check_field(r_counter, consts.REG2_R_COUNTER_WIDTH, "R")
+        if r_counter < 1:
+            raise ValueError("R=%d below minimum 1" % r_counter)
         self._check_field(cp_current_code, consts.REG2_CP_CURRENT_WIDTH,
                           "CP current")
         self._check_field(muxout, consts.REG2_MUXOUT_WIDTH, "MUXOUT")

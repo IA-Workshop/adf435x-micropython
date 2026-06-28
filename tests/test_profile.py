@@ -37,6 +37,21 @@ class TestPrescalerCeiling:
         assert ADF4351.prescaler_4_5_max_hz == 3_600_000_000
 
 
+class TestPllLimits:
+    """Datasheet INT/MOD bounds (ADF4350 and ADF4351 share these)."""
+
+    @pytest.mark.parametrize("profile", [ADF4350, ADF4351], ids=lambda p: p.name)
+    def test_int_minimums(self, profile):
+        assert profile.int_min_4_5 == 23
+        assert profile.int_min_8_9 == 75
+        assert profile.int_max == 65535
+
+    @pytest.mark.parametrize("profile", [ADF4350, ADF4351], ids=lambda p: p.name)
+    def test_mod_range(self, profile):
+        assert profile.mod_min == 2
+        assert profile.mod_max == 4095
+
+
 class TestDividerCode:
     @pytest.mark.parametrize("divider, code", [
         (1, 0),

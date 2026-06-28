@@ -44,6 +44,16 @@ class ADF435xDeviceProfile:
     prescaler_4_5_max_hz : int
         Highest VCO frequency allowed with the 4/5 prescaler; above this the 8/9
         prescaler is required. Used by the solver, not the encoder.
+    int_min_4_5 : int
+        Minimum INT with the 4/5 prescaler (datasheet NMIN = 23).
+    int_min_8_9 : int
+        Minimum INT with the 8/9 prescaler (datasheet NMIN = 75).
+    int_max : int
+        Maximum INT (65,535).
+    mod_min : int
+        Minimum fractional modulus (2).
+    mod_max : int
+        Maximum fractional modulus (4,095).
     """
 
     def __init__(self,
@@ -53,7 +63,12 @@ class ADF435xDeviceProfile:
                  has_fast_band_select: bool,
                  has_programmable_abp: bool,
                  has_charge_cancel: bool,
-                 prescaler_4_5_max_hz: int):
+                 prescaler_4_5_max_hz: int,
+                 int_min_4_5: int = 23,
+                 int_min_8_9: int = 75,
+                 int_max: int = 65535,
+                 mod_min: int = 2,
+                 mod_max: int = 4095):
         self.name = name
         self.rf_divider_max = rf_divider_max
         self.has_phase_adjust = has_phase_adjust
@@ -61,6 +76,11 @@ class ADF435xDeviceProfile:
         self.has_programmable_abp = has_programmable_abp
         self.has_charge_cancel = has_charge_cancel
         self.prescaler_4_5_max_hz = prescaler_4_5_max_hz
+        self.int_min_4_5 = int_min_4_5
+        self.int_min_8_9 = int_min_8_9
+        self.int_max = int_max
+        self.mod_min = mod_min
+        self.mod_max = mod_max
 
     def divider_code(self, rf_divider: int) -> int:
         """Map an RF output divider to its 3-bit R4 code.

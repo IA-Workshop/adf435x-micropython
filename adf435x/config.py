@@ -3,21 +3,25 @@ from . import consts
 class ADF435xConfig:
     """Device configuration, with one attribute per register field.
 
-    Defaults are valid and encodable so a freshly constructed file always has
-    six well-formed words. The frequency-determining fields (``int_n``,
-    ``frac``, ``mod``, ``prescaler``, ``rf_divider``, ``band_clk_div``,
-    ``r_counter``) carry placeholder defaults and are expected to be set from a
-    solved frequency plan.
+    Defaults are PLL-valid placeholders so a freshly constructed register file
+    always encodes six well-formed words. They are not a tuned frequency plan;
+    the solver (future) sets ``int_n``, ``frac``, ``mod``, ``prescaler``,
+    ``rf_divider``, and ``band_clk_div`` for a target output.
+
+    Note: ``frac=0`` selects integer-N mode on the device; int-N register
+    optimizations (LDF, ABP, R5 bits) are left to the solver, not applied here.
     """
 
     # R0
-    int_n = 0
+    int_n = 75
     frac = 0
+
     # R1
     mod = 2
     prescaler = consts.REG1_PRESCALER_8_9
     phase = 1
     phase_adjust = False
+
     # R2
     r_counter = 1
     cp_current_code = 7
@@ -32,6 +36,7 @@ class ADF435xConfig:
     power_down = False
     cp_threestate = False
     counter_reset = False
+
     # R3
     band_clk_mode = consts.REG3_BAND_CLK_LOW
     abp = consts.REG3_ABP_6NS
@@ -39,6 +44,7 @@ class ADF435xConfig:
     csr = False
     clockdiv_mode = consts.REG3_CLOCKDIV_OFF
     clockdiv_value = 0
+
     # R4
     rf_divider = 1
     band_clk_div = 1
@@ -50,5 +56,6 @@ class ADF435xConfig:
     aux_select = consts.REG4_AUX_DIVIDED
     aux_enable = False
     aux_power = consts.REG4_POWER_MINUS_4DBM
+
     # R5
     lock_pin = consts.REG5_LOCK_DIGITAL

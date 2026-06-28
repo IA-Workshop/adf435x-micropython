@@ -93,6 +93,7 @@ class ADF435xRegisterFile:
         """Encode the configuration into the six current words."""
         c = self._config
         m = self._mapper
+        m.check_pll(c.int_n, c.frac, c.mod, c.prescaler)
         self._update_current([
             m.register_0(c.int_n, c.frac),
             m.register_1(c.mod, c.prescaler, c.phase, c.phase_adjust),
