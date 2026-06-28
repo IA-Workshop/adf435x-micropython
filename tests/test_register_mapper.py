@@ -5,15 +5,7 @@ from adf435x.config import ADF435xConfig
 from adf435x.profiles import ADF4350, ADF4351
 from adf435x.register_mapper import ADF435xRegisterMapper
 
-WORKED = [0x00D30068, 0x080080C9, 0x18004E42, 0x00800003, 0x0091403C, 0x00580005]
-
-
-@pytest.fixture
-def mapper():
-    return ADF435xRegisterMapper(ADF4351)
-
-
-# --- bit-for-bit against the datasheet worked example (2112.6 MHz) ----------
+from conftest import WORKED_WORDS
 
 
 class TestWorkedExample:
@@ -45,16 +37,13 @@ class TestEncodeConfig:
         c.band_clk_mode = consts.REG3_BAND_CLK_HIGH
         c.rf_divider = 2
         c.band_clk_div = 20
-        assert mapper.encode_config(c) == WORKED
+        assert mapper.encode_config(c) == WORKED_WORDS
 
     def test_encode_register_matches_encode_config(self, mapper):
         c = ADF435xConfig()
         words = mapper.encode_config(c)
         for index in range(consts.NUM_REGISTERS):
             assert mapper.encode_register(index, c) == words[index]
-
-
-# --- control bits and reserved ones ----------------------------------------
 
 
 class TestStructure:
@@ -74,9 +63,6 @@ class TestStructure:
 
     def test_reg5_reserved_ones(self, mapper):
         assert mapper.register_5() & 0x180000 == 0x180000
-
-
-# --- profile-dependent encoding --------------------------------------------
 
 
 class TestDividerCode:
@@ -113,19 +99,17 @@ class TestCapabilityGating:
             m.register_3(charge_cancel=True)
 
     def test_4350_forces_abp_reserved_zero(self):
-        # ABP (DB22) is reserved on the 4350; the bit must encode 0 even if a
-        # 3 ns pulse is requested.
         m = ADF435xRegisterMapper(ADF4350)
         word = m.register_3(abp=consts.REG3_ABP_3NS)
         assert (word >> consts.REG3_ABP_POS) & 1 == 0
 
 
-# --- validation -------------------------------------------------------------
-
-
-class TestValidation:
+class TestTrustedEncode:
     def test_int_out_of_range_is_masked(self, mapper):
         assert mapper.register_0(1 << 16, 0) == mapper.register_0(0, 0)
 
     def test_frac_out_of_range_is_masked(self, mapper):
         assert mapper.register_0(0, 1 << 12) == mapper.register_0(0, 0)
+
+    def test_worked_example_unchanged(self, mapper):
+        assert mapper.register_0(422, 13) == WORKED_WORDS[0]

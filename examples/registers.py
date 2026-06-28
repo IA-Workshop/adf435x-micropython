@@ -43,9 +43,7 @@ EXPECTED_RFOUT_HZ = 131_912_500
 
 
 def write_plan(device, regfile, plan):
-    """
-    Write a register fileplan to the chip and update register-file cache on success.
-    """
+    """Write a commit plan to the chip and update the register-file cache."""
     try:
         for word in plan:
             device.write_register(word)
@@ -92,7 +90,7 @@ print(regfile.dump())
 print("Powering on (CE high)")
 adf.chip_enable()
 
-print("Initial programming (R5 → R0)")
+print("Initial programming (R5..R0)")
 plan = regfile.commit_all_plan()
 write_plan(adf, regfile, plan)
 print("Wrote %d register words" % len(plan))

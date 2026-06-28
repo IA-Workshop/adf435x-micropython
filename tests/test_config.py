@@ -15,26 +15,11 @@ from adf435x.config import (
 from adf435x.profiles import ADF4350, ADF4351
 from adf435x.register_file import ADF435xRegisterFile
 
-# Worked-example register words (2112.6 MHz, ADF4351).
-WORKED = [0x00D30068, 0x080080C9, 0x18004E42, 0x00800003, 0x0091403C, 0x00580005]
+from conftest import WORKED_WORDS
 
 
 def _plan_indices(plan: list) -> list:
     return [word & 0b111 for word in plan]
-
-
-@pytest.fixture
-def worked():
-    f = ADF435xRegisterFile(ADF4351)
-    f.configure(
-        int_n=422,
-        frac=13,
-        mod=25,
-        band_clk_mode=consts.REG3_BAND_CLK_HIGH,
-        rf_divider=2,
-        band_clk_div=20,
-    )
-    return f
 
 
 class TestFieldSchema:
@@ -51,8 +36,8 @@ class TestFieldSchema:
 
 
 class TestEncoding:
-    def test_worked_example_words(self, worked):
-        assert worked.current_words() == WORKED
+    def test_worked_regfile_example_words(self, worked_regfile):
+        assert worked_regfile.current_words() == WORKED_WORDS
 
     @pytest.mark.parametrize("profile", [ADF4350, ADF4351], ids=lambda p: p.name)
     def test_default_config_encodes(self, profile):
@@ -94,18 +79,18 @@ class TestInstanceIsolation:
 
 
 class TestConfigure:
-    def test_rejects_unknown_field(self, worked):
+    def test_rejects_unknown_field(self, worked_regfile):
         with pytest.raises(AttributeError):
-            worked.configure(no_such_field=1)
+            worked_regfile.configure(no_such_field=1)
 
     def test_init_rejects_unknown_field(self):
         with pytest.raises(AttributeError):
             ADF435xConfig(no_such_field=1)
 
-    def test_copy_is_independent(self, worked):
-        clone = worked.config.copy()
+    def test_copy_is_independent(self, worked_regfile):
+        clone = worked_regfile.config.copy()
         clone.frac = 14
-        assert worked.config.frac == 13
+        assert worked_regfile.config.frac == 13
         assert clone.frac == 14
 
     def test_two_register_files_do_not_share_config(self):
@@ -141,79 +126,79 @@ class TestConfigure:
 
 
 class TestRetune:
-    def test_frac_writes_only_r0(self, worked):
-        worked.commit()
-        worked.configure(frac=14)
-        assert _plan_indices(worked.commit()) == [0]
+    def test_frac_writes_only_r0(self, worked_regfile):
+        worked_regfile.commit()
+        worked_regfile.configure(frac=14)
+        assert _plan_indices(worked_regfile.commit()) == [0]
 
-    def test_mod_forces_r0(self, worked):
-        worked.commit()
-        worked.configure(mod=50)
-        assert _plan_indices(worked.commit()) == [1, 0]
+    def test_mod_forces_r0(self, worked_regfile):
+        worked_regfile.commit()
+        worked_regfile.configure(mod=50)
+        assert _plan_indices(worked_regfile.commit()) == [1, 0]
 
-    def test_divider_writes_r4_and_r0(self, worked):
-        worked.commit()
-        worked.configure(rf_divider=4, int_n=211)
-        assert _plan_indices(worked.commit()) == [4, 0]
+    def test_divider_writes_r4_and_r0(self, worked_regfile):
+        worked_regfile.commit()
+        worked_regfile.configure(rf_divider=4, int_n=211)
+        assert _plan_indices(worked_regfile.commit()) == [4, 0]
 
-    def test_power_writes_only_r4(self, worked):
-        worked.commit()
-        worked.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
-        assert _plan_indices(worked.commit()) == [4]
+    def test_power_writes_only_r4(self, worked_regfile):
+        worked_regfile.commit()
+        worked_regfile.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
+        assert _plan_indices(worked_regfile.commit()) == [4]
 
 
 class TestSelectiveReencode:
-    def test_frac_only_changes_r0_word(self, worked):
-        worked.commit()
-        before = worked.current_words()
-        worked.configure(frac=14)
-        after = worked.current_words()
+    def test_frac_only_changes_r0_word(self, worked_regfile):
+        worked_regfile.commit()
+        before = worked_regfile.current_words()
+        worked_regfile.configure(frac=14)
+        after = worked_regfile.current_words()
         assert after[0] != before[0]
         assert after[1:] == before[1:]
 
-    def test_phase_only_changes_r1_word(self, worked):
+    def test_phase_only_changes_r1_word(self, worked_regfile):
         # phase is an R1 field that shares no encoding with the PLL-paired R0,
         # so changing it must leave every other word byte-identical.
-        worked.commit()
-        before = worked.current_words()
-        worked.configure(phase=2)
-        after = worked.current_words()
+        worked_regfile.commit()
+        before = worked_regfile.current_words()
+        worked_regfile.configure(phase=2)
+        after = worked_regfile.current_words()
         assert after[1] != before[1]
         assert after[0] == before[0]
         assert after[2:] == before[2:]
 
-    def test_muxout_only_changes_r2_word(self, worked):
-        worked.commit()
-        before = worked.current_words()
-        worked.configure(muxout=consts.REG2_MUX_DVDD)
-        after = worked.current_words()
+    def test_muxout_only_changes_r2_word(self, worked_regfile):
+        worked_regfile.commit()
+        before = worked_regfile.current_words()
+        worked_regfile.configure(muxout=consts.REG2_MUX_DVDD)
+        after = worked_regfile.current_words()
         assert after[2] != before[2]
         assert after[0:2] == before[0:2]
         assert after[3:] == before[3:]
 
-    def test_clockdiv_only_changes_r3_word(self, worked):
-        worked.commit()
-        before = worked.current_words()
-        worked.configure(clockdiv_value=100)
-        after = worked.current_words()
+    def test_clockdiv_only_changes_r3_word(self, worked_regfile):
+        worked_regfile.commit()
+        before = worked_regfile.current_words()
+        worked_regfile.configure(clockdiv_value=100)
+        after = worked_regfile.current_words()
         assert after[3] != before[3]
         assert after[0:3] == before[0:3]
         assert after[4:] == before[4:]
 
-    def test_output_power_only_changes_r4_word(self, worked):
-        worked.commit()
-        before = worked.current_words()
-        worked.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
-        after = worked.current_words()
+    def test_output_power_only_changes_r4_word(self, worked_regfile):
+        worked_regfile.commit()
+        before = worked_regfile.current_words()
+        worked_regfile.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
+        after = worked_regfile.current_words()
         assert after[4] != before[4]
         assert after[0:4] == before[0:4]
         assert after[5] == before[5]
 
-    def test_lock_pin_only_changes_r5_word(self, worked):
-        worked.commit()
-        before = worked.current_words()
-        worked.configure(lock_pin=consts.REG5_LOCK_LOW)
-        after = worked.current_words()
+    def test_lock_pin_only_changes_r5_word(self, worked_regfile):
+        worked_regfile.commit()
+        before = worked_regfile.current_words()
+        worked_regfile.configure(lock_pin=consts.REG5_LOCK_LOW)
+        after = worked_regfile.current_words()
         assert after[5] != before[5]
         assert after[0:5] == before[0:5]
 
@@ -223,56 +208,56 @@ class TestSelectivePllCheck:
     whenever R0 or R1 is touched, and must run only once for the R0/R1 pair.
     """
 
-    def test_configure_frac_ge_mod_rejected(self, worked):
+    def test_configure_frac_ge_mod_rejected(self, worked_regfile):
         # frac (R0) vs mod (R1): the relation is validated even though only R0
         # is in the dirty set.
-        worked.commit()
+        worked_regfile.commit()
         with pytest.raises(ValueError, match="must be less than MOD"):
-            worked.configure(frac=worked.config.mod)
+            worked_regfile.configure(frac=worked_regfile.config.mod)
 
-    def test_configure_mod_below_frac_rejected(self, worked):
+    def test_configure_mod_below_frac_rejected(self, worked_regfile):
         # mod (R1) vs frac (R0): validated when only R1 is dirty.
-        worked.commit()
+        worked_regfile.commit()
         with pytest.raises(ValueError, match="must be less than MOD"):
-            worked.configure(mod=worked.config.frac)
+            worked_regfile.configure(mod=worked_regfile.config.frac)
 
-    def test_configure_non_pll_field_skips_check(self, worked, monkeypatch):
+    def test_configure_non_pll_field_skips_check(self, worked_regfile, monkeypatch):
         # Touching only R2..R5 must not invoke the PLL check at all.
         calls = []
-        original = worked._mapper._check_pll
+        original = worked_regfile._mapper._check_pll
         monkeypatch.setattr(
-            worked._mapper,
+            worked_regfile._mapper,
             "_check_pll",
             lambda *a, **k: calls.append(a) or original(*a, **k),
         )
-        worked.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
+        worked_regfile.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
         assert calls == []
 
-    def test_configure_r0_and_r1_checks_pll_once(self, worked, monkeypatch):
+    def test_configure_r0_and_r1_checks_pll_once(self, worked_regfile, monkeypatch):
         # Changing R0 and R1 together must validate the pair a single time, not
         # once per register.
         calls = []
-        original = worked._mapper._check_pll
+        original = worked_regfile._mapper._check_pll
         monkeypatch.setattr(
-            worked._mapper,
+            worked_regfile._mapper,
             "_check_pll",
             lambda *a, **k: calls.append(a) or original(*a, **k),
         )
-        worked.configure(int_n=211, mod=50)
+        worked_regfile.configure(int_n=211, mod=50)
         assert len(calls) == 1
 
 
 class TestDump:
-    def test_clean_after_commit(self, worked):
-        worked.commit()
-        snap = worked.dump()
+    def test_clean_after_commit(self, worked_regfile):
+        worked_regfile.commit()
+        snap = worked_regfile.dump()
         assert snap["is_stale"] is False
         assert snap["commit_count"] == 1
         assert len(snap["registers"]) == 6
 
-    def test_reports_stale_register_after_change(self, worked):
-        worked.commit()
-        worked.configure(frac=14)
-        snap = worked.dump()
+    def test_reports_stale_register_after_change(self, worked_regfile):
+        worked_regfile.commit()
+        worked_regfile.configure(frac=14)
+        snap = worked_regfile.dump()
         assert snap["is_stale"] is True
         assert snap["registers"][0]["stale"] is True

@@ -10,6 +10,17 @@ Thonny, rshell, or your IDE’s upload tool). Copy scripts from `examples/` as
 needed and adjust pin assignments for your board. Host files (`tests/`,
 `pyproject.toml`) are not required on the device.
 
+## Testing
+
+Run the host test suite with pytest (no hardware required):
+
+```bash
+pytest
+```
+
+Tests under `tests/` mock `machine` for device-handler checks. Hardware-in-the-loop
+tests are marked `@pytest.mark.device` and run only with `pytest --device`.
+
 ## See Also
 
 ### ADF4350

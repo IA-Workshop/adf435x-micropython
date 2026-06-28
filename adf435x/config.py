@@ -6,7 +6,7 @@ from . import consts
 # Not a tuned frequency plan; the solver sets frequency-determining fields.
 
 # R0: INT at the 8/9-prescaler minimum (datasheet NMIN = 75). Matches the
-# default prescaler so check_pll passes without encoding a specific frequency.
+# default prescaler so validate_config passes without a tuned frequency plan.
 _DEFAULT_INT_N = 75
 
 # R0: zero fractional numerator; encodable integer-N placeholder. Int-N
@@ -33,7 +33,7 @@ _DEFAULT_CLOCKDIV_VALUE = 0
 # R4: RF output divide-by-1 (unity); VCO frequency at the output path.
 _DEFAULT_RF_DIVIDER = 1
 
-# R4: minimum band-select clock divider (DB19:DB12).
+# R4: band-select clock divider (DB19:DB12). Legal range is 1..255; 0 is invalid.
 _DEFAULT_BAND_CLK_DIV = 1
 
 # Single schema: field name -> (register index, default value).

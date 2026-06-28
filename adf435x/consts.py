@@ -177,7 +177,7 @@ REG4_POWER_PLUS_5DBM = const(0b11)
 REG4_AUX_DIVIDED = const(0)
 REG4_AUX_FUNDAMENTAL = const(1)
 
-# R5 lock-detect pin operation (D15:D14)
+# R5 lock-detect pin operation (DB23:DB22)
 REG5_LOCK_LOW = const(0b00)
 REG5_LOCK_DIGITAL = const(0b01)
 REG5_LOCK_HIGH = const(0b11)

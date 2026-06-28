@@ -1,6 +1,6 @@
 """
 ADF435x device handler example. This example shows how to configure a device
-handler, perform a register transacion, and read the value of the MUXOUT pin.
+handler, perform a register transaction, and read the value of the MUXOUT pin.
 
 Modify the pin values to correspond to your specific setup.
 """

@@ -94,6 +94,9 @@ class TestCustomProfile:
             prescaler_4_5_max_hz=4_000_000_000,
         )
 
+    def test_repr(self):
+        assert repr(ADF4351) == "ADF435xDeviceProfile(ADF4351)"
+
     def test_divider_code_within_range(self, profile):
         assert profile.divider_code(8) == 3
 

@@ -24,7 +24,6 @@ from .config import (
 from .profiles import ADF435xDeviceProfile
 
 _PLL_FIELDS = frozenset(("int_n", "frac", "mod", "prescaler"))
-
 # Error-message labels where they differ from the config field name.
 _FIELD_LABELS = {
     "int_n": "INT",
@@ -39,13 +38,9 @@ _FIELD_LABELS = {
     "output_power": "output power",
     "aux_power": "aux power",
 }
-
 _PROFILE_BOOL_GATES = {
     "phase_adjust": ("has_phase_adjust", "does not support phase adjust"),
-    "charge_cancel": (
-        "has_charge_cancel",
-        "does not support charge cancellation",
-    ),
+    "charge_cancel": ("has_charge_cancel", "does not support charge cancellation"),
 }
 
 
@@ -63,16 +58,23 @@ class ADF435xRegisterMapper:
     def __init__(self, profile: ADF435xDeviceProfile):
         self._profile = profile
 
+    @property
+    def profile(self) -> ADF435xDeviceProfile:
+        """The device profile this mapper encodes for."""
+        return self._profile
+
+    def _pack(self, value: int, pos: int, width: int) -> int:
+        """Mask *value* to *width* bits and shift to bit position *pos*."""
+        return (value & ((1 << width) - 1)) << pos
+
+    def _bit(self, flag: bool, pos: int) -> int:
+        """Encode a single control bit."""
+        return int(flag) << pos
+
     def _check_width(self, value: int, bits: int, label: str) -> None:
         """Raise ValueError if *value* is outside an unsigned *bits*-wide field."""
-        if value < 0 or value >= (1 << bits):
-            raise ValueError(
-                "%s=%d does not fit in %d bits" % (label, value, bits)
-            )
-
-    def _mask(self, value: int, width: int) -> int:
-        """Return *value* truncated to an unsigned *width*-bit field."""
-        return value & ((1 << width) - 1)
+        if value < 0 or value >= 1 << bits:
+            raise ValueError("%s=%d does not fit in %d bits" % (label, value, bits))
 
     def _check_pll(self, int_n: int, frac: int, mod: int, prescaler: int) -> None:
         """Validate cross-field PLL constraints (INT/FRAC/MOD/prescaler)."""
@@ -86,13 +88,9 @@ class ADF435xRegisterMapper:
         else:
             raise ValueError("prescaler=%d invalid" % prescaler)
         if int_n < int_min:
-            raise ValueError(
-                "INT=%d below minimum %d for prescaler" % (int_n, int_min)
-            )
+            raise ValueError("INT=%d below minimum %d for prescaler" % (int_n, int_min))
         if int_n > profile.int_max:
-            raise ValueError(
-                "INT=%d above maximum %d" % (int_n, profile.int_max)
-            )
+            raise ValueError("INT=%d above maximum %d" % (int_n, profile.int_max))
 
     def _validate_one_field(self, config: ADF435xConfig, name: str) -> None:
         """Validate a single configuration field on *config*.
@@ -113,41 +111,31 @@ class ADF435xRegisterMapper:
         value = getattr(config, name)
         profile = self._profile
         label = _FIELD_LABELS.get(name, name)
-
         if name in FIELD_WIDTH:
             self._check_width(value, FIELD_WIDTH[name], label)
-
         if name == "mod":
             if value < profile.mod_min:
-                raise ValueError(
-                    "MOD=%d below minimum %d" % (value, profile.mod_min)
-                )
+                raise ValueError("MOD=%d below minimum %d" % (value, profile.mod_min))
             if value > profile.mod_max:
-                raise ValueError(
-                    "MOD=%d above maximum %d" % (value, profile.mod_max)
-                )
+                raise ValueError("MOD=%d above maximum %d" % (value, profile.mod_max))
         elif name in FIELD_RANGE_MIN:
             lo = FIELD_RANGE_MIN[name]
             if value < lo:
-                raise ValueError(
-                    "%s=%d below minimum %d" % (label, value, lo)
-                )
+                raise ValueError("%s=%d below minimum %d" % (label, value, lo))
         elif name in FIELD_ENUM_VALUES:
             if value not in FIELD_ENUM_VALUES[name]:
                 raise ValueError("%s=%d invalid" % (label, value))
             if (
                 name == "band_clk_mode"
                 and value == consts.REG3_BAND_CLK_HIGH
-                and not profile.has_fast_band_select
+                and (not profile.has_fast_band_select)
             ):
-                raise ValueError(
-                    "%s does not support fast band select" % profile.name
-                )
+                raise ValueError("%s does not support fast band select" % profile.name)
         elif name == "rf_divider":
             profile.divider_code(value)
         elif name in _PROFILE_BOOL_GATES:
             attr, msg = _PROFILE_BOOL_GATES[name]
-            if value and not getattr(profile, attr):
+            if value and (not getattr(profile, attr)):
                 raise ValueError("%s %s" % (profile.name, msg))
 
     def validate_config(
@@ -177,19 +165,10 @@ class ADF435xRegisterMapper:
         else:
             names = only
             check_pll = bool(only & _PLL_FIELDS)
-
         for name in names:
             self._validate_one_field(config, name)
-
         if check_pll:
-            self._check_pll(
-                config.int_n, config.frac, config.mod, config.prescaler
-            )
-
-    @property
-    def profile(self) -> ADF435xDeviceProfile:
-        """The device profile this mapper encodes for."""
-        return self._profile
+            self._check_pll(config.int_n, config.frac, config.mod, config.prescaler)
 
     def register_0(self, int_n: int, frac: int) -> int:
         """Encode register 0 (R0) from the INT and FRAC divider values.
@@ -212,11 +191,11 @@ class ADF435xRegisterMapper:
         -----
         See datasheet Figure 24 (Register 0).
         """
-        word = 0
-        word |= self._mask(int_n, consts.REG0_INT_WIDTH) << consts.REG0_INT_POS
-        word |= self._mask(frac, consts.REG0_FRAC_WIDTH) << consts.REG0_FRAC_POS
-        word |= consts.REG0_ADDR
-        return word
+        return (
+            self._pack(int_n, consts.REG0_INT_POS, consts.REG0_INT_WIDTH)
+            | self._pack(frac, consts.REG0_FRAC_POS, consts.REG0_FRAC_WIDTH)
+            | consts.REG0_ADDR
+        )
 
     def register_1(
         self, mod: int, prescaler: int, phase: int = 1, phase_adjust: bool = False
@@ -256,17 +235,15 @@ class ADF435xRegisterMapper:
         -----
         See datasheet Figure 25 (Register 1).
         """
-        if phase_adjust and not self._profile.has_phase_adjust:
-            raise ValueError(f"{self._profile.name} does not support phase adjust")
-        word = 0
-        word |= int(phase_adjust) << consts.REG1_PHASE_ADJUST_POS
-        word |= (
-            self._mask(prescaler, 1) << consts.REG1_PRESCALER_POS
+        if phase_adjust and (not self._profile.has_phase_adjust):
+            raise ValueError("%s does not support phase adjust" % self._profile.name)
+        return (
+            self._bit(phase_adjust, consts.REG1_PHASE_ADJUST_POS)
+            | self._pack(prescaler, consts.REG1_PRESCALER_POS, 1)
+            | self._pack(phase, consts.REG1_PHASE_POS, consts.REG1_PHASE_WIDTH)
+            | self._pack(mod, consts.REG1_MOD_POS, consts.REG1_MOD_WIDTH)
+            | consts.REG1_ADDR
         )
-        word |= self._mask(phase, consts.REG1_PHASE_WIDTH) << consts.REG1_PHASE_POS
-        word |= self._mask(mod, consts.REG1_MOD_WIDTH) << consts.REG1_MOD_POS
-        word |= consts.REG1_ADDR
-        return word
 
     def register_2(
         self,
@@ -333,34 +310,25 @@ class ADF435xRegisterMapper:
         -----
         See datasheet Figure 26 (Register 2).
         """
-        word = 0
-        word |= (
-            self._mask(noise_mode, consts.REG2_NOISE_MODE_WIDTH)
-            << consts.REG2_NOISE_MODE_POS
+        c = consts
+        return (
+            self._pack(noise_mode, c.REG2_NOISE_MODE_POS, c.REG2_NOISE_MODE_WIDTH)
+            | self._pack(muxout, c.REG2_MUXOUT_POS, c.REG2_MUXOUT_WIDTH)
+            | self._bit(doubler, c.REG2_DOUBLER_POS)
+            | self._bit(rdiv2, c.REG2_RDIV2_POS)
+            | self._pack(r_counter, c.REG2_R_COUNTER_POS, c.REG2_R_COUNTER_WIDTH)
+            | self._bit(double_buffer, c.REG2_DOUBLE_BUFFER_POS)
+            | self._pack(
+                cp_current_code, c.REG2_CP_CURRENT_POS, c.REG2_CP_CURRENT_WIDTH
+            )
+            | self._pack(ldf, c.REG2_LDF_POS, 1)
+            | self._pack(ldp, c.REG2_LDP_POS, 1)
+            | self._pack(pd_polarity, c.REG2_PD_POLARITY_POS, 1)
+            | self._bit(power_down, c.REG2_POWER_DOWN_POS)
+            | self._bit(cp_threestate, c.REG2_CP_THREESTATE_POS)
+            | self._bit(counter_reset, c.REG2_COUNTER_RESET_POS)
+            | c.REG2_ADDR
         )
-        word |= (
-            self._mask(muxout, consts.REG2_MUXOUT_WIDTH)
-            << consts.REG2_MUXOUT_POS
-        )
-        word |= int(doubler) << consts.REG2_DOUBLER_POS
-        word |= int(rdiv2) << consts.REG2_RDIV2_POS
-        word |= (
-            self._mask(r_counter, consts.REG2_R_COUNTER_WIDTH)
-            << consts.REG2_R_COUNTER_POS
-        )
-        word |= int(double_buffer) << consts.REG2_DOUBLE_BUFFER_POS
-        word |= (
-            self._mask(cp_current_code, consts.REG2_CP_CURRENT_WIDTH)
-            << consts.REG2_CP_CURRENT_POS
-        )
-        word |= self._mask(ldf, 1) << consts.REG2_LDF_POS
-        word |= self._mask(ldp, 1) << consts.REG2_LDP_POS
-        word |= self._mask(pd_polarity, 1) << consts.REG2_PD_POLARITY_POS
-        word |= int(power_down) << consts.REG2_POWER_DOWN_POS
-        word |= int(cp_threestate) << consts.REG2_CP_THREESTATE_POS
-        word |= int(counter_reset) << consts.REG2_COUNTER_RESET_POS
-        word |= consts.REG2_ADDR
-        return word
 
     def register_3(
         self,
@@ -415,31 +383,31 @@ class ADF435xRegisterMapper:
         it; elsewhere DB22 is reserved and the part uses a fixed 3 ns pulse, so
         the bit is forced to 0. See datasheet Figure 27 (Register 3).
         """
-        if (
-            band_clk_mode == consts.REG3_BAND_CLK_HIGH
-            and not self._profile.has_fast_band_select
+        if band_clk_mode == consts.REG3_BAND_CLK_HIGH and (
+            not self._profile.has_fast_band_select
         ):
-            raise ValueError(f"{self._profile.name} does not support fast band select")
-        if charge_cancel and not self._profile.has_charge_cancel:
             raise ValueError(
-                f"{self._profile.name} does not support charge cancellation"
+                "%s does not support fast band select" % self._profile.name
+            )
+        if charge_cancel and (not self._profile.has_charge_cancel):
+            raise ValueError(
+                "%s does not support charge cancellation" % self._profile.name
             )
         abp_bit = abp if self._profile.has_programmable_abp else 0
-        word = 0
-        word |= self._mask(band_clk_mode, 1) << consts.REG3_BAND_CLK_MODE_POS
-        word |= abp_bit << consts.REG3_ABP_POS
-        word |= int(charge_cancel) << consts.REG3_CHARGE_CANCEL_POS
-        word |= int(csr) << consts.REG3_CSR_POS
-        word |= (
-            self._mask(clockdiv_mode, consts.REG3_CLOCKDIV_MODE_WIDTH)
-            << consts.REG3_CLOCKDIV_MODE_POS
+        c = consts
+        return (
+            self._pack(band_clk_mode, c.REG3_BAND_CLK_MODE_POS, 1)
+            | self._pack(abp_bit, c.REG3_ABP_POS, 1)
+            | self._bit(charge_cancel, c.REG3_CHARGE_CANCEL_POS)
+            | self._bit(csr, c.REG3_CSR_POS)
+            | self._pack(
+                clockdiv_mode, c.REG3_CLOCKDIV_MODE_POS, c.REG3_CLOCKDIV_MODE_WIDTH
+            )
+            | self._pack(
+                clockdiv_value, c.REG3_CLOCKDIV_VALUE_POS, c.REG3_CLOCKDIV_VALUE_WIDTH
+            )
+            | c.REG3_ADDR
         )
-        word |= (
-            self._mask(clockdiv_value, consts.REG3_CLOCKDIV_VALUE_WIDTH)
-            << consts.REG3_CLOCKDIV_VALUE_POS
-        )
-        word |= consts.REG3_ADDR
-        return word
 
     def register_4(
         self,
@@ -502,29 +470,28 @@ class ADF435xRegisterMapper:
         -----
         See datasheet Figure 28 (Register 4).
         """
-        rf_divider_code = self._profile.divider_code(rf_divider)
-        word = 0
-        word |= self._mask(feedback, 1) << consts.REG4_FEEDBACK_POS
-        word |= rf_divider_code << consts.REG4_RF_DIVIDER_POS
-        word |= (
-            self._mask(band_clk_div, consts.REG4_BAND_CLK_DIV_WIDTH)
-            << consts.REG4_BAND_CLK_DIV_POS
+        c = consts
+        return (
+            self._pack(feedback, c.REG4_FEEDBACK_POS, 1)
+            | self._pack(
+                self._profile.divider_code(rf_divider),
+                c.REG4_RF_DIVIDER_POS,
+                c.REG4_RF_DIVIDER_WIDTH,
+            )
+            | self._pack(
+                band_clk_div, c.REG4_BAND_CLK_DIV_POS, c.REG4_BAND_CLK_DIV_WIDTH
+            )
+            | self._bit(vco_power_down, c.REG4_VCO_POWER_DOWN_POS)
+            | self._bit(mtld, c.REG4_MTLD_POS)
+            | self._pack(aux_select, c.REG4_AUX_SELECT_POS, 1)
+            | self._bit(aux_enable, c.REG4_AUX_ENABLE_POS)
+            | self._pack(aux_power, c.REG4_AUX_POWER_POS, c.REG4_AUX_POWER_WIDTH)
+            | self._bit(rf_enable, c.REG4_RF_ENABLE_POS)
+            | self._pack(
+                output_power, c.REG4_OUTPUT_POWER_POS, c.REG4_OUTPUT_POWER_WIDTH
+            )
+            | c.REG4_ADDR
         )
-        word |= int(vco_power_down) << consts.REG4_VCO_POWER_DOWN_POS
-        word |= int(mtld) << consts.REG4_MTLD_POS
-        word |= self._mask(aux_select, 1) << consts.REG4_AUX_SELECT_POS
-        word |= int(aux_enable) << consts.REG4_AUX_ENABLE_POS
-        word |= (
-            self._mask(aux_power, consts.REG4_AUX_POWER_WIDTH)
-            << consts.REG4_AUX_POWER_POS
-        )
-        word |= int(rf_enable) << consts.REG4_RF_ENABLE_POS
-        word |= (
-            self._mask(output_power, consts.REG4_OUTPUT_POWER_WIDTH)
-            << consts.REG4_OUTPUT_POWER_POS
-        )
-        word |= consts.REG4_ADDR
-        return word
 
     def register_5(self, lock_pin: int = consts.REG5_LOCK_DIGITAL) -> int:
         """Encode register 5 (R5): the lock-detect pin mode.
@@ -545,14 +512,11 @@ class ADF435xRegisterMapper:
         -----
         See datasheet Figure 29 (Register 5).
         """
-        word = 0
-        word |= (
-            self._mask(lock_pin, consts.REG5_LOCK_PIN_WIDTH)
-            << consts.REG5_LOCK_PIN_POS
+        return (
+            self._pack(lock_pin, consts.REG5_LOCK_PIN_POS, consts.REG5_LOCK_PIN_WIDTH)
+            | consts.REG5_RESERVED_ONES
+            | consts.REG5_ADDR
         )
-        word |= consts.REG5_RESERVED_ONES
-        word |= consts.REG5_ADDR
-        return word
 
     def encode_register(self, index: int, config: ADF435xConfig) -> int:
         """Encode one register word from *config*.
@@ -635,6 +599,4 @@ class ADF435xRegisterMapper:
         list of int
             Register words R0 through R5.
         """
-        return [
-            self.encode_register(i, config) for i in range(consts.NUM_REGISTERS)
-        ]
+        return [self.encode_register(i, config) for i in range(consts.NUM_REGISTERS)]
