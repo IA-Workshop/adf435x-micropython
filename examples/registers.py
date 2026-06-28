@@ -1,10 +1,10 @@
 """
-ADF435x register-file example (MicroPython on device).
+ADF435x register-file example in MicroPython.
 
 Builds the datasheet worked-example PLL settings (ADF4351 data sheet, p. 21)
 through ``ADF435xRegisterFile``, then programs the chip over SPI. RF output is
-scaled for bench verification on a mid-range scope (about 200 MHz bandwidth,
-1 GSa/s is enough to measure the period).
+scaled for bench verification on a mid-range oscilloscope. About 200 MHz
+bandwidth, 1 GSa/s is enough to measure the period.
 
 Hardware assumptions
 --------------------
@@ -14,14 +14,15 @@ Hardware assumptions
 - Probe RFOUTA (or your routed output). Expect about 132 MHz:
 
       fPFD = REFIN / R = 10 MHz
-      fVCO = fPFD × (INT + FRAC/MOD) = 10 × 422.52 = 4225.2 MHz
-      fOUT = fVCO / RF_divider = 4225.2 / 32 ≈ 131.9 MHz
+      fVCO = fPFD * (INT + FRAC/MOD) = 10 * 422.52 = 4225.2 MHz
+      fOUT = fVCO / RF_divider = 4225.2 / 32 ~= 131.9 MHz
 
   The data-sheet example uses RF divide-by-2 for 2112.6 MHz; divide-by-32
   keeps the same PLL numbers but brings the output into scope range.
 
-Modify pin numbers to match your board.
+Modify pin numbers to match your specific setup.
 """
+
 from machine import SPI
 
 from adf435x import consts
@@ -29,7 +30,7 @@ from adf435x.device import ADF435xDevice
 from adf435x.profiles import ADF4351
 from adf435x.register_file import ADF435xRegisterFile
 
-# --- Board wiring (change to match your setup) -------------------------------
+# Default pin values, modify as needed
 SPI_SCK_PIN = 10
 SPI_MOSI_PIN = 11
 ADF435X_LE_PIN = 13
@@ -42,7 +43,9 @@ EXPECTED_RFOUT_HZ = 131_912_500
 
 
 def write_plan(device, regfile, plan):
-    """Write *plan* to the chip and update register-file cache on success."""
+    """
+    Write a register fileplan to the chip and update register-file cache on success.
+    """
     try:
         for word in plan:
             device.write_register(word)
@@ -52,8 +55,10 @@ def write_plan(device, regfile, plan):
         raise
 
 
-print("Opening SPI channel %d (SCK=%d, MOSI=%d)" % (
-    SPI_CHANNEL, SPI_SCK_PIN, SPI_MOSI_PIN))
+print(
+    "Opening SPI channel %d (SCK=%d, MOSI=%d)"
+    % (SPI_CHANNEL, SPI_SCK_PIN, SPI_MOSI_PIN)
+)
 
 spi = SPI(
     SPI_CHANNEL,

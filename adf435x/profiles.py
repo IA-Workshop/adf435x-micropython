@@ -56,19 +56,21 @@ class ADF435xDeviceProfile:
         Maximum fractional modulus (4,095).
     """
 
-    def __init__(self,
-                 name: str,
-                 rf_divider_max: int,
-                 has_phase_adjust: bool,
-                 has_fast_band_select: bool,
-                 has_programmable_abp: bool,
-                 has_charge_cancel: bool,
-                 prescaler_4_5_max_hz: int,
-                 int_min_4_5: int = 23,
-                 int_min_8_9: int = 75,
-                 int_max: int = 65535,
-                 mod_min: int = 2,
-                 mod_max: int = 4095):
+    def __init__(
+        self,
+        name: str,
+        rf_divider_max: int,
+        has_phase_adjust: bool,
+        has_fast_band_select: bool,
+        has_programmable_abp: bool,
+        has_charge_cancel: bool,
+        prescaler_4_5_max_hz: int,
+        int_min_4_5: int = 23,
+        int_min_8_9: int = 75,
+        int_max: int = 65535,
+        mod_min: int = 2,
+        mod_max: int = 4095,
+    ):
         self.name = name
         self.rf_divider_max = rf_divider_max
         self.has_phase_adjust = has_phase_adjust
@@ -106,7 +108,8 @@ class ADF435xDeviceProfile:
         if not _is_power_of_two(rf_divider) or rf_divider > self.rf_divider_max:
             raise ValueError(
                 "%s: rf_divider=%d must be a power of two in [1, %d]"
-                % (self.name, rf_divider, self.rf_divider_max))
+                % (self.name, rf_divider, self.rf_divider_max)
+            )
         code = 0
         value = rf_divider
         while value > 1:

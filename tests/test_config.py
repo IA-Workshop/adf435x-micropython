@@ -1,6 +1,7 @@
 """Config integration for the register file: ADF435xConfig encodes through the
 mapper, configure() is transactional, and dump() reports state.
 """
+
 import pytest
 
 from adf435x import consts
@@ -25,9 +26,14 @@ def _plan_indices(plan: list) -> list:
 @pytest.fixture
 def worked():
     f = ADF435xRegisterFile(ADF4351)
-    f.configure(int_n=422, frac=13, mod=25,
-                band_clk_mode=consts.REG3_BAND_CLK_HIGH,
-                rf_divider=2, band_clk_div=20)
+    f.configure(
+        int_n=422,
+        frac=13,
+        mod=25,
+        band_clk_mode=consts.REG3_BAND_CLK_HIGH,
+        rf_divider=2,
+        band_clk_div=20,
+    )
     return f
 
 
@@ -48,8 +54,7 @@ class TestEncoding:
     def test_worked_example_words(self, worked):
         assert worked.current_words() == WORKED
 
-    @pytest.mark.parametrize("profile", [ADF4350, ADF4351],
-                             ids=lambda p: p.name)
+    @pytest.mark.parametrize("profile", [ADF4350, ADF4351], ids=lambda p: p.name)
     def test_default_config_encodes(self, profile):
         f = ADF435xRegisterFile(profile)
         assert len(f.current_words()) == 6
@@ -113,7 +118,7 @@ class TestConfigure:
     def test_rolls_back_field_on_failure(self):
         f = ADF435xRegisterFile(ADF4350)
         with pytest.raises(ValueError):
-            f.configure(rf_divider=32)        # exceeds the 4350's /16 maximum
+            f.configure(rf_divider=32)  # exceeds the 4350's /16 maximum
         assert f.config.rf_divider == 1
 
     def test_rolls_back_words_on_failure(self):
@@ -236,8 +241,10 @@ class TestSelectivePllCheck:
         calls = []
         original = worked._mapper.check_pll
         monkeypatch.setattr(
-            worked._mapper, "check_pll",
-            lambda *a, **k: calls.append(a) or original(*a, **k))
+            worked._mapper,
+            "check_pll",
+            lambda *a, **k: calls.append(a) or original(*a, **k),
+        )
         worked.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
         assert calls == []
 
@@ -247,8 +254,10 @@ class TestSelectivePllCheck:
         calls = []
         original = worked._mapper.check_pll
         monkeypatch.setattr(
-            worked._mapper, "check_pll",
-            lambda *a, **k: calls.append(a) or original(*a, **k))
+            worked._mapper,
+            "check_pll",
+            lambda *a, **k: calls.append(a) or original(*a, **k),
+        )
         worked.configure(int_n=211, mod=50)
         assert len(calls) == 1
 

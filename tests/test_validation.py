@@ -1,4 +1,5 @@
 """Host tests for PLL and per-register encode validation."""
+
 import pytest
 
 from adf435x import consts
@@ -6,8 +7,7 @@ from adf435x.profiles import ADF4351
 from adf435x.register_file import ADF435xRegisterFile
 from adf435x.register_mapper import ADF435xRegisterMapper
 
-WORKED = [0x00D30068, 0x080080C9, 0x18004E42, 0x00800003,
-          0x0091403C, 0x00580005]
+WORKED = [0x00D30068, 0x080080C9, 0x18004E42, 0x00800003, 0x0091403C, 0x00580005]
 
 
 @pytest.fixture
@@ -52,9 +52,14 @@ class TestRegisterFileValidation:
 
     def test_worked_example_still_encodes(self):
         f = ADF435xRegisterFile(ADF4351)
-        f.configure(int_n=422, frac=13, mod=25,
-                    band_clk_mode=consts.REG3_BAND_CLK_HIGH,
-                    rf_divider=2, band_clk_div=20)
+        f.configure(
+            int_n=422,
+            frac=13,
+            mod=25,
+            band_clk_mode=consts.REG3_BAND_CLK_HIGH,
+            rf_divider=2,
+            band_clk_div=20,
+        )
         assert f.current_words() == WORKED
 
     def test_default_config_is_pll_valid(self):

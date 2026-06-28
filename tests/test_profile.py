@@ -53,12 +53,15 @@ class TestPllLimits:
 
 
 class TestDividerCode:
-    @pytest.mark.parametrize("divider, code", [
-        (1, 0),
-        (2, 1),
-        (4, 2),
-        (64, 6),
-    ])
+    @pytest.mark.parametrize(
+        "divider, code",
+        [
+            (1, 0),
+            (2, 1),
+            (4, 2),
+            (64, 6),
+        ],
+    )
     def test_adf4351_mapping(self, divider, code):
         assert ADF4351.divider_code(divider) == code
 
@@ -82,9 +85,14 @@ class TestCustomProfile:
     @pytest.fixture
     def profile(self):
         return ADF435xDeviceProfile(
-            "X", rf_divider_max=8, has_phase_adjust=True,
-            has_fast_band_select=False, has_programmable_abp=True,
-            has_charge_cancel=False, prescaler_4_5_max_hz=4_000_000_000)
+            "X",
+            rf_divider_max=8,
+            has_phase_adjust=True,
+            has_fast_band_select=False,
+            has_programmable_abp=True,
+            has_charge_cancel=False,
+            prescaler_4_5_max_hz=4_000_000_000,
+        )
 
     def test_divider_code_within_range(self, profile):
         assert profile.divider_code(8) == 3

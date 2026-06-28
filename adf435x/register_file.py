@@ -131,7 +131,8 @@ class ADF435xRegisterFile:
         """
         if len(words) != self.NUM_REGISTERS:
             raise ValueError(
-                "expected %d words, got %d" % (self.NUM_REGISTERS, len(words)))
+                "expected %d words, got %d" % (self.NUM_REGISTERS, len(words))
+            )
         self._current = list(words)
 
     def current_words(self) -> list:
@@ -144,8 +145,11 @@ class ADF435xRegisterFile:
         """Register indices whose current word differs from the last written
         one, ascending.
         """
-        return [i for i in range(self.NUM_REGISTERS)
-                if self._current[i] != self._last_written[i]]
+        return [
+            i
+            for i in range(self.NUM_REGISTERS)
+            if self._current[i] != self._last_written[i]
+        ]
 
     def is_stale(self) -> bool:
         """True if any register needs writing."""
@@ -164,10 +168,12 @@ class ADF435xRegisterFile:
             "commit_count": self._commit_count,
             "is_stale": self.is_stale(),
             "registers": [
-                {"index": i,
-                 "current": self._current[i],
-                 "last_written": self._last_written[i],
-                 "stale": self._current[i] != self._last_written[i]}
+                {
+                    "index": i,
+                    "current": self._current[i],
+                    "last_written": self._last_written[i],
+                    "stale": self._current[i] != self._last_written[i],
+                }
                 for i in range(self.NUM_REGISTERS)
             ],
         }
@@ -237,8 +243,7 @@ class ADF435xRegisterFile:
         list of int
             Full power-up / recovery transaction.
         """
-        return [self._current[i]
-                for i in range(self.NUM_REGISTERS - 1, -1, -1)]
+        return [self._current[i] for i in range(self.NUM_REGISTERS - 1, -1, -1)]
 
     def mark_written(self) -> None:
         """Record that the planned words were successfully written to the device."""

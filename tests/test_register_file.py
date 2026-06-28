@@ -3,6 +3,7 @@
 These drive the engine with plain integer words via the ``_update_current``
 seam, so no profile, mapper, or device is needed for most cases.
 """
+
 import pytest
 
 from adf435x import consts
@@ -137,8 +138,7 @@ class TestDoubleBuffer:
         f.configure(double_buffer=True)
         f.commit()
         f.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
-        assert _plan_indices(f.commit()) == [
-            consts.REG4_ADDR, consts.REG0_ADDR]
+        assert _plan_indices(f.commit()) == [consts.REG4_ADDR, consts.REG0_ADDR]
 
     def test_non_divider_r4_field_alone_when_dbb_disabled(self):
         # Without DB13, the same non-divider R4 change writes R4 on its own.
@@ -154,8 +154,7 @@ class TestDoubleBuffer:
         f.configure(double_buffer=True)
         f.commit()
         f.configure(rf_divider=2)
-        assert _plan_indices(f.commit()) == [
-            consts.REG4_ADDR, consts.REG0_ADDR]
+        assert _plan_indices(f.commit()) == [consts.REG4_ADDR, consts.REG0_ADDR]
 
     def test_r4_and_mod_gives_fast_retune_order_with_dbb(self):
         f = ADF435xRegisterFile(ADF4351)
@@ -164,7 +163,10 @@ class TestDoubleBuffer:
         f.commit()
         f.configure(rf_divider=2, mod=50)
         assert _plan_indices(f.commit()) == [
-            consts.REG4_ADDR, consts.REG1_ADDR, consts.REG0_ADDR]
+            consts.REG4_ADDR,
+            consts.REG1_ADDR,
+            consts.REG0_ADDR,
+        ]
 
 
 class TestCommitPlan:
@@ -224,7 +226,7 @@ class TestOrdering:
 
 class TestCommitAll:
     def test_emits_all_six_regardless_of_staleness(self, rf):
-        rf.commit()                      # now nothing is stale
+        rf.commit()  # now nothing is stale
         plan = rf.commit_all()
         assert _plan_indices(plan) == [5, 4, 3, 2, 1, 0]
 

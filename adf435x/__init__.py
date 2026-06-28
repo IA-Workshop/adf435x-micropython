@@ -14,7 +14,15 @@ from .register_mapper import ADF435xRegisterMapper
 from .register_file import ADF435xRegisterFile
 
 __all__ = [
-    "consts", "config", "profiles", "register_mapper", "register_file",
-    "ADF435xConfig", "ADF435xDeviceProfile", "ADF4350", "ADF4351",
-    "ADF435xRegisterMapper", "ADF435xRegisterFile",
+    "consts",
+    "config",
+    "profiles",
+    "register_mapper",
+    "register_file",
+    "ADF435xConfig",
+    "ADF435xDeviceProfile",
+    "ADF4350",
+    "ADF4351",
+    "ADF435xRegisterMapper",
+    "ADF435xRegisterFile",
 ]

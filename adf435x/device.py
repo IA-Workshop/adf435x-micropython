@@ -1,5 +1,6 @@
 from machine import Pin, SPI
 
+
 class ADF435xDevice:
     """
     MicroPython device handler for the ADF435x family of frequency
@@ -17,11 +18,14 @@ class ADF435xDevice:
     muxout_pin : int or None
         GPIO number for the MUXOUT status line, or None if MUXOUT is not used.
     """
-    def __init__(self,
-                 spi: SPI,
-                 load_enable_pin: int,
-                 chip_enable_pin: int,
-                 muxout_pin:  int | None = None):
+
+    def __init__(
+        self,
+        spi: SPI,
+        load_enable_pin: int,
+        chip_enable_pin: int,
+        muxout_pin: int | None = None,
+    ):
         """
         Constructor for ADF435xDevice.
         """
@@ -33,7 +37,6 @@ class ADF435xDevice:
             self.muxout_pin = None
         else:
             self.muxout_pin = Pin(muxout_pin, Pin.IN)
-
 
     def chip_enable(self):
         """
@@ -55,8 +58,7 @@ class ADF435xDevice:
             raise RuntimeError("MUXOUT pin was not configured")
         return self.muxout_pin.value()
 
-
-    def write_register(self, word:int):
+    def write_register(self, word: int):
         """
         Write a 4-byte register value to the device. This is done by first
         writing the data to the device's input shift register over SPI, then
@@ -66,7 +68,7 @@ class ADF435xDevice:
         self.load_enable_pin.low()
 
         # 2. Write the data to the device input shift register over SPI
-        self.spi.write(word.to_bytes(4, 'big'))
+        self.spi.write(word.to_bytes(4, "big"))
 
         # 3. Toggle the LE pin to latch the register value on the device
         self.load_enable_pin.high()

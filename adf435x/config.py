@@ -1,4 +1,5 @@
 """ADF435x device configuration fields and register mapping."""
+
 from . import consts
 
 # --- Default field values (PLL-valid placeholders) ---------------------------
@@ -123,6 +124,4 @@ class ADF435xConfig:
 
     def copy(self) -> "ADF435xConfig":
         """Return an independent copy of this configuration."""
-        return ADF435xConfig(**{
-            name: getattr(self, name) for name in _DEFAULTS
-        })
+        return ADF435xConfig(**{name: getattr(self, name) for name in _DEFAULTS})

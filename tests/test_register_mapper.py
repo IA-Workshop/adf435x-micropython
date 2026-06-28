@@ -5,8 +5,7 @@ from adf435x.config import ADF435xConfig
 from adf435x.profiles import ADF4350, ADF4351
 from adf435x.register_mapper import ADF435xRegisterMapper
 
-WORKED = [0x00D30068, 0x080080C9, 0x18004E42, 0x00800003,
-          0x0091403C, 0x00580005]
+WORKED = [0x00D30068, 0x080080C9, 0x18004E42, 0x00800003, 0x0091403C, 0x00580005]
 
 
 @pytest.fixture
@@ -15,6 +14,7 @@ def mapper():
 
 
 # --- bit-for-bit against the datasheet worked example (2112.6 MHz) ----------
+
 
 class TestWorkedExample:
     def test_reg0(self, mapper):
@@ -56,15 +56,19 @@ class TestEncodeConfig:
 
 # --- control bits and reserved ones ----------------------------------------
 
+
 class TestStructure:
-    @pytest.mark.parametrize("index, word_fn", [
-        (0, lambda m: m.register_0(0, 0)),
-        (1, lambda m: m.register_1(2, 0)),
-        (2, lambda m: m.register_2(1, 0)),
-        (3, lambda m: m.register_3()),
-        (4, lambda m: m.register_4(1, 20)),
-        (5, lambda m: m.register_5()),
-    ])
+    @pytest.mark.parametrize(
+        "index, word_fn",
+        [
+            (0, lambda m: m.register_0(0, 0)),
+            (1, lambda m: m.register_1(2, 0)),
+            (2, lambda m: m.register_2(1, 0)),
+            (3, lambda m: m.register_3()),
+            (4, lambda m: m.register_4(1, 20)),
+            (5, lambda m: m.register_5()),
+        ],
+    )
     def test_control_bits(self, mapper, index, word_fn):
         assert word_fn(mapper) & 0b111 == index
 
@@ -73,6 +77,7 @@ class TestStructure:
 
 
 # --- profile-dependent encoding --------------------------------------------
+
 
 class TestDividerCode:
     def test_4351_divider_64(self):
@@ -93,8 +98,9 @@ class TestCapabilityGating:
 
     def test_4351_allows_phase_adjust(self):
         m = ADF435xRegisterMapper(ADF4351)
-        assert (m.register_1(2, 0, phase_adjust=True)
-                >> consts.REG1_PHASE_ADJUST_POS) & 1 == 1
+        assert (
+            m.register_1(2, 0, phase_adjust=True) >> consts.REG1_PHASE_ADJUST_POS
+        ) & 1 == 1
 
     def test_4350_rejects_fast_band_select(self):
         m = ADF435xRegisterMapper(ADF4350)
@@ -115,6 +121,7 @@ class TestCapabilityGating:
 
 
 # --- validation -------------------------------------------------------------
+
 
 class TestValidation:
     def test_int_out_of_range(self, mapper):

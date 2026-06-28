@@ -9,16 +9,21 @@ actual RF frequency and power must be verified by users' own separate test
 harness.
 """
 
+
 def pytest_addoption(parser):
     parser.addoption(
-        "--device", action="store_true", default=False,
-        help="run tests that require a connected ADF435x device")
+        "--device",
+        action="store_true",
+        default=False,
+        help="run tests that require a connected ADF435x device",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
     if config.getoption("--device"):
         return
     import pytest
+
     skip = pytest.mark.skip(reason="needs --device (no connected ADF435x)")
     for item in items:
         if "device" in item.keywords:
