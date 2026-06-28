@@ -14,7 +14,8 @@ Double-buffer latching (datasheet Figure 23):
 - R1 (phase, modulus) and R2 (R counter, ref doubler/div-by-2, CP current)
   latch on a write to R0 (DBR).
 - R4 RF divider select latches on R0 only when R2 DB13 (``double_buffer``)
-  is set (DBB).
+  is set (DBB). That DB13 state is read from the encoded R2 word, not a
+  separate flag, so it stays consistent with the diffed words.
 When any of these registers change, commit adds an R0 write even if R0 itself
 is unchanged, so the new values take effect.
 """
@@ -174,26 +175,44 @@ class ADF435xRegisterFile:
 
     # -- transactions --------------------------------------------------------
 
-    def _commit_stale_set(self, stale: set[int]) -> set[int]:
+    def _r4_divider_double_buffered(self) -> bool:
+        """Whether the R4 RF-divider field is double-buffered.
+
+        The state is read from R2 DB13 in the current R2 word rather than a
+        separate flag, so the latch decision is derived from the same encoded
+        words as staleness and cannot disagree with them (see module
+        docstring). When only R4 is stale, the current and last-written R2
+        words share the same DB13, so this matches the bit in effect on the
+        device when R4 is written.
+
+        Returns
+        -------
+        bool
+            True if R2 DB13 (``double_buffer``) is set in the current R2 word.
+        """
+        r2_word = self._current[consts.REG2_ADDR]
+        return bool((r2_word >> consts.REG2_DOUBLE_BUFFER_POS) & 1)
+
+    def _commit_stale_set(self, stale: set) -> set:
         """Expand *stale* so R0 is included when a latch write is required.
 
         Parameters
         ----------
-        stale : set of int
+        stale : set
             Register indices that differ from the last-written cache.
 
         Returns
         -------
-        set of int
-            The stale set, with 0 added when R1, R2, or (if ``double_buffer``)
-            R4 changed.
+        set
+            The stale set, with R0 added when R1 or R2 changed, or when R4
+            changed while the R4 divider is double-buffered (R2 DB13 set).
         """
         if stale & self._DBR_REGISTERS:
             stale = set(stale)
-            stale.add(0)
-        elif self._config.double_buffer and consts.REG4_ADDR in stale:
+            stale.add(consts.REG0_ADDR)
+        elif consts.REG4_ADDR in stale and self._r4_divider_double_buffered():
             stale = set(stale)
-            stale.add(0)
+            stale.add(consts.REG0_ADDR)
         return stale
 
     def commit(self) -> list:

@@ -12,6 +12,9 @@ from adf435x.profiles import ADF4350, ADF4351
 # Six distinct sentinel words (low 3 bits = register address, for readability).
 WORDS = [0xA0, 0xB1, 0xC2, 0xD3, 0xE4, 0xF5]
 
+# R2 DB13: marks the R4 divider as double-buffered (DBB).
+DBB_BIT = 1 << consts.REG2_DOUBLE_BUFFER_POS
+
 
 @pytest.fixture(params=[ADF4350, ADF4351], ids=lambda profile: profile.name)
 def rf(request):
@@ -22,10 +25,15 @@ def rf(request):
 
 @pytest.fixture(params=[ADF4350, ADF4351], ids=lambda profile: profile.name)
 def rf_dbb(request):
-    """Register file with R2 DB13 (double_buffer) enabled."""
+    """Register file whose R2 word has DB13 (double_buffer) set.
+
+    The double-buffer state is carried in the encoded R2 word, so the sentinel
+    words set DB13 directly rather than relying on a separate config flag.
+    """
     f = ADF435xRegisterFile(profile=request.param)
-    f.configure(double_buffer=True)
-    f._update_current(WORDS)
+    words = list(WORDS)
+    words[consts.REG2_ADDR] |= DBB_BIT
+    f._update_current(words)
     return f
 
 
@@ -85,7 +93,11 @@ class TestIncrementalCommit:
 class TestDoubleBuffer:
     def test_r4_only_forces_r0_when_dbb_enabled(self, rf_dbb):
         rf_dbb.commit()
-        rf_dbb._update_current([0xA0, 0xB1, 0xC2, 0xD3, 0xEE, 0xF5])
+        # Keep DB13 set in R2 so only R4 is stale; DBB then forces R0.
+        words = list(WORDS)
+        words[consts.REG2_ADDR] |= DBB_BIT
+        words[consts.REG4_ADDR] = 0xEE
+        rf_dbb._update_current(words)
         assert rf_dbb.commit() == [(4, 0xEE), (0, 0xA0)]
 
     def test_r2_still_forces_r0_when_dbb_enabled(self, rf_dbb):
@@ -99,6 +111,33 @@ class TestDoubleBuffer:
         f.commit()
         f.configure(double_buffer=True)
         assert [i for i, _ in f.commit()] == [consts.REG2_ADDR, consts.REG0_ADDR]
+
+    @pytest.mark.parametrize("profile", [ADF4350, ADF4351], ids=lambda p: p.name)
+    def test_disabling_double_buffer_writes_r2_and_r0(self, profile):
+        # Disabling is an R2 change too, so it latches via R0 like enabling.
+        f = ADF435xRegisterFile(profile)
+        f.configure(double_buffer=True)
+        f.commit()
+        f.configure(double_buffer=False)
+        assert [i for i, _ in f.commit()] == [consts.REG2_ADDR, consts.REG0_ADDR]
+
+    def test_non_divider_r4_field_forces_r0_when_dbb_enabled(self):
+        # output_power is not double-buffered, but with DB13 set we
+        # conservatively latch any R4 change with an R0 write. The redundant
+        # R0 re-latches the unchanged divider, which is harmless.
+        f = ADF435xRegisterFile(ADF4351)
+        f.configure(double_buffer=True)
+        f.commit()
+        f.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
+        assert [i for i, _ in f.commit()] == [
+            consts.REG4_ADDR, consts.REG0_ADDR]
+
+    def test_non_divider_r4_field_alone_when_dbb_disabled(self):
+        # Without DB13, the same non-divider R4 change writes R4 on its own.
+        f = ADF435xRegisterFile(ADF4351)
+        f.commit()
+        f.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
+        assert [i for i, _ in f.commit()] == [consts.REG4_ADDR]
 
     @pytest.mark.parametrize("profile", [ADF4350, ADF4351], ids=lambda p: p.name)
     def test_r4_only_via_configure_forces_r0_when_dbb_enabled(self, profile):
