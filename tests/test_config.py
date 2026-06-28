@@ -4,6 +4,13 @@ mapper, configure() is transactional, and dump() reports state.
 import pytest
 
 from adf435x import consts
+from adf435x.config import (
+    ADF435xConfig,
+    FIELD_NAMES,
+    FIELD_REGISTER,
+    _DEFAULTS,
+    _FIELDS,
+)
 from adf435x.profiles import ADF4350, ADF4351
 from adf435x.register_file import ADF435xRegisterFile
 
@@ -24,6 +31,19 @@ def worked():
     return f
 
 
+class TestFieldSchema:
+    def test_derived_views_match_fields(self):
+        assert set(_FIELDS) == set(_DEFAULTS) == set(FIELD_REGISTER)
+        assert FIELD_NAMES == tuple(_FIELDS)
+        for name, (reg, default) in _FIELDS.items():
+            assert FIELD_REGISTER[name] == reg
+            assert _DEFAULTS[name] == default
+
+    def test_register_indices_in_range(self):
+        for name, (reg, _) in _FIELDS.items():
+            assert 0 <= reg < consts.NUM_REGISTERS, name
+
+
 class TestEncoding:
     def test_worked_example_words(self, worked):
         assert worked.current_words() == WORKED
@@ -39,6 +59,23 @@ class TestConfigure:
     def test_rejects_unknown_field(self, worked):
         with pytest.raises(AttributeError):
             worked.configure(no_such_field=1)
+
+    def test_init_rejects_unknown_field(self):
+        with pytest.raises(AttributeError):
+            ADF435xConfig(no_such_field=1)
+
+    def test_copy_is_independent(self, worked):
+        clone = worked.config.copy()
+        clone.frac = 14
+        assert worked.config.frac == 13
+        assert clone.frac == 14
+
+    def test_two_register_files_do_not_share_config(self):
+        a = ADF435xRegisterFile(ADF4351)
+        b = ADF435xRegisterFile(ADF4351)
+        a.configure(muxout=consts.REG2_MUX_DGND)
+        assert a.config.muxout == consts.REG2_MUX_DGND
+        assert b.config.muxout == consts.REG2_MUX_DIGITALLOCK
 
     def test_rolls_back_field_on_failure(self):
         f = ADF435xRegisterFile(ADF4350)

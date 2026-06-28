@@ -37,7 +37,8 @@ class ADF435xRegisterFile:
     profile : ADF435xDeviceProfile
         Target device; selects the mapper used to encode the configuration.
     config : ADF435xConfig, optional
-        Initial configuration. A default ADF435xConfig is used if omitted.
+        Initial configuration. A default ``ADF435xConfig`` is used if omitted.
+        Do not share one config instance across multiple register files.
     """
 
     NUM_REGISTERS = consts.NUM_REGISTERS
