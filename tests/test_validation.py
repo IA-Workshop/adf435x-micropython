@@ -8,7 +8,7 @@ from adf435x.profiles import ADF4350, ADF4351, ADF435xDeviceProfile
 from adf435x.register_file import ADF435xRegisterFile
 from adf435x.register_mapper import ADF435xRegisterMapper
 
-from conftest import WORKED_WORDS, make_config
+from conftest import WORKED_FIELDS, WORKED_WORDS, make_config
 
 
 _PLL_ONLY = frozenset(("int_n", "frac", "mod", "prescaler"))
@@ -70,11 +70,27 @@ class TestCheckPll:
         )
         mapper = ADF435xRegisterMapper(profile)
         with pytest.raises(ValueError, match="above maximum"):
-            mapper._check_pll(101, 0, 2, consts.REG1_PRESCALER_8_9)
+            mapper.validate_config(
+                make_config(
+                    int_n=101,
+                    frac=0,
+                    mod=2,
+                    prescaler=consts.REG1_PRESCALER_8_9,
+                ),
+                only=_PLL_ONLY,
+            )
 
-    def test_invalid_prescaler_in_pll_check(self, mapper):
+    def test_invalid_prescaler_rejected(self, mapper):
         with pytest.raises(ValueError, match="prescaler=2 invalid"):
-            mapper._check_pll(75, 0, 2, 2)
+            mapper.validate_config(
+                make_config(
+                    int_n=75,
+                    frac=0,
+                    mod=2,
+                    prescaler=2,
+                ),
+                only=frozenset(("prescaler",)),
+            )
 
 
 class TestRegister1:
@@ -155,10 +171,20 @@ class TestEnumFields:
     @pytest.mark.parametrize(
         "field, bad_value",
         [
-            ("ldf", 2),
-            ("lock_pin", 2),
-            ("clockdiv_mode", 3),
+            ("prescaler", 2),
             ("muxout", 7),
+            ("noise_mode", 1),
+            ("ldf", 2),
+            ("ldp", 2),
+            ("pd_polarity", 2),
+            ("band_clk_mode", 2),
+            ("abp", 2),
+            ("clockdiv_mode", 3),
+            ("feedback", 2),
+            ("output_power", 4),
+            ("aux_select", 2),
+            ("aux_power", 4),
+            ("lock_pin", 2),
         ],
     )
     def test_invalid_enum_rejected(self, mapper, field, bad_value):
@@ -258,14 +284,7 @@ class TestTrustedEncode:
         assert mapper.register_0(1 << 16, 0) == mapper.register_0(0, 0)
 
     def test_worked_words_still_match(self, mapper):
-        assert mapper.encode_config(make_config(
-            int_n=422,
-            frac=13,
-            mod=25,
-            band_clk_mode=consts.REG3_BAND_CLK_HIGH,
-            rf_divider=2,
-            band_clk_div=20,
-        )) == WORKED_WORDS
+        assert mapper.encode_config(make_config(**WORKED_FIELDS)) == WORKED_WORDS
 
     def test_invalid_register_index(self, mapper):
         with pytest.raises(ValueError, match="invalid register index"):
