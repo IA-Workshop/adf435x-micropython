@@ -45,8 +45,7 @@ EXPECTED_RFOUT_HZ = 131_912_500
 def write_plan(device, regfile, plan):
     """Write a commit plan to the chip and update the register-file cache."""
     try:
-        for word in plan:
-            device.write_register(word)
+        device.write_registers(plan)
         regfile.mark_written()
     except Exception:
         regfile.mark_write_failed()
