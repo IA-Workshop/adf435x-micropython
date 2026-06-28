@@ -76,9 +76,12 @@ class ADF435xRegisterFile:
         ------
         AttributeError
             If a field name is not a known configuration field.
-        ValueError
-            If the new configuration cannot be encoded. The file is rolled back
-            first.
+        Exception
+            If the new configuration cannot be encoded. The most common cause is
+            a ValueError (out-of-range or unsupported value), but any failure
+            during encoding (for example, a TypeError from a wrong-typed value)
+            is treated the same way: every field is restored and the original
+            error re-raised, leaving the file unchanged.
         """
         for name in fields:
             if name not in FIELD_REGISTER:
@@ -89,7 +92,7 @@ class ADF435xRegisterFile:
             setattr(self._config, name, value)
         try:
             self._recompute(dirty)
-        except ValueError:
+        except Exception:
             for name, value in previous.items():
                 setattr(self._config, name, value)
             self._recompute()

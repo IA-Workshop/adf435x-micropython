@@ -49,6 +49,17 @@ class TestConfigure:
             f.configure(rf_divider=32)
         assert f.current_words() == before
 
+    def test_rolls_back_on_non_value_error(self):
+        # A wrong-typed value raises TypeError during encoding, not ValueError.
+        # The file must still be restored and the original error re-raised.
+        f = ADF435xRegisterFile(ADF4350)
+        before_int_n = f.config.int_n
+        before_words = f.current_words()
+        with pytest.raises(TypeError):
+            f.configure(int_n="not-an-int")
+        assert f.config.int_n == before_int_n
+        assert f.current_words() == before_words
+
 
 class TestRetune:
     def test_frac_writes_only_r0(self, worked):
@@ -81,14 +92,16 @@ class TestSelectiveReencode:
         assert after[0] != before[0]
         assert after[1:] == before[1:]
 
-    def test_output_power_only_changes_r4_word(self, worked):
+    def test_phase_only_changes_r1_word(self, worked):
+        # phase is an R1 field that shares no encoding with the PLL-paired R0,
+        # so changing it must leave every other word byte-identical.
         worked.commit()
         before = worked.current_words()
-        worked.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
+        worked.configure(phase=2)
         after = worked.current_words()
-        assert after[4] != before[4]
-        assert after[0:4] == before[0:4]
-        assert after[5] == before[5]
+        assert after[1] != before[1]
+        assert after[0] == before[0]
+        assert after[2:] == before[2:]
 
     def test_muxout_only_changes_r2_word(self, worked):
         worked.commit()
@@ -98,6 +111,72 @@ class TestSelectiveReencode:
         assert after[2] != before[2]
         assert after[0:2] == before[0:2]
         assert after[3:] == before[3:]
+
+    def test_clockdiv_only_changes_r3_word(self, worked):
+        worked.commit()
+        before = worked.current_words()
+        worked.configure(clockdiv_value=100)
+        after = worked.current_words()
+        assert after[3] != before[3]
+        assert after[0:3] == before[0:3]
+        assert after[4:] == before[4:]
+
+    def test_output_power_only_changes_r4_word(self, worked):
+        worked.commit()
+        before = worked.current_words()
+        worked.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
+        after = worked.current_words()
+        assert after[4] != before[4]
+        assert after[0:4] == before[0:4]
+        assert after[5] == before[5]
+
+    def test_lock_pin_only_changes_r5_word(self, worked):
+        worked.commit()
+        before = worked.current_words()
+        worked.configure(lock_pin=consts.REG5_LOCK_LOW)
+        after = worked.current_words()
+        assert after[5] != before[5]
+        assert after[0:5] == before[0:5]
+
+
+class TestSelectivePllCheck:
+    """The cross-register PLL check must still fire on the selective path
+    whenever R0 or R1 is touched, and must run only once for the R0/R1 pair.
+    """
+
+    def test_configure_frac_ge_mod_rejected(self, worked):
+        # frac (R0) vs mod (R1): the relation is validated even though only R0
+        # is in the dirty set.
+        worked.commit()
+        with pytest.raises(ValueError, match="must be less than MOD"):
+            worked.configure(frac=worked.config.mod)
+
+    def test_configure_mod_below_frac_rejected(self, worked):
+        # mod (R1) vs frac (R0): validated when only R1 is dirty.
+        worked.commit()
+        with pytest.raises(ValueError, match="must be less than MOD"):
+            worked.configure(mod=worked.config.frac)
+
+    def test_configure_non_pll_field_skips_check(self, worked, monkeypatch):
+        # Touching only R2..R5 must not invoke the PLL check at all.
+        calls = []
+        original = worked._mapper.check_pll
+        monkeypatch.setattr(
+            worked._mapper, "check_pll",
+            lambda *a, **k: calls.append(a) or original(*a, **k))
+        worked.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
+        assert calls == []
+
+    def test_configure_r0_and_r1_checks_pll_once(self, worked, monkeypatch):
+        # Changing R0 and R1 together must validate the pair a single time, not
+        # once per register.
+        calls = []
+        original = worked._mapper.check_pll
+        monkeypatch.setattr(
+            worked._mapper, "check_pll",
+            lambda *a, **k: calls.append(a) or original(*a, **k))
+        worked.configure(int_n=211, mod=50)
+        assert len(calls) == 1
 
 
 class TestDump:
