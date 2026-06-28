@@ -9,6 +9,14 @@ from adf435x.register_file import ADF435xRegisterFile
 from adf435x.register_mapper import ADF435xRegisterMapper
 
 # Datasheet worked example (ADF4351, 2112.6 MHz, RF divide-by-2).
+WORKED_FIELDS = {
+    "int_n": 422,
+    "frac": 13,
+    "mod": 25,
+    "band_clk_mode": consts.REG3_BAND_CLK_HIGH,
+    "rf_divider": 2,
+    "band_clk_div": 20,
+}
 WORKED_WORDS = [
     0x00D30068,
     0x080080C9,
@@ -44,17 +52,16 @@ def mapper():
 
 
 @pytest.fixture
+def worked_config():
+    """Config object for the datasheet worked example."""
+    return make_config(**WORKED_FIELDS)
+
+
+@pytest.fixture
 def worked_regfile():
     """Register file programmed to the datasheet worked example."""
     f = ADF435xRegisterFile(ADF4351)
-    f.configure(
-        int_n=422,
-        frac=13,
-        mod=25,
-        band_clk_mode=consts.REG3_BAND_CLK_HIGH,
-        rf_divider=2,
-        band_clk_div=20,
-    )
+    f.configure(**WORKED_FIELDS)
     return f
 
 

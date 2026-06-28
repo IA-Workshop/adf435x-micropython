@@ -5,39 +5,38 @@ from adf435x.config import ADF435xConfig
 from adf435x.profiles import ADF4350, ADF4351
 from adf435x.register_mapper import ADF435xRegisterMapper
 
-from conftest import WORKED_WORDS
+from conftest import WORKED_FIELDS, WORKED_WORDS, make_config
 
 
 class TestWorkedExample:
     def test_reg0(self, mapper):
-        assert mapper.register_0(422, 13) == 0x00D30068
+        assert mapper.register_0(422, 13) == WORKED_WORDS[0]
 
     def test_reg1(self, mapper):
-        assert mapper.register_1(25, consts.REG1_PRESCALER_8_9, phase=1) == 0x080080C9
+        assert (
+            mapper.register_1(25, consts.REG1_PRESCALER_8_9, phase=1)
+            == WORKED_WORDS[1]
+        )
 
     def test_reg2(self, mapper):
-        assert mapper.register_2(1, 7) == 0x18004E42
+        assert mapper.register_2(1, 7) == WORKED_WORDS[2]
 
     def test_reg3(self, mapper):
-        assert mapper.register_3(band_clk_mode=consts.REG3_BAND_CLK_HIGH) == 0x00800003
+        assert (
+            mapper.register_3(band_clk_mode=consts.REG3_BAND_CLK_HIGH)
+            == WORKED_WORDS[3]
+        )
 
     def test_reg4(self, mapper):
-        assert mapper.register_4(2, 20) == 0x0091403C
+        assert mapper.register_4(2, 20) == WORKED_WORDS[4]
 
     def test_reg5(self, mapper):
-        assert mapper.register_5() == 0x00580005
+        assert mapper.register_5() == WORKED_WORDS[5]
 
 
 class TestEncodeConfig:
     def test_encode_config_worked_example(self, mapper):
-        c = ADF435xConfig()
-        c.int_n = 422
-        c.frac = 13
-        c.mod = 25
-        c.band_clk_mode = consts.REG3_BAND_CLK_HIGH
-        c.rf_divider = 2
-        c.band_clk_div = 20
-        assert mapper.encode_config(c) == WORKED_WORDS
+        assert mapper.encode_config(make_config(**WORKED_FIELDS)) == WORKED_WORDS
 
     def test_encode_register_matches_encode_config(self, mapper):
         c = ADF435xConfig()
