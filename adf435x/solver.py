@@ -17,10 +17,8 @@ N : Feedback divider, N = INT + FRAC / MOD, with f_VCO = N * fPFD
 RF divider : Output divider (1, 2, 4, ... 64) that divides f_VCO to RFout
 """
 
-from dataclasses import dataclass
-
 from . import consts
-from .profiles import ADF435xDeviceProfile
+from .profiles import ADF435xDeviceProfile, _log2_power_of_two
 
 # Device-agnostic limits shared by ADF4350 and ADF4351 (integer Hz).
 VCO_MIN_HZ = 2_200_000_000
@@ -45,7 +43,6 @@ class ExactFrequencyError(ValueError):
     """Exact frequency was requested but the target is not achievable."""
 
 
-@dataclass(frozen=True)
 class SolveOptions:
     """
     Optional policy overrides for ``solve()``.
@@ -66,15 +63,24 @@ class SolveOptions:
         Raise ``ExactFrequencyError`` when the residual error is not zero.
     """
 
-    r_counter: int = 1
-    doubler: bool = False
-    rdiv2: bool = False
-    mod: int | None = None
-    channel_spacing_hz: int | None = None
-    exact: bool = False
+    def __init__(
+        self,
+        r_counter=1,
+        doubler=False,
+        rdiv2=False,
+        mod=None,
+        channel_spacing_hz=None,
+        exact=False,
+    ):
+        """Store reference-path and MOD policy overrides."""
+        self.r_counter = r_counter
+        self.doubler = doubler
+        self.rdiv2 = rdiv2
+        self.mod = mod
+        self.channel_spacing_hz = channel_spacing_hz
+        self.exact = exact
 
 
-@dataclass(frozen=True)
 class SolveResult:
     """
     Result of a frequency solve.
@@ -93,11 +99,13 @@ class SolveResult:
         Achieved VCO frequency before the RF output divider.
     """
 
-    fields: dict[str, int | bool]
-    achieved_hz: int
-    error_hz: int
-    f_pfd_hz: int
-    vco_hz: int
+    def __init__(self, fields, achieved_hz, error_hz, f_pfd_hz, vco_hz):
+        """Store solver output fields and achieved frequencies."""
+        self.fields = fields
+        self.achieved_hz = achieved_hz
+        self.error_hz = error_hz
+        self.f_pfd_hz = f_pfd_hz
+        self.vco_hz = vco_hz
 
 
 def _round_div(num: int, den: int) -> int:
@@ -165,7 +173,8 @@ def _gcd(a: int, b: int) -> int:
 
 def _rf_dividers(profile: ADF435xDeviceProfile) -> tuple[int, ...]:
     """Return ascending RF output dividers legal for *profile*."""
-    return tuple(1 << i for i in range(profile.rf_divider_max.bit_length()))
+    count = _log2_power_of_two(profile.rf_divider_max) + 1
+    return tuple(1 << i for i in range(count))
 
 
 def _output_min_hz(profile: ADF435xDeviceProfile) -> int:
@@ -250,7 +259,7 @@ def _int_frac_for_mod(
     vco_hz: int,
     f_pfd: int,
     mod: int,
-) -> tuple[int, int, int] | None:
+):
     """
     Solve INT and FRAC for a fixed MOD and target VCO frequency.
 
@@ -396,7 +405,7 @@ def _best_pll(
     rf_divider: int,
     profile: ADF435xDeviceProfile,
     options: SolveOptions,
-) -> tuple[int, int, int, int] | None:
+):
     """
     Find the best MOD, INT, FRAC, and prescaler for *vco_target*.
 
@@ -407,8 +416,8 @@ def _best_pll(
     tuple of (int, int, int, int) or None
         ``(mod, int_n, frac, prescaler)`` or None when no candidate fits.
     """
-    best: tuple[int, int, int, int] | None = None
-    best_score: tuple[int, int] | None = None
+    best = None
+    best_score = None
 
     for mod in _mod_candidates(f_pfd, profile, options):
         solved = _int_frac_for_mod(vco_target, f_pfd, mod)
@@ -429,10 +438,7 @@ def _best_pll(
     return best
 
 
-def _apply_int_n_fields(
-    fields: dict[str, int | bool],
-    profile: ADF435xDeviceProfile,
-) -> None:
+def _apply_int_n_fields(fields, profile):
     """Add integer-N register optimizations when FRAC is zero."""
     fields["ldf"] = consts.REG2_LDF_INT_N
     if profile.has_programmable_abp:
@@ -442,12 +448,12 @@ def _apply_int_n_fields(
 
 
 def solve(
-    target_hz: int,
-    ref_hz: int,
-    profile: ADF435xDeviceProfile,
+    target_hz,
+    ref_hz,
+    profile,
     *,
-    options: SolveOptions | None = None,
-) -> SolveResult:
+    options=None,
+):
     """
     Solve register fields for a target output frequency.
 
@@ -509,7 +515,7 @@ def solve(
     vco_hz = _compute_vco_hz(int_n, frac, mod, f_pfd)
     band_clk_div, band_clk_mode = _pick_band_clk(f_pfd, profile)
 
-    fields: dict[str, int | bool] = {
+    fields = {
         "int_n": int_n,
         "frac": frac,
         "mod": mod,

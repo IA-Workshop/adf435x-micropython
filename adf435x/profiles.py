@@ -30,6 +30,28 @@ def _is_power_of_two(value: int) -> bool:
     return value > 0 and (value & (value - 1)) == 0
 
 
+def _log2_power_of_two(value: int) -> int:
+    """Return log2 of a positive power of two.
+
+    MicroPython-safe: does not use ``int.bit_length``.
+
+    Parameters
+    ----------
+    value : int
+        A power of two (1, 2, 4, 8, ...).
+
+    Returns
+    -------
+    int
+        Exponent *n* where ``value == 2 ** n`` (for example, 8 -> 3).
+    """
+    code = 0
+    while value > 1:
+        value >>= 1
+        code += 1
+    return code
+
+
 class ADF435xDeviceProfile:
     """
     Per-device capabilities for an ADF435x synthesizer.
@@ -128,7 +150,7 @@ class ADF435xDeviceProfile:
                 "%s: rf_divider=%d must be a power of two in [1, %d]"
                 % (self.name, rf_divider, self.rf_divider_max)
             )
-        return rf_divider.bit_length() - 1
+        return _log2_power_of_two(rf_divider)
 
     def __repr__(self) -> str:
         """Return a short debug representation naming the device.
