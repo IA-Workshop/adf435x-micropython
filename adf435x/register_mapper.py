@@ -13,6 +13,7 @@ begin at Figure 23 (p. 14) of both the ADF4350 and ADF4351 datasheets. Each
 method below cites the figure for the register it encodes.
 """
 from . import consts
+from .config import ADF435xConfig
 from .profiles import ADF435xDeviceProfile
 
 
@@ -441,3 +442,94 @@ class ADF435xRegisterMapper:
         word |= consts.REG5_RESERVED_ONES
         word |= consts.REG5_ADDR
         return word
+
+    def _encode_register_at(self, config: ADF435xConfig, index: int) -> int:
+        """Encode one register word from *config* without PLL checks.
+
+        Parameters
+        ----------
+        config : ADF435xConfig
+            Configuration supplying field values.
+        index : int
+            Register index (0..5).
+
+        Returns
+        -------
+        int
+            The 32-bit register word.
+
+        Raises
+        ------
+        ValueError
+            If *index* is not a valid register index.
+        """
+        c = config
+        if index == consts.REG0_ADDR:
+            return self.register_0(c.int_n, c.frac)
+        if index == consts.REG1_ADDR:
+            return self.register_1(
+                c.mod, c.prescaler, c.phase, c.phase_adjust)
+        if index == consts.REG2_ADDR:
+            return self.register_2(
+                c.r_counter, c.cp_current_code,
+                muxout=c.muxout, noise_mode=c.noise_mode,
+                doubler=c.doubler, rdiv2=c.rdiv2, ldf=c.ldf, ldp=c.ldp,
+                pd_polarity=c.pd_polarity, double_buffer=c.double_buffer,
+                power_down=c.power_down, cp_threestate=c.cp_threestate,
+                counter_reset=c.counter_reset)
+        if index == consts.REG3_ADDR:
+            return self.register_3(
+                band_clk_mode=c.band_clk_mode, abp=c.abp,
+                charge_cancel=c.charge_cancel, csr=c.csr,
+                clockdiv_mode=c.clockdiv_mode,
+                clockdiv_value=c.clockdiv_value)
+        if index == consts.REG4_ADDR:
+            return self.register_4(
+                c.rf_divider, c.band_clk_div, feedback=c.feedback,
+                output_power=c.output_power, rf_enable=c.rf_enable,
+                mtld=c.mtld, vco_power_down=c.vco_power_down,
+                aux_select=c.aux_select, aux_enable=c.aux_enable,
+                aux_power=c.aux_power)
+        if index == consts.REG5_ADDR:
+            return self.register_5(c.lock_pin)
+        raise ValueError("invalid register index: %d" % index)
+
+    def encode_register(self, index: int, config: ADF435xConfig) -> int:
+        """Encode one register from *config*, with PLL checks on R0/R1.
+
+        Parameters
+        ----------
+        index : int
+            Register index (0..5).
+        config : ADF435xConfig
+            Configuration supplying field values.
+
+        Returns
+        -------
+        int
+            The 32-bit register word.
+        """
+        if index == consts.REG0_ADDR or index == consts.REG1_ADDR:
+            self.check_pll(
+                config.int_n, config.frac, config.mod, config.prescaler)
+        return self._encode_register_at(config, index)
+
+    def encode_config(self, config: ADF435xConfig) -> list:
+        """Encode all six registers from *config*.
+
+        Parameters
+        ----------
+        config : ADF435xConfig
+            Configuration supplying field values.
+
+        Returns
+        -------
+        list of int
+            Register words R0 through R5.
+        """
+        self.check_pll(
+            config.int_n, config.frac, config.mod, config.prescaler)
+        return [
+            self._encode_register_at(config, i)
+            for i in range(consts.NUM_REGISTERS)
+        ]

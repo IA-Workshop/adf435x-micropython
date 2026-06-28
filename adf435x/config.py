@@ -59,3 +59,44 @@ class ADF435xConfig:
 
     # R5
     lock_pin = consts.REG5_LOCK_DIGITAL
+
+
+# Maps each ADF435xConfig attribute to its register index (R0..R5).
+FIELD_REGISTER = {
+    "int_n": consts.REG0_ADDR,
+    "frac": consts.REG0_ADDR,
+    "mod": consts.REG1_ADDR,
+    "prescaler": consts.REG1_ADDR,
+    "phase": consts.REG1_ADDR,
+    "phase_adjust": consts.REG1_ADDR,
+    "r_counter": consts.REG2_ADDR,
+    "cp_current_code": consts.REG2_ADDR,
+    "muxout": consts.REG2_ADDR,
+    "noise_mode": consts.REG2_ADDR,
+    "doubler": consts.REG2_ADDR,
+    "rdiv2": consts.REG2_ADDR,
+    "ldf": consts.REG2_ADDR,
+    "ldp": consts.REG2_ADDR,
+    "pd_polarity": consts.REG2_ADDR,
+    "double_buffer": consts.REG2_ADDR,
+    "power_down": consts.REG2_ADDR,
+    "cp_threestate": consts.REG2_ADDR,
+    "counter_reset": consts.REG2_ADDR,
+    "band_clk_mode": consts.REG3_ADDR,
+    "abp": consts.REG3_ADDR,
+    "charge_cancel": consts.REG3_ADDR,
+    "csr": consts.REG3_ADDR,
+    "clockdiv_mode": consts.REG3_ADDR,
+    "clockdiv_value": consts.REG3_ADDR,
+    "rf_divider": consts.REG4_ADDR,
+    "band_clk_div": consts.REG4_ADDR,
+    "feedback": consts.REG4_ADDR,
+    "output_power": consts.REG4_ADDR,
+    "rf_enable": consts.REG4_ADDR,
+    "mtld": consts.REG4_ADDR,
+    "vco_power_down": consts.REG4_ADDR,
+    "aux_select": consts.REG4_ADDR,
+    "aux_enable": consts.REG4_ADDR,
+    "aux_power": consts.REG4_ADDR,
+    "lock_pin": consts.REG5_ADDR,
+}

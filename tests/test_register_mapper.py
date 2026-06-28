@@ -1,8 +1,12 @@
 import pytest
 
 from adf435x import consts
+from adf435x.config import ADF435xConfig
 from adf435x.profiles import ADF4350, ADF4351
 from adf435x.register_mapper import ADF435xRegisterMapper
+
+WORKED = [0x00D30068, 0x080080C9, 0x18004E42, 0x00800003,
+          0x0091403C, 0x00580005]
 
 
 @pytest.fixture
@@ -30,6 +34,24 @@ class TestWorkedExample:
 
     def test_reg5(self, mapper):
         assert mapper.register_5() == 0x00580005
+
+
+class TestEncodeConfig:
+    def test_encode_config_worked_example(self, mapper):
+        c = ADF435xConfig()
+        c.int_n = 422
+        c.frac = 13
+        c.mod = 25
+        c.band_clk_mode = consts.REG3_BAND_CLK_HIGH
+        c.rf_divider = 2
+        c.band_clk_div = 20
+        assert mapper.encode_config(c) == WORKED
+
+    def test_encode_register_matches_encode_config(self, mapper):
+        c = ADF435xConfig()
+        words = mapper.encode_config(c)
+        for index in range(consts.NUM_REGISTERS):
+            assert mapper.encode_register(index, c) == words[index]
 
 
 # --- control bits and reserved ones ----------------------------------------
