@@ -44,6 +44,9 @@ REG4_ADDR = const(4)
 REG5_ADDR = const(5)
 REG_ADDRS = (REG0_ADDR, REG1_ADDR, REG2_ADDR, REG3_ADDR, REG4_ADDR, REG5_ADDR)
 
+# Registers fully double-buffered by a write to R0 (DBR, datasheet Figure 23).
+DBR_REGISTER_INDICES = (REG1_ADDR, REG2_ADDR)
+
 
 # --- Bit field layouts ------------------------------------------------------
 # Each field is given the position of its least-significant bit and width, if
