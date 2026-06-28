@@ -110,12 +110,7 @@ class ADF435xDeviceProfile:
                 "%s: rf_divider=%d must be a power of two in [1, %d]"
                 % (self.name, rf_divider, self.rf_divider_max)
             )
-        code = 0
-        value = rf_divider
-        while value > 1:
-            value >>= 1
-            code += 1
-        return code
+        return rf_divider.bit_length() - 1
 
     def __repr__(self) -> str:
         return "ADF435xDeviceProfile(%s)" % self.name

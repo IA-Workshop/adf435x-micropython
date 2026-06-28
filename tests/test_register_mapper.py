@@ -124,10 +124,8 @@ class TestCapabilityGating:
 
 
 class TestValidation:
-    def test_int_out_of_range(self, mapper):
-        with pytest.raises(ValueError):
-            mapper.register_0(1 << 16, 0)
+    def test_int_out_of_range_is_masked(self, mapper):
+        assert mapper.register_0(1 << 16, 0) == mapper.register_0(0, 0)
 
-    def test_frac_out_of_range(self, mapper):
-        with pytest.raises(ValueError):
-            mapper.register_0(0, 1 << 12)
+    def test_frac_out_of_range_is_masked(self, mapper):
+        assert mapper.register_0(0, 1 << 12) == mapper.register_0(0, 0)

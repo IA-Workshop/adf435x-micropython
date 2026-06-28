@@ -54,6 +54,7 @@ class ADF435xRegisterFile:
         # None means never written, so every register starts stale.
         self._last_written = [None] * self.NUM_REGISTERS
         self._commit_count = 0
+        self._mapper.validate_config(self._config)
         self._recompute()
 
     # -- configuration -------------------------------------------------------
@@ -66,9 +67,9 @@ class ADF435xRegisterFile:
     def configure(self, **fields) -> None:
         """Update configuration fields and re-encode.
 
-        The update is transactional: if encoding fails (for example, requesting
-        a capability the device lacks), every field is restored and the error
-        re-raised, leaving the file unchanged.
+        The update is transactional: if validation fails (for example,
+        requesting a capability the device lacks), every field is restored and
+        the error re-raised, leaving the file unchanged.
 
         Parameters
         ----------
@@ -80,11 +81,10 @@ class ADF435xRegisterFile:
         AttributeError
             If a field name is not a known configuration field.
         Exception
-            If the new configuration cannot be encoded. The most common cause is
+            If the new configuration fails validation. The most common cause is
             a ValueError (out-of-range or unsupported value), but any failure
-            during encoding (for example, a TypeError from a wrong-typed value)
-            is treated the same way: every field is restored and the original
-            error re-raised, leaving the file unchanged.
+            during validation is treated the same way: every field is restored
+            and the original error re-raised, leaving the file unchanged.
         """
         for name in fields:
             if name not in FIELD_REGISTER:
@@ -94,6 +94,7 @@ class ADF435xRegisterFile:
         for name, value in fields.items():
             setattr(self._config, name, value)
         try:
+            self._mapper.validate_config(self._config, only=frozenset(fields))
             self._recompute(dirty)
         except Exception:
             for name, value in previous.items():
@@ -112,14 +113,11 @@ class ADF435xRegisterFile:
         """
         m = self._mapper
         c = self._config
-        if dirty is None:
-            for i, word in enumerate(m.encode_config(c)):
-                self._current[i] = word
-            return
-        if dirty & {consts.REG0_ADDR, consts.REG1_ADDR}:
-            m.check_pll(c.int_n, c.frac, c.mod, c.prescaler)
-        for index in dirty:
-            self._current[index] = m._encode_register_at(c, index)
+        indices = (
+            range(self.NUM_REGISTERS) if dirty is None else dirty
+        )
+        for index in indices:
+            self._current[index] = m.encode_register(index, c)
 
     def _update_current(self, words) -> None:
         """Replace the current (desired) words.

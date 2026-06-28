@@ -3,11 +3,20 @@
 import pytest
 
 from adf435x import consts
+from adf435x.config import ADF435xConfig
 from adf435x.profiles import ADF4351
 from adf435x.register_file import ADF435xRegisterFile
 from adf435x.register_mapper import ADF435xRegisterMapper
 
 WORKED = [0x00D30068, 0x080080C9, 0x18004E42, 0x00800003, 0x0091403C, 0x00580005]
+
+
+def _config(**fields):
+    """Build a config with optional field overrides."""
+    c = ADF435xConfig()
+    for name, value in fields.items():
+        setattr(c, name, value)
+    return c
 
 
 @pytest.fixture
@@ -17,31 +26,64 @@ def mapper():
 
 class TestCheckPll:
     def test_worked_example_passes(self, mapper):
-        mapper.check_pll(422, 13, 25, consts.REG1_PRESCALER_8_9)
+        mapper.validate_config(
+            _config(
+                int_n=422,
+                frac=13,
+                mod=25,
+                prescaler=consts.REG1_PRESCALER_8_9,
+            ),
+            only=frozenset(("int_n", "frac", "mod", "prescaler")),
+        )
 
     def test_int_below_minimum_rejected(self, mapper):
         with pytest.raises(ValueError, match="below minimum"):
-            mapper.check_pll(0, 0, 2, consts.REG1_PRESCALER_8_9)
+            mapper.validate_config(
+                _config(
+                    int_n=0,
+                    frac=0,
+                    mod=2,
+                    prescaler=consts.REG1_PRESCALER_8_9,
+                ),
+                only=frozenset(("int_n", "frac", "mod", "prescaler")),
+            )
 
     def test_frac_ge_mod_rejected(self, mapper):
         with pytest.raises(ValueError, match="FRAC=50 must be less than MOD=25"):
-            mapper.check_pll(100, 50, 25, consts.REG1_PRESCALER_8_9)
+            mapper.validate_config(
+                _config(
+                    int_n=100,
+                    frac=50,
+                    mod=25,
+                    prescaler=consts.REG1_PRESCALER_8_9,
+                ),
+                only=frozenset(("int_n", "frac", "mod", "prescaler")),
+            )
 
 
 class TestRegister1:
     def test_mod_below_minimum_rejected(self, mapper):
         with pytest.raises(ValueError, match="MOD=1 below minimum"):
-            mapper.register_1(1, consts.REG1_PRESCALER_8_9)
+            mapper.validate_config(
+                _config(mod=1, prescaler=consts.REG1_PRESCALER_8_9),
+                only=frozenset(("mod",)),
+            )
 
     def test_prescaler_out_of_range_rejected(self, mapper):
         with pytest.raises(ValueError, match="prescaler=2"):
-            mapper.register_1(25, 2)
+            mapper.validate_config(
+                _config(mod=25, prescaler=2),
+                only=frozenset(("prescaler",)),
+            )
 
 
 class TestRegister2:
     def test_r_counter_zero_rejected(self, mapper):
         with pytest.raises(ValueError, match="R=0 below minimum"):
-            mapper.register_2(0, 7)
+            mapper.validate_config(
+                _config(r_counter=0),
+                only=frozenset(("r_counter",)),
+            )
 
 
 class TestRegisterFileValidation:

@@ -239,10 +239,10 @@ class TestSelectivePllCheck:
     def test_configure_non_pll_field_skips_check(self, worked, monkeypatch):
         # Touching only R2..R5 must not invoke the PLL check at all.
         calls = []
-        original = worked._mapper.check_pll
+        original = worked._mapper._check_pll
         monkeypatch.setattr(
             worked._mapper,
-            "check_pll",
+            "_check_pll",
             lambda *a, **k: calls.append(a) or original(*a, **k),
         )
         worked.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
@@ -252,10 +252,10 @@ class TestSelectivePllCheck:
         # Changing R0 and R1 together must validate the pair a single time, not
         # once per register.
         calls = []
-        original = worked._mapper.check_pll
+        original = worked._mapper._check_pll
         monkeypatch.setattr(
             worked._mapper,
-            "check_pll",
+            "_check_pll",
             lambda *a, **k: calls.append(a) or original(*a, **k),
         )
         worked.configure(int_n=211, mod=50)
