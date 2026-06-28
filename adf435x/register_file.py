@@ -1,11 +1,10 @@
 """
-Register file for the ADF435x family: tracks device configuration state.
+Register file for tracking the configuration state of ADF435x family devices.
 
 The register file holds the words last written to the device and the freshly
-encoded "current" words, and computes the minimal, correctly ordered set of
-writes needed to bring the device up to date. Staleness is derived by diffing
-current against last-written -- the diff is the dirty flag, so it can never fall
-out of sync with a hand-maintained flag.
+encoded "current" words. It also computes the minimal, correctly ordered set of
+writes needed to apply configuration updates to the device. Staleness is
+derived by diffing the current state against the last-written state.
 
 This first layer is the staleness and transaction-ordering engine; it operates
 on raw words so it can be tested without a device, a profile, or a clock. The
