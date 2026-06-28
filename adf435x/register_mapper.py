@@ -14,8 +14,39 @@ method below cites the figure for the register it encodes.
 """
 
 from . import consts
-from .config import ADF435xConfig
+from .config import (
+    ADF435xConfig,
+    FIELD_ENUM_VALUES,
+    FIELD_NAMES,
+    FIELD_RANGE_MIN,
+    FIELD_WIDTH,
+)
 from .profiles import ADF435xDeviceProfile
+
+_PLL_FIELDS = frozenset(("int_n", "frac", "mod", "prescaler"))
+
+# Error-message labels where they differ from the config field name.
+_FIELD_LABELS = {
+    "int_n": "INT",
+    "frac": "FRAC",
+    "mod": "MOD",
+    "r_counter": "R",
+    "cp_current_code": "CP current",
+    "muxout": "MUXOUT",
+    "noise_mode": "noise mode",
+    "clockdiv_value": "clock divider",
+    "band_clk_div": "band select clock divider",
+    "output_power": "output power",
+    "aux_power": "aux power",
+}
+
+_PROFILE_BOOL_GATES = {
+    "phase_adjust": ("has_phase_adjust", "does not support phase adjust"),
+    "charge_cancel": (
+        "has_charge_cancel",
+        "does not support charge cancellation",
+    ),
+}
 
 
 class ADF435xRegisterMapper:
@@ -32,30 +63,15 @@ class ADF435xRegisterMapper:
     def __init__(self, profile: ADF435xDeviceProfile):
         self._profile = profile
 
-    def _check_field(self, value: int, bits: int, name: str) -> int:
-        """Validate that an unsigned value fits in a fixed-width field.
+    def _check_width(self, value: int, bits: int, label: str) -> int:
+        """Raise ValueError if *value* is outside an unsigned *bits*-wide field.
 
-        Parameters
-        ----------
-        value : int
-            The value to place in the field.
-        bits : int
-            Field width in bits.
-        name : str
-            Field name, used in the error message.
-
-        Returns
-        -------
-        int
-            The validated value, unchanged.
-
-        Raises
-        ------
-        ValueError
-            If ``value`` is negative or does not fit in ``bits`` bits.
+        Returns *value* unchanged so callers in the encode path can chain.
         """
         if value < 0 or value >= (1 << bits):
-            raise ValueError(f"{name}={value} does not fit in {bits} bits")
+            raise ValueError(
+                "%s=%d does not fit in %d bits" % (label, value, bits)
+            )
         return value
 
     def check_pll(self, int_n: int, frac: int, mod: int, prescaler: int) -> None:
@@ -89,9 +105,110 @@ class ADF435xRegisterMapper:
         else:
             raise ValueError("prescaler=%d invalid" % prescaler)
         if int_n < int_min:
-            raise ValueError("INT=%d below minimum %d for prescaler" % (int_n, int_min))
+            raise ValueError(
+                "INT=%d below minimum %d for prescaler" % (int_n, int_min)
+            )
         if int_n > profile.int_max:
-            raise ValueError("INT=%d above maximum %d" % (int_n, profile.int_max))
+            raise ValueError(
+                "INT=%d above maximum %d" % (int_n, profile.int_max)
+            )
+
+    def _validate_one_field(self, config: ADF435xConfig, name: str) -> None:
+        """Validate a single configuration field on *config*.
+
+        Parameters
+        ----------
+        config : ADF435xConfig
+            Configuration supplying field values.
+        name : str
+            Field name from ``config._FIELDS``.
+
+        Raises
+        ------
+        ValueError
+            If the field value violates width, range, enum, profile, or
+            divider rules.
+        """
+        value = getattr(config, name)
+        profile = self._profile
+        label = _FIELD_LABELS.get(name, name)
+
+        if name in FIELD_WIDTH:
+            self._check_width(value, FIELD_WIDTH[name], label)
+
+        if name == "mod":
+            if value < profile.mod_min:
+                raise ValueError(
+                    "MOD=%d below minimum %d" % (value, profile.mod_min)
+                )
+            if value > profile.mod_max:
+                raise ValueError(
+                    "MOD=%d above maximum %d" % (value, profile.mod_max)
+                )
+        elif name in FIELD_RANGE_MIN:
+            lo = FIELD_RANGE_MIN[name]
+            hi = (1 << FIELD_WIDTH[name]) - 1
+            if value < lo:
+                raise ValueError(
+                    "%s=%d below minimum %d" % (label, value, lo)
+                )
+            if value > hi:
+                raise ValueError(
+                    "%s=%d above maximum %d" % (label, value, hi)
+                )
+        elif name in FIELD_ENUM_VALUES:
+            if value not in FIELD_ENUM_VALUES[name]:
+                raise ValueError("%s=%d invalid" % (label, value))
+            if (
+                name == "band_clk_mode"
+                and value == consts.REG3_BAND_CLK_HIGH
+                and not profile.has_fast_band_select
+            ):
+                raise ValueError(
+                    "%s does not support fast band select" % profile.name
+                )
+        elif name == "rf_divider":
+            profile.divider_code(value)
+        elif name in _PROFILE_BOOL_GATES:
+            attr, msg = _PROFILE_BOOL_GATES[name]
+            if value and not getattr(profile, attr):
+                raise ValueError("%s %s" % (profile.name, msg))
+
+    def validate_config(
+        self, config: ADF435xConfig, *, only: frozenset[str] | None = None
+    ) -> None:
+        """Raise ValueError on any configuration violation. Never encodes.
+
+        Parameters
+        ----------
+        config : ADF435xConfig
+            Configuration to validate.
+        only : frozenset of str or None, optional
+            When ``None``, every field in ``config._FIELDS`` is checked.
+            Otherwise only the named fields are checked. If *only* intersects
+            the PLL fields ``{int_n, frac, mod, prescaler}``, the cross-field
+            PLL check runs as well.
+
+        Raises
+        ------
+        ValueError
+            On any width, range, enum, profile-capability, divider, or PLL
+            violation.
+        """
+        if only is None:
+            names = FIELD_NAMES
+            check_pll = True
+        else:
+            names = only
+            check_pll = bool(only & _PLL_FIELDS)
+
+        for name in names:
+            self._validate_one_field(config, name)
+
+        if check_pll:
+            self.check_pll(
+                config.int_n, config.frac, config.mod, config.prescaler
+            )
 
     @property
     def profile(self) -> ADF435xDeviceProfile:
@@ -119,8 +236,8 @@ class ADF435xRegisterMapper:
         -----
         See datasheet Figure 24 (Register 0).
         """
-        self._check_field(int_n, consts.REG0_INT_WIDTH, "INT")
-        self._check_field(frac, consts.REG0_FRAC_WIDTH, "FRAC")
+        self._check_width(int_n, consts.REG0_INT_WIDTH, "INT")
+        self._check_width(frac, consts.REG0_FRAC_WIDTH, "FRAC")
         word = 0
         word |= int_n << consts.REG0_INT_POS
         word |= frac << consts.REG0_FRAC_POS
@@ -165,9 +282,9 @@ class ADF435xRegisterMapper:
         -----
         See datasheet Figure 25 (Register 1).
         """
-        self._check_field(mod, consts.REG1_MOD_WIDTH, "MOD")
-        self._check_field(phase, consts.REG1_PHASE_WIDTH, "phase")
-        self._check_field(prescaler, 1, "prescaler")
+        self._check_width(mod, consts.REG1_MOD_WIDTH, "MOD")
+        self._check_width(phase, consts.REG1_PHASE_WIDTH, "phase")
+        self._check_width(prescaler, 1, "prescaler")
         if mod < self._profile.mod_min:
             raise ValueError("MOD=%d below minimum %d" % (mod, self._profile.mod_min))
         if phase_adjust and not self._profile.has_phase_adjust:
@@ -245,12 +362,16 @@ class ADF435xRegisterMapper:
         -----
         See datasheet Figure 26 (Register 2).
         """
-        self._check_field(r_counter, consts.REG2_R_COUNTER_WIDTH, "R")
+        self._check_width(r_counter, consts.REG2_R_COUNTER_WIDTH, "R")
         if r_counter < 1:
             raise ValueError("R=%d below minimum 1" % r_counter)
-        self._check_field(cp_current_code, consts.REG2_CP_CURRENT_WIDTH, "CP current")
-        self._check_field(muxout, consts.REG2_MUXOUT_WIDTH, "MUXOUT")
-        self._check_field(noise_mode, consts.REG2_NOISE_MODE_WIDTH, "noise mode")
+        self._check_width(
+            cp_current_code, consts.REG2_CP_CURRENT_WIDTH, "CP current"
+        )
+        self._check_width(muxout, consts.REG2_MUXOUT_WIDTH, "MUXOUT")
+        self._check_width(
+            noise_mode, consts.REG2_NOISE_MODE_WIDTH, "noise mode"
+        )
         word = 0
         word |= noise_mode << consts.REG2_NOISE_MODE_POS
         word |= muxout << consts.REG2_MUXOUT_POS
@@ -321,7 +442,7 @@ class ADF435xRegisterMapper:
         it; elsewhere DB22 is reserved and the part uses a fixed 3 ns pulse, so
         the bit is forced to 0. See datasheet Figure 27 (Register 3).
         """
-        self._check_field(
+        self._check_width(
             clockdiv_value, consts.REG3_CLOCKDIV_VALUE_WIDTH, "clock divider"
         )
         if (
@@ -406,11 +527,15 @@ class ADF435xRegisterMapper:
         See datasheet Figure 28 (Register 4).
         """
         rf_divider_code = self._profile.divider_code(rf_divider)
-        self._check_field(
-            band_clk_div, consts.REG4_BAND_CLK_DIV_WIDTH, "band select clock divider"
+        self._check_width(
+            band_clk_div,
+            consts.REG4_BAND_CLK_DIV_WIDTH,
+            "band select clock divider",
         )
-        self._check_field(output_power, consts.REG4_OUTPUT_POWER_WIDTH, "output power")
-        self._check_field(aux_power, consts.REG4_AUX_POWER_WIDTH, "aux power")
+        self._check_width(
+            output_power, consts.REG4_OUTPUT_POWER_WIDTH, "output power"
+        )
+        self._check_width(aux_power, consts.REG4_AUX_POWER_WIDTH, "aux power")
         word = 0
         word |= feedback << consts.REG4_FEEDBACK_POS
         word |= rf_divider_code << consts.REG4_RF_DIVIDER_POS

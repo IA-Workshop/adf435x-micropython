@@ -86,6 +86,42 @@ _DEFAULTS = {name: default for name, (_, default) in _FIELDS.items()}
 FIELD_REGISTER = {name: reg for name, (reg, _) in _FIELDS.items()}
 FIELD_NAMES = tuple(_FIELDS)
 
+# Width-limited numeric fields (config name -> bit width from consts).
+FIELD_WIDTH = {
+    "int_n": consts.REG0_INT_WIDTH,
+    "frac": consts.REG0_FRAC_WIDTH,
+    "phase": consts.REG1_PHASE_WIDTH,
+    "mod": consts.REG1_MOD_WIDTH,
+    "r_counter": consts.REG2_R_COUNTER_WIDTH,
+    "cp_current_code": consts.REG2_CP_CURRENT_WIDTH,
+    "clockdiv_value": consts.REG3_CLOCKDIV_VALUE_WIDTH,
+    "band_clk_div": consts.REG4_BAND_CLK_DIV_WIDTH,
+}
+
+# Datasheet minimum above zero (max is implied by FIELD_WIDTH).
+FIELD_RANGE_MIN = {
+    "r_counter": consts.REG2_R_COUNTER_MIN,
+    "band_clk_div": consts.REG4_BAND_CLK_DIV_MIN,
+}
+
+# Enum membership (config name -> valid symbolic values in consts).
+FIELD_ENUM_VALUES = {
+    "prescaler": consts.REG1_PRESCALER_VALUES,
+    "muxout": consts.REG2_MUXOUT_VALUES,
+    "noise_mode": consts.REG2_NOISE_MODE_VALUES,
+    "ldf": consts.REG2_LDF_VALUES,
+    "ldp": consts.REG2_LDP_VALUES,
+    "pd_polarity": consts.REG2_PD_POLARITY_VALUES,
+    "band_clk_mode": consts.REG3_BAND_CLK_MODE_VALUES,
+    "abp": consts.REG3_ABP_VALUES,
+    "clockdiv_mode": consts.REG3_CLOCKDIV_MODE_VALUES,
+    "feedback": consts.REG4_FEEDBACK_VALUES,
+    "output_power": consts.REG4_OUTPUT_POWER_VALUES,
+    "aux_select": consts.REG4_AUX_SELECT_VALUES,
+    "aux_power": consts.REG4_OUTPUT_POWER_VALUES,
+    "lock_pin": consts.REG5_LOCK_PIN_VALUES,
+}
+
 
 class ADF435xConfig:
     """Device configuration, with one instance attribute per register field.

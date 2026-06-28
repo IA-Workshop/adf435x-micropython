@@ -45,9 +45,4 @@ def test_muxout_digital_lock_value():
 
 
 def test_output_power_levels_ascending():
-    assert (
-        c.REG4_POWER_MINUS_4DBM,
-        c.REG4_POWER_MINUS_1DBM,
-        c.REG4_POWER_PLUS_2DBM,
-        c.REG4_POWER_PLUS_5DBM,
-    ) == (0, 1, 2, 3)
+    assert c.REG4_OUTPUT_POWER_VALUES == (0, 1, 2, 3)
