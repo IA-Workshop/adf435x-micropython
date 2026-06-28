@@ -19,11 +19,17 @@ from conftest import WORKED_WORDS
 
 
 def _plan_indices(plan: list) -> list:
+    """Return the register address (DB2:DB0) of each word in a commit plan."""
     return [word & 0b111 for word in plan]
 
 
 class TestFieldSchema:
+    """Derived field views stay in sync with the ``_FIELDS`` schema."""
+
     def test_derived_views_match_fields(self):
+        """Every derived mapping covers exactly the fields in ``_FIELDS``."""
+        # _DEFAULTS, FIELD_REGISTER, and FIELD_NAMES are all generated from
+        # _FIELDS, so their key sets and values must agree with it.
         assert set(_FIELDS) == set(_DEFAULTS) == set(FIELD_REGISTER)
         assert FIELD_NAMES == tuple(_FIELDS)
         for name, (reg, default) in _FIELDS.items():
@@ -31,16 +37,22 @@ class TestFieldSchema:
             assert _DEFAULTS[name] == default
 
     def test_register_indices_in_range(self):
+        """Each field maps to a valid register index (0..5)."""
         for name, (reg, _) in _FIELDS.items():
+            # Field name is included in the assert message to flag the culprit.
             assert 0 <= reg < consts.NUM_REGISTERS, name
 
 
 class TestEncoding:
+    """A configuration encodes to the expected register words."""
+
     def test_worked_regfile_example_words(self, worked_regfile):
+        """The datasheet worked example encodes to the known-good words."""
         assert worked_regfile.current_words() == WORKED_WORDS
 
     @pytest.mark.parametrize("profile", [ADF4350, ADF4351], ids=lambda p: p.name)
     def test_default_config_encodes(self, profile):
+        """A default config yields six words on both supported profiles."""
         f = ADF435xRegisterFile(profile)
         assert len(f.current_words()) == 6
 
@@ -49,29 +61,36 @@ class TestInstanceIsolation:
     """Config instances hold per-object state, not shared class attributes."""
 
     def test_fresh_instances_are_independent(self):
+        """Mutating one instance does not leak into another."""
         a = ADF435xConfig()
         b = ADF435xConfig()
         a.int_n = 100
+        # b must still hold the default, proving fields are instance state.
         assert b.int_n == _DEFAULTS["int_n"]
 
     def test_defaults_match_module_dict(self):
+        """A fresh config reflects every default in ``_DEFAULTS``."""
         cfg = ADF435xConfig()
         for name, expected in _DEFAULTS.items():
             assert getattr(cfg, name) == expected
 
     def test_init_applies_overrides_only(self):
+        """Overrides set only the named fields; the rest keep defaults."""
         cfg = ADF435xConfig(int_n=422, frac=13)
         assert cfg.int_n == 422
         assert cfg.frac == 13
+        # mod was not overridden, so it stays at its default.
         assert cfg.mod == _DEFAULTS["mod"]
 
     def test_copy_preserves_all_fields(self):
+        """``copy()`` reproduces every field value of the original."""
         original = ADF435xConfig(int_n=422, frac=13, mod=25)
         clone = original.copy()
         for name in FIELD_NAMES:
             assert getattr(clone, name) == getattr(original, name)
 
     def test_copy_is_independent(self):
+        """Mutating a copy does not affect the original."""
         original = ADF435xConfig(int_n=422)
         clone = original.copy()
         clone.int_n = 500
@@ -79,34 +98,43 @@ class TestInstanceIsolation:
 
 
 class TestConfigure:
+    """``configure()`` validates input and is transactional on failure."""
+
     def test_rejects_unknown_field(self, worked_regfile):
+        """An unknown field name raises before any state changes."""
         with pytest.raises(AttributeError):
             worked_regfile.configure(no_such_field=1)
 
     def test_init_rejects_unknown_field(self):
+        """The config constructor also rejects unknown field names."""
         with pytest.raises(AttributeError):
             ADF435xConfig(no_such_field=1)
 
     def test_copy_is_independent(self, worked_regfile):
+        """A copy of the file's config can be edited without side effects."""
         clone = worked_regfile.config.copy()
         clone.frac = 14
         assert worked_regfile.config.frac == 13
         assert clone.frac == 14
 
     def test_two_register_files_do_not_share_config(self):
+        """Each register file owns a separate default config instance."""
         a = ADF435xRegisterFile(ADF4351)
         b = ADF435xRegisterFile(ADF4351)
         a.configure(muxout=consts.REG2_MUX_DGND)
+        # Changing a's config must not touch b's independent default.
         assert a.config.muxout == consts.REG2_MUX_DGND
         assert b.config.muxout == consts.REG2_MUX_DIGITALLOCK
 
     def test_rolls_back_field_on_failure(self):
+        """A rejected value leaves the config field at its prior value."""
         f = ADF435xRegisterFile(ADF4350)
         with pytest.raises(ValueError):
             f.configure(rf_divider=32)  # exceeds the 4350's /16 maximum
         assert f.config.rf_divider == 1
 
     def test_rolls_back_words_on_failure(self):
+        """A rejected value leaves the encoded words unchanged."""
         f = ADF435xRegisterFile(ADF4350)
         before = f.current_words()
         with pytest.raises(ValueError):
@@ -114,6 +142,7 @@ class TestConfigure:
         assert f.current_words() == before
 
     def test_rolls_back_on_non_value_error(self):
+        """Rollback covers any exception, not just ValueError."""
         # A wrong-typed value raises TypeError during encoding, not ValueError.
         # The file must still be restored and the original error re-raised.
         f = ADF435xRegisterFile(ADF4350)
@@ -126,37 +155,48 @@ class TestConfigure:
 
 
 class TestRetune:
+    """Retuning re-encodes only affected registers and forces R0 when needed."""
+
     def test_frac_writes_only_r0(self, worked_regfile):
+        """Changing FRAC (an R0 field) writes R0 alone."""
         worked_regfile.commit()
         worked_regfile.configure(frac=14)
         assert _plan_indices(worked_regfile.commit()) == [0]
 
     def test_mod_forces_r0(self, worked_regfile):
+        """Changing MOD (an R1 field) writes R1 then R0 to latch it (DBR)."""
         worked_regfile.commit()
         worked_regfile.configure(mod=50)
         assert _plan_indices(worked_regfile.commit()) == [1, 0]
 
     def test_divider_writes_r4_and_r0(self, worked_regfile):
+        """An R4 divider change plus an R0 change emits R4 then R0."""
         worked_regfile.commit()
         worked_regfile.configure(rf_divider=4, int_n=211)
         assert _plan_indices(worked_regfile.commit()) == [4, 0]
 
     def test_power_writes_only_r4(self, worked_regfile):
+        """Output power (non-buffered R4 field) writes R4 alone."""
         worked_regfile.commit()
         worked_regfile.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
         assert _plan_indices(worked_regfile.commit()) == [4]
 
 
 class TestSelectiveReencode:
+    """Changing one field re-encodes only its register, others intact."""
+
     def test_frac_only_changes_r0_word(self, worked_regfile):
+        """FRAC touches only the R0 word."""
         worked_regfile.commit()
         before = worked_regfile.current_words()
         worked_regfile.configure(frac=14)
         after = worked_regfile.current_words()
         assert after[0] != before[0]
+        # Every register past R0 must be byte-identical.
         assert after[1:] == before[1:]
 
     def test_phase_only_changes_r1_word(self, worked_regfile):
+        """Phase touches only the R1 word, not the PLL-paired R0."""
         # phase is an R1 field that shares no encoding with the PLL-paired R0,
         # so changing it must leave every other word byte-identical.
         worked_regfile.commit()
@@ -168,6 +208,7 @@ class TestSelectiveReencode:
         assert after[2:] == before[2:]
 
     def test_muxout_only_changes_r2_word(self, worked_regfile):
+        """MUXOUT touches only the R2 word."""
         worked_regfile.commit()
         before = worked_regfile.current_words()
         worked_regfile.configure(muxout=consts.REG2_MUX_DVDD)
@@ -177,6 +218,7 @@ class TestSelectiveReencode:
         assert after[3:] == before[3:]
 
     def test_clockdiv_only_changes_r3_word(self, worked_regfile):
+        """Clock-divider value touches only the R3 word."""
         worked_regfile.commit()
         before = worked_regfile.current_words()
         worked_regfile.configure(clockdiv_value=100)
@@ -186,6 +228,7 @@ class TestSelectiveReencode:
         assert after[4:] == before[4:]
 
     def test_output_power_only_changes_r4_word(self, worked_regfile):
+        """Output power touches only the R4 word."""
         worked_regfile.commit()
         before = worked_regfile.current_words()
         worked_regfile.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
@@ -195,6 +238,7 @@ class TestSelectiveReencode:
         assert after[5] == before[5]
 
     def test_lock_pin_only_changes_r5_word(self, worked_regfile):
+        """Lock-pin mode touches only the R5 word."""
         worked_regfile.commit()
         before = worked_regfile.current_words()
         worked_regfile.configure(lock_pin=consts.REG5_LOCK_LOW)
@@ -209,6 +253,7 @@ class TestSelectivePllCheck:
     """
 
     def test_configure_frac_ge_mod_rejected(self, worked_regfile):
+        """FRAC >= MOD is caught even when only R0 is in the dirty set."""
         # frac (R0) vs mod (R1): the relation is validated even though only R0
         # is in the dirty set.
         worked_regfile.commit()
@@ -216,13 +261,16 @@ class TestSelectivePllCheck:
             worked_regfile.configure(frac=worked_regfile.config.mod)
 
     def test_configure_mod_below_frac_rejected(self, worked_regfile):
+        """FRAC >= MOD is caught even when only R1 is in the dirty set."""
         # mod (R1) vs frac (R0): validated when only R1 is dirty.
         worked_regfile.commit()
         with pytest.raises(ValueError, match="must be less than MOD"):
             worked_regfile.configure(mod=worked_regfile.config.frac)
 
     def test_configure_non_pll_field_skips_check(self, worked_regfile, monkeypatch):
-        # Touching only R2..R5 must not invoke the PLL check at all.
+        """Touching only non-PLL registers skips the PLL cross-check."""
+        # Touching only R2..R5 must not invoke the PLL check at all. Wrap
+        # _check_pll to record each call while delegating to the real one.
         calls = []
         original = worked_regfile._mapper._check_pll
         monkeypatch.setattr(
@@ -234,6 +282,7 @@ class TestSelectivePllCheck:
         assert calls == []
 
     def test_configure_r0_and_r1_checks_pll_once(self, worked_regfile, monkeypatch):
+        """A combined R0+R1 change runs the PLL check exactly once."""
         # Changing R0 and R1 together must validate the pair a single time, not
         # once per register.
         calls = []
@@ -248,7 +297,10 @@ class TestSelectivePllCheck:
 
 
 class TestDump:
+    """``dump()`` reflects commit count and per-register staleness."""
+
     def test_clean_after_commit(self, worked_regfile):
+        """After a commit the snapshot reports no staleness and a commit."""
         worked_regfile.commit()
         snap = worked_regfile.dump()
         assert snap["is_stale"] is False
@@ -256,8 +308,10 @@ class TestDump:
         assert len(snap["registers"]) == 6
 
     def test_reports_stale_register_after_change(self, worked_regfile):
+        """A post-commit change marks the affected register stale."""
         worked_regfile.commit()
         worked_regfile.configure(frac=14)
         snap = worked_regfile.dump()
         assert snap["is_stale"] is True
+        # frac lives in R0, so register 0 must show as stale.
         assert snap["registers"][0]["stale"] is True

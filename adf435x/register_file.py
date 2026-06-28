@@ -48,6 +48,7 @@ class ADF435xRegisterFile:
     _DBR_REGISTERS = frozenset(consts.DBR_REGISTER_INDICES)
 
     def __init__(self, profile: ADF435xDeviceProfile, config=None) -> None:
+        """Build the mapper, validate the config, and encode initial words."""
         self._mapper = ADF435xRegisterMapper(profile)
         self._config = config if config is not None else ADF435xConfig()
         self._current = [0] * self.NUM_REGISTERS
@@ -61,7 +62,14 @@ class ADF435xRegisterFile:
 
     @property
     def config(self) -> ADF435xConfig:
-        """The current configuration."""
+        """The current configuration.
+
+        Returns
+        -------
+        ADF435xConfig
+            The live configuration object. Mutating it directly bypasses
+            validation; prefer ``configure()``.
+        """
         return self._config
 
     def configure(self, **fields) -> None:
@@ -91,12 +99,16 @@ class ADF435xRegisterFile:
                 raise AttributeError("unknown configuration field: %s" % name)
         previous = {name: getattr(self._config, name) for name in fields}
         dirty = {FIELD_REGISTER[name] for name in fields}
+        # Apply all new values before validating so cross-field rules (PLL,
+        # prescaler vs INT) see the final state.
         for name, value in fields.items():
             setattr(self._config, name, value)
         try:
             self._mapper.validate_config(self._config, only=frozenset(fields))
+            # Encode only; bitfield ranges were checked above.
             self._recompute(dirty)
         except Exception:
+            # Roll back every touched field and re-encode the restored config.
             for name, value in previous.items():
                 setattr(self._config, name, value)
             self._recompute()
@@ -110,6 +122,11 @@ class ADF435xRegisterFile:
         dirty : set of int or None
             Register indices to re-encode. ``None`` encodes all six (initial
             load and rollback recovery).
+
+        Notes
+        -----
+        Encode only. Bitfield validation runs at init and ``configure()``;
+        this path does not call ``validate_config``.
         """
         m = self._mapper
         c = self._config
@@ -122,10 +139,20 @@ class ADF435xRegisterFile:
     def _update_current(self, words) -> None:
         """Replace the current (desired) words.
 
+        Parameters
+        ----------
+        words : sequence of int
+            Exactly ``NUM_REGISTERS`` register words, in index order R0..R5.
+
         Raises
         ------
         ValueError
             If the wrong number of words is supplied.
+
+        Notes
+        -----
+        Test and recovery seam that sets words without re-encoding from a
+        config. Normal updates go through ``configure()``.
         """
         if len(words) != self.NUM_REGISTERS:
             raise ValueError(
@@ -134,14 +161,26 @@ class ADF435xRegisterFile:
         self._current = list(words)
 
     def current_words(self) -> list:
-        """A copy of the six current (desired) register words."""
+        """Return a copy of the six current (desired) register words.
+
+        Returns
+        -------
+        list of int
+            The current words in index order R0..R5. A copy, so callers may
+            mutate it freely.
+        """
         return list(self._current)
 
     # -- staleness -----------------------------------------------------------
 
     def stale_indices(self) -> list:
-        """Register indices whose current word differs from the last written
-        one, ascending.
+        """Return register indices that differ from the last-written words.
+
+        Returns
+        -------
+        list of int
+            Indices whose current word differs from the last-written one, in
+            ascending order. Registers never written count as stale.
         """
         return [
             i
@@ -150,7 +189,13 @@ class ADF435xRegisterFile:
         ]
 
     def is_stale(self) -> bool:
-        """True if any register needs writing."""
+        """Report whether any register needs writing.
+
+        Returns
+        -------
+        bool
+            True if at least one register is stale.
+        """
         return bool(self.stale_indices())
 
     def dump(self) -> dict:
@@ -210,6 +255,8 @@ class ADF435xRegisterFile:
             The stale set, with R0 added when R1 or R2 changed, or when R4
             changed while the R4 divider is double-buffered (R2 DB13 set).
         """
+        # R1 and R2 latch on any R0 write (DBR). R4 divider latches on R0 only
+        # when R2 DB13 (double_buffer) is set (DBB).
         if stale & self._DBR_REGISTERS:
             stale = set(stale)
             stale.add(consts.REG0_ADDR)

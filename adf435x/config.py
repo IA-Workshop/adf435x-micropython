@@ -1,4 +1,10 @@
-"""ADF435x device configuration fields and register mapping."""
+"""ADF435x device configuration fields and register mapping.
+
+``ADF435xConfig`` holds field values and defaults only. It does not know the
+target device profile and cannot validate ranges or PLL rules. Value validation
+runs in ``ADF435xRegisterMapper.validate_config``, called by
+``ADF435xRegisterFile`` at init and on every ``configure()`` call.
+"""
 
 from . import consts
 
@@ -131,26 +137,40 @@ class ADF435xConfig:
     the solver (future) sets ``int_n``, ``frac``, ``mod``, ``prescaler``,
     ``rf_divider``, and ``band_clk_div`` for a target output.
 
-    Note: ``frac=0`` selects integer-N mode on the device; int-N register
+    Constructing ``ADF435xConfig(**kw)`` checks field names only. To validate
+    values, use ``ADF435xRegisterMapper(profile).validate_config(cfg)`` or build
+    the config through ``ADF435xRegisterFile.configure()``.
+
+    Parameters
+    ----------
+    **overrides
+        Field name/value pairs matching keys in ``FIELD_REGISTER``. Names not
+        given keep their default value.
+
+    Raises
+    ------
+    AttributeError
+        If an override names an unknown field.
+
+    Notes
+    -----
+    ``frac=0`` selects integer-N mode on the device; int-N register
     optimizations (LDF, ABP, R5 bits) are left to the solver, not applied here.
 
     Use one ``ADF435xConfig`` instance per ``ADF435xRegisterFile``; do not
     share a config object across multiple register files.
+
+    Examples
+    --------
+    >>> cfg = ADF435xConfig(int_n=422, frac=13, mod=25)
+    >>> cfg.int_n
+    422
+    >>> cfg.prescaler == ADF435xConfig().prescaler
+    True
     """
 
     def __init__(self, **overrides) -> None:
-        """Initialize from defaults, applying any field overrides.
-
-        Parameters
-        ----------
-        **overrides
-            Field name/value pairs matching keys in ``FIELD_REGISTER``.
-
-        Raises
-        ------
-        AttributeError
-            If an override names an unknown field.
-        """
+        """Initialize from defaults, applying any field overrides."""
         for name, value in _DEFAULTS.items():
             setattr(self, name, value)
         for name, value in overrides.items():
@@ -159,5 +179,12 @@ class ADF435xConfig:
             setattr(self, name, value)
 
     def copy(self) -> "ADF435xConfig":
-        """Return an independent copy of this configuration."""
+        """Return an independent copy of this configuration.
+
+        Returns
+        -------
+        ADF435xConfig
+            A new instance with the same field values. Mutating the copy does
+            not affect the original.
+        """
         return ADF435xConfig(**{name: getattr(self, name) for name in _DEFAULTS})

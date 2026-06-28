@@ -14,7 +14,19 @@ different register map and belong elsewhere.
 
 
 def _is_power_of_two(value: int) -> bool:
-    """Return True if value is a positive power of two."""
+    """Test whether an integer is a positive power of two.
+
+    Parameters
+    ----------
+    value : int
+        Value to test.
+
+    Returns
+    -------
+    bool
+        True if *value* is 1, 2, 4, 8, ...; False otherwise (including 0 and
+        negatives).
+    """
     return value > 0 and (value & (value - 1)) == 0
 
 
@@ -33,14 +45,17 @@ class ADF435xDeviceProfile:
         Largest RF output divider (16 for the ADF4350, 64 for the ADF4351).
         Valid dividers are the powers of two from 1 to this value.
     has_phase_adjust : bool
-        Whether the phase-adjust bit (R1 DB28) is implemented.
+        Whether the phase-adjust bit (R1 DB28) is implemented. False on ADF4350;
+        True on ADF4351.
     has_fast_band_select : bool
-        Whether the fast band-select clock mode (R3 DB23) is available.
+        Whether the fast band-select clock mode (R3 DB23) is available. False
+        on ADF4350; True on ADF4351.
     has_programmable_abp : bool
         Whether the antibacklash pulse width (R3 DB22) is programmable. If not,
-        the part uses a fixed 3 ns pulse.
+        the part uses a fixed 3 ns pulse (ADF4350).
     has_charge_cancel : bool
-        Whether charge-pump charge cancellation (R3 DB21) is available.
+        Whether charge-pump charge cancellation (R3 DB21) is available. False on
+        ADF4350; True on ADF4351.
     prescaler_4_5_max_hz : int
         Highest VCO frequency allowed with the 4/5 prescaler; above this the 8/9
         prescaler is required. Used by the solver, not the encoder.
@@ -71,6 +86,7 @@ class ADF435xDeviceProfile:
         mod_min: int = 2,
         mod_max: int = 4095,
     ):
+        """Store the per-device capability flags and divider/PLL bounds."""
         self.name = name
         self.rf_divider_max = rf_divider_max
         self.has_phase_adjust = has_phase_adjust
@@ -94,16 +110,18 @@ class ADF435xDeviceProfile:
         ----------
         rf_divider : int
             Output divider; a power of two from 1 to ``rf_divider_max``.
+            Examples: 1 -> code 0, 2 -> code 1, 32 -> code 5 (ADF4351).
 
         Returns
         -------
         int
-            The divider-select code.
+            The divider-select code (log2 of the divider).
 
         Raises
         ------
         ValueError
-            If ``rf_divider`` is not a power of two within range for this device.
+            If ``rf_divider`` is not a power of two within range for this
+            device (for example, 64 on ADF4350, or 3 on either part).
         """
         if not _is_power_of_two(rf_divider) or rf_divider > self.rf_divider_max:
             raise ValueError(
@@ -113,6 +131,13 @@ class ADF435xDeviceProfile:
         return rf_divider.bit_length() - 1
 
     def __repr__(self) -> str:
+        """Return a short debug representation naming the device.
+
+        Returns
+        -------
+        str
+            For example, ``ADF435xDeviceProfile(ADF4351)``.
+        """
         return "ADF435xDeviceProfile(%s)" % self.name
 
 

@@ -1,16 +1,23 @@
 """
 Profile-aware register encoder for the ADF435x family.
 
-An ADF435xRegisterMapper turns field values into the six 32-bit register words used in
-the ADF435x devices. It uses the shared bit layout in ``consts`` along with a
-``ADF435xDeviceProfile`` to handle the fields that differ between the ADF4350 and
-ADF4351.
+An ADF435xRegisterMapper turns field values into the six 32-bit register words
+used in the ADF435x devices. It uses the shared bit layout in ``consts`` along
+with an ``ADF435xDeviceProfile`` to handle the fields that differ between the
+ADF4350 and ADF4351.
+
+Validation and encode are split on purpose. Call ``validate_config`` at setup
+boundaries (register-file init, ``configure()``, REPL debugging). The encode
+path masks width-limited fields and does not re-check their ranges. Two checks
+stay in encode because they are structural, not bitmaskable: profile capability
+gates (phase adjust, fast band select, charge cancel) and the
+``rf_divider -> code`` mapping via ``profile.divider_code()``.
 
 Notes
 -----
 Register field positions and encodings are defined in the register maps that
 begin at Figure 23 (p. 14) of both the ADF4350 and ADF4351 datasheets. Each
-method below cites the figure for the register it encodes.
+``register_N`` method below cites the figure for the register it encodes.
 """
 
 from . import consts
@@ -53,31 +60,111 @@ class ADF435xRegisterMapper:
     profile : ADF435xDeviceProfile
         The target device. Selects the capability-gated fields and the
         RF-divider code mapping.
+
+    Notes
+    -----
+    Use ``validate_config`` before the first encode or after changing field
+    values outside ``ADF435xRegisterFile``. Direct calls to ``register_N`` or
+    ``encode_config`` assume a validated configuration except for the
+    structural gates and divider mapping noted in the module docstring.
     """
 
     def __init__(self, profile: ADF435xDeviceProfile):
+        """Bind the mapper to a device profile."""
         self._profile = profile
 
     @property
     def profile(self) -> ADF435xDeviceProfile:
-        """The device profile this mapper encodes for."""
+        """The device profile this mapper encodes for.
+
+        Returns
+        -------
+        ADF435xDeviceProfile
+            The profile passed at construction.
+        """
         return self._profile
 
     def _pack(self, value: int, pos: int, width: int) -> int:
-        """Mask *value* to *width* bits and shift to bit position *pos*."""
+        """Mask *value* to *width* bits and shift to bit position *pos*.
+
+        Parameters
+        ----------
+        value : int
+            Field value. Bits above *width* are discarded by the mask.
+        pos : int
+            Position of the least-significant bit in the register word.
+        width : int
+            Field width in bits.
+
+        Returns
+        -------
+        int
+            The masked value shifted into place, ready to OR into a word.
+
+        Notes
+        -----
+        Trusted encode uses this for every width-limited field. Range checks
+        belong in ``validate_config``, not here.
+        """
         return (value & ((1 << width) - 1)) << pos
 
     def _bit(self, flag: bool, pos: int) -> int:
-        """Encode a single control bit."""
+        """Encode a single control bit.
+
+        Parameters
+        ----------
+        flag : bool
+            Bit value; True sets the bit, False clears it.
+        pos : int
+            Position of the bit in the register word.
+
+        Returns
+        -------
+        int
+            ``1 << pos`` when *flag* is set, otherwise 0.
+        """
         return int(flag) << pos
 
     def _check_width(self, value: int, bits: int, label: str) -> None:
-        """Raise ValueError if *value* is outside an unsigned *bits*-wide field."""
+        """Check that *value* fits an unsigned *bits*-wide field.
+
+        Parameters
+        ----------
+        value : int
+            Field value to check.
+        bits : int
+            Field width in bits.
+        label : str
+            Human-readable field name for the error message.
+
+        Raises
+        ------
+        ValueError
+            If *value* is negative or does not fit in *bits* bits.
+        """
         if value < 0 or value >= 1 << bits:
             raise ValueError("%s=%d does not fit in %d bits" % (label, value, bits))
 
     def _check_pll(self, int_n: int, frac: int, mod: int, prescaler: int) -> None:
-        """Validate cross-field PLL constraints (INT/FRAC/MOD/prescaler)."""
+        """Validate cross-field PLL constraints (INT/FRAC/MOD/prescaler).
+
+        Parameters
+        ----------
+        int_n : int
+            Integer division value (INT).
+        frac : int
+            Fractional numerator (FRAC).
+        mod : int
+            Fractional modulus (MOD).
+        prescaler : int
+            Dual-modulus prescaler select; selects the INT minimum to enforce.
+
+        Raises
+        ------
+        ValueError
+            If FRAC is not less than MOD, the prescaler value is unknown, or
+            INT is below the prescaler-dependent minimum or above the maximum.
+        """
         profile = self._profile
         if frac >= mod:
             raise ValueError("FRAC=%d must be less than MOD=%d" % (frac, mod))
@@ -158,6 +245,14 @@ class ADF435xRegisterMapper:
         ValueError
             On any width, range, enum, profile-capability, divider, or PLL
             violation.
+
+        Notes
+        -----
+        This method never encodes register words. For incremental updates via
+        ``ADF435xRegisterFile.configure()``, pass ``only=frozenset(fields)``
+        so unchanged fields are not re-checked. When *only* includes any PLL
+        field, the cross-field INT/FRAC/MOD/prescaler check runs (for example,
+        changing only ``prescaler`` re-validates INT against the new minimum).
         """
         if only is None:
             names = FIELD_NAMES
@@ -235,6 +330,7 @@ class ADF435xRegisterMapper:
         -----
         See datasheet Figure 25 (Register 1).
         """
+        # Structural profile gate: no bit pattern to mask for unsupported parts.
         if phase_adjust and (not self._profile.has_phase_adjust):
             raise ValueError("%s does not support phase adjust" % self._profile.name)
         return (
@@ -294,6 +390,8 @@ class ADF435xRegisterMapper:
             noninverting loop filter) or ``consts.REG2_PD_POLARITY_NEGATIVE``.
         double_buffer : bool, optional
             Double-buffer enable for the R4 RF-divider field, bit field DB13.
+            When set, a write to R0 latches the new divider (DBB); see
+            ``ADF435xRegisterFile`` commit ordering.
         power_down : bool, optional
             Software power-down, bit field DB5.
         cp_threestate : bool, optional
@@ -317,6 +415,7 @@ class ADF435xRegisterMapper:
             | self._bit(doubler, c.REG2_DOUBLER_POS)
             | self._bit(rdiv2, c.REG2_RDIV2_POS)
             | self._pack(r_counter, c.REG2_R_COUNTER_POS, c.REG2_R_COUNTER_WIDTH)
+            # DBB: when set, R4 RF divider latches on the next R0 write.
             | self._bit(double_buffer, c.REG2_DOUBLE_BUFFER_POS)
             | self._pack(
                 cp_current_code, c.REG2_CP_CURRENT_POS, c.REG2_CP_CURRENT_WIDTH
@@ -383,6 +482,7 @@ class ADF435xRegisterMapper:
         it; elsewhere DB22 is reserved and the part uses a fixed 3 ns pulse, so
         the bit is forced to 0. See datasheet Figure 27 (Register 3).
         """
+        # Structural profile gates (same checks as validate_config).
         if band_clk_mode == consts.REG3_BAND_CLK_HIGH and (
             not self._profile.has_fast_band_select
         ):
@@ -393,6 +493,8 @@ class ADF435xRegisterMapper:
             raise ValueError(
                 "%s does not support charge cancellation" % self._profile.name
             )
+        # ABP: 6 ns (frac-N) vs 3 ns (int-N) on ADF4351; ADF4350 uses a fixed
+        # 3 ns pulse, so DB22 is reserved and forced to 0 regardless of *abp*.
         abp_bit = abp if self._profile.has_programmable_abp else 0
         c = consts
         return (
@@ -431,8 +533,9 @@ class ADF435xRegisterMapper:
             RF output divider (a power of two), encoded as a 3-bit select code
             in bit field DB22:DB20 via the profile's ``divider_code``.
         band_clk_div : int
-            8-bit band-select clock divider, bit field DB19:DB12. Divides the R
-            counter output to keep the band-select clock within range.
+            8-bit band-select clock divider, bit field DB19:DB12. Divides the
+            R counter output to produce the PFD-derived clock for VCO band
+            select. Legal count is 1..255; 0 is invalid (validated at setup).
         feedback : int, optional
             1-bit feedback select, bit field DB23.
             ``consts.REG4_FEEDBACK_FUNDAMENTAL`` (default, feedback taken from
@@ -471,6 +574,7 @@ class ADF435xRegisterMapper:
         See datasheet Figure 28 (Register 4).
         """
         c = consts
+        # rf_divider has no bit pattern to mask; map through the profile.
         return (
             self._pack(feedback, c.REG4_FEEDBACK_POS, 1)
             | self._pack(
@@ -592,11 +696,18 @@ class ADF435xRegisterMapper:
         Parameters
         ----------
         config : ADF435xConfig
-            Configuration supplying field values.
+            Configuration supplying field values. Assumes prior
+            ``validate_config`` at a setup boundary.
 
         Returns
         -------
         list of int
             Register words R0 through R5.
+
+        Notes
+        -----
+        Does not re-validate bitfield ranges or PLL constraints. Profile
+        capability gates and invalid ``rf_divider`` values still raise during
+        encode.
         """
         return [self.encode_register(i, config) for i in range(consts.NUM_REGISTERS)]

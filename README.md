@@ -6,20 +6,29 @@ MicroPython library for the ADF4350 and ADF4351 wideband PLL synthesizers.
 
 There is no on-board installer. Copy the `adf435x/` package directory to the
 MicroPython filesystem (via [mpremote](https://docs.micropython.org/en/latest/reference/mpremote.html),
-Thonny, rshell, or your IDE’s upload tool). Copy scripts from `examples/` as
+Thonny, rshell, or your IDE's upload tool). Copy scripts from `examples/` as
 needed and adjust pin assignments for your board. Host files (`tests/`,
 `pyproject.toml`) are not required on the device.
 
 ## Testing
 
-Run the host test suite with pytest (no hardware required):
+Host-side tests run under CPython with pytest. No board or `machine` module is
+required; `tests/conftest.py` installs a fake `machine` for device-handler
+checks.
 
 ```bash
+pip install -e ".[test]"
 pytest
 ```
 
-Tests under `tests/` mock `machine` for device-handler checks. Hardware-in-the-loop
-tests are marked `@pytest.mark.device` and run only with `pytest --device`.
+Or with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv run pytest
+```
+
+Hardware-in-the-loop tests are marked `@pytest.mark.device` and are skipped
+unless you pass `pytest --device` with a connected ADF435x board.
 
 ## See Also
 
