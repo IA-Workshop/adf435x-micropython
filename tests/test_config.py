@@ -55,6 +55,39 @@ class TestEncoding:
         assert len(f.current_words()) == 6
 
 
+class TestInstanceIsolation:
+    """Config instances hold per-object state, not shared class attributes."""
+
+    def test_fresh_instances_are_independent(self):
+        a = ADF435xConfig()
+        b = ADF435xConfig()
+        a.int_n = 100
+        assert b.int_n == _DEFAULTS["int_n"]
+
+    def test_defaults_match_module_dict(self):
+        cfg = ADF435xConfig()
+        for name, expected in _DEFAULTS.items():
+            assert getattr(cfg, name) == expected
+
+    def test_init_applies_overrides_only(self):
+        cfg = ADF435xConfig(int_n=422, frac=13)
+        assert cfg.int_n == 422
+        assert cfg.frac == 13
+        assert cfg.mod == _DEFAULTS["mod"]
+
+    def test_copy_preserves_all_fields(self):
+        original = ADF435xConfig(int_n=422, frac=13, mod=25)
+        clone = original.copy()
+        for name in FIELD_NAMES:
+            assert getattr(clone, name) == getattr(original, name)
+
+    def test_copy_is_independent(self):
+        original = ADF435xConfig(int_n=422)
+        clone = original.copy()
+        clone.int_n = 500
+        assert original.int_n == 422
+
+
 class TestConfigure:
     def test_rejects_unknown_field(self, worked):
         with pytest.raises(AttributeError):

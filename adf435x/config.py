@@ -124,5 +124,5 @@ class ADF435xConfig:
     def copy(self) -> "ADF435xConfig":
         """Return an independent copy of this configuration."""
         return ADF435xConfig(**{
-            name: getattr(self, name) for name in FIELD_NAMES
+            name: getattr(self, name) for name in _DEFAULTS
         })
