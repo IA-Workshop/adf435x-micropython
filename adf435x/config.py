@@ -32,7 +32,7 @@ class ADF435xConfig:
     ldf = consts.REG2_LDF_FRAC_N
     ldp = consts.REG2_LDP_10NS
     pd_polarity = consts.REG2_PD_POLARITY_POSITIVE
-    double_buffer = False
+    double_buffer = False   # R2 DB13: R4 divider latches on R0 when True
     power_down = False
     cp_threestate = False
     counter_reset = False

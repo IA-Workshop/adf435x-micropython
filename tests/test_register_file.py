@@ -1,10 +1,11 @@
-"""Host tests for the register-file staleness and ordering engine (increment 1).
+"""Host tests for the register-file staleness and ordering engine.
 
 These drive the engine with plain integer words via the ``_update_current``
-seam, so no profile, mapper, or device is needed.
+seam, so no profile, mapper, or device is needed for most cases.
 """
 import pytest
 
+from adf435x import consts
 from adf435x.register_file import ADF435xRegisterFile
 from adf435x.profiles import ADF4350, ADF4351
 
@@ -15,6 +16,15 @@ WORDS = [0xA0, 0xB1, 0xC2, 0xD3, 0xE4, 0xF5]
 @pytest.fixture(params=[ADF4350, ADF4351], ids=lambda profile: profile.name)
 def rf(request):
     f = ADF435xRegisterFile(profile=request.param)
+    f._update_current(WORDS)
+    return f
+
+
+@pytest.fixture(params=[ADF4350, ADF4351], ids=lambda profile: profile.name)
+def rf_dbb(request):
+    """Register file with R2 DB13 (double_buffer) enabled."""
+    f = ADF435xRegisterFile(profile=request.param)
+    f.configure(double_buffer=True)
     f._update_current(WORDS)
     return f
 
@@ -70,6 +80,43 @@ class TestIncrementalCommit:
         rf.commit()
         rf._update_current([0xA0, 0xBB, 0xC2, 0xD3, 0xEE, 0xF5])
         assert rf.commit() == [(4, 0xEE), (1, 0xBB), (0, 0xA0)]
+
+
+class TestDoubleBuffer:
+    def test_r4_only_forces_r0_when_dbb_enabled(self, rf_dbb):
+        rf_dbb.commit()
+        rf_dbb._update_current([0xA0, 0xB1, 0xC2, 0xD3, 0xEE, 0xF5])
+        assert rf_dbb.commit() == [(4, 0xEE), (0, 0xA0)]
+
+    def test_r2_still_forces_r0_when_dbb_enabled(self, rf_dbb):
+        rf_dbb.commit()
+        rf_dbb._update_current([0xA0, 0xB1, 0xCC, 0xD3, 0xE4, 0xF5])
+        assert rf_dbb.commit() == [(2, 0xCC), (0, 0xA0)]
+
+    @pytest.mark.parametrize("profile", [ADF4350, ADF4351], ids=lambda p: p.name)
+    def test_enabling_double_buffer_writes_r2_and_r0(self, profile):
+        f = ADF435xRegisterFile(profile)
+        f.commit()
+        f.configure(double_buffer=True)
+        assert [i for i, _ in f.commit()] == [consts.REG2_ADDR, consts.REG0_ADDR]
+
+    @pytest.mark.parametrize("profile", [ADF4350, ADF4351], ids=lambda p: p.name)
+    def test_r4_only_via_configure_forces_r0_when_dbb_enabled(self, profile):
+        f = ADF435xRegisterFile(profile)
+        f.commit()
+        f.configure(double_buffer=True)
+        f.commit()
+        f.configure(rf_divider=2)
+        assert [i for i, _ in f.commit()] == [consts.REG4_ADDR, consts.REG0_ADDR]
+
+    def test_r4_and_mod_gives_fast_retune_order_with_dbb(self):
+        f = ADF435xRegisterFile(ADF4351)
+        f.commit()
+        f.configure(double_buffer=True)
+        f.commit()
+        f.configure(rf_divider=2, mod=50)
+        assert [i for i, _ in f.commit()] == [
+            consts.REG4_ADDR, consts.REG1_ADDR, consts.REG0_ADDR]
 
 
 class TestOrdering:

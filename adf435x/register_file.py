@@ -9,6 +9,14 @@ optimistic: commit and commit_all return the words to write and advance the
 last-written cache in the same call. The device is write-only, so a write that
 returns without raising is the only confirmation available; if a write raises,
 the device state is unknown and you re-program with commit_all.
+
+Double-buffer latching (datasheet Figure 23):
+- R1 (phase, modulus) and R2 (R counter, ref doubler/div-by-2, CP current)
+  latch on a write to R0 (DBR).
+- R4 RF divider select latches on R0 only when R2 DB13 (``double_buffer``)
+  is set (DBB).
+When any of these registers change, commit adds an R0 write even if R0 itself
+is unchanged, so the new values take effect.
 """
 
 from . import consts
@@ -31,13 +39,9 @@ class ADF435xRegisterFile:
 
     NUM_REGISTERS = consts.NUM_REGISTERS
 
-    # Registers carrying double-buffered fields. The modulus and phase (R1) and
-    # the R counter, reference doubler, reference divide-by-2, and charge-pump
-    # current (R2) latch only on a write to R0, so changing any of them forces
-    # an R0 write even when R0 itself is unchanged. R4's divider select is
-    # double-buffered only when R2 DB13 is set, which we leave disabled, so R4
-    # takes effect on its own write and is not listed here.
-    _DOUBLE_BUFFERED = (1, 2)
+    # R1 and R2 are fully double-buffered (DBR); R4 divider is DBB when
+    # config.double_buffer is set. See module docstring.
+    _DBR_REGISTERS = frozenset(consts.DBR_REGISTER_INDICES)
 
     def __init__(self, profile: ADF435xDeviceProfile, config=None) -> None:
         self._mapper = ADF435xRegisterMapper(profile)
@@ -170,13 +174,36 @@ class ADF435xRegisterFile:
 
     # -- transactions --------------------------------------------------------
 
+    def _commit_stale_set(self, stale: set[int]) -> set[int]:
+        """Expand *stale* so R0 is included when a latch write is required.
+
+        Parameters
+        ----------
+        stale : set of int
+            Register indices that differ from the last-written cache.
+
+        Returns
+        -------
+        set of int
+            The stale set, with 0 added when R1, R2, or (if ``double_buffer``)
+            R4 changed.
+        """
+        if stale & self._DBR_REGISTERS:
+            stale = set(stale)
+            stale.add(0)
+        elif self._config.double_buffer and consts.REG4_ADDR in stale:
+            stale = set(stale)
+            stale.add(0)
+        return stale
+
     def commit(self) -> list:
         """The minimal set of writes to bring the device up to date.
 
         Stale registers are returned as (index, word) pairs ordered R5 down to
-        R0, so R0 is written last. If a double-buffered register changed, R0 is
-        added so its write latches the buffered fields. The last-written cache is
-        advanced here, assuming the words are written to the device next.
+        R0, so R0 is written last. If a double-buffered register changed (R1,
+        R2, or R4 with ``double_buffer`` enabled), R0 is added so its write
+        latches the buffered fields. The last-written cache is advanced here,
+        assuming the words are written to the device next.
 
         Returns
         -------
@@ -187,8 +214,7 @@ class ADF435xRegisterFile:
         stale = set(self.stale_indices())
         if not stale:
             return []
-        if stale.intersection(self._DOUBLE_BUFFERED):
-            stale.add(0)
+        stale = self._commit_stale_set(stale)
         plan = [(i, self._current[i]) for i in sorted(stale, reverse=True)]
         self._last_written = list(self._current)
         self._commit_count += 1

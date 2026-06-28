@@ -14,6 +14,10 @@ def test_const_imports_on_host():
     assert c.NUM_REGISTERS == 6
 
 
+def test_dbr_register_indices():
+    assert c.DBR_REGISTER_INDICES == (c.REG1_ADDR, c.REG2_ADDR)
+
+
 def test_r0_layout_worked_example():
     # INT=422, FRAC=13 -> R0 = 0x00D30068
     r0 = (422 << c.REG0_INT_POS) | (13 << c.REG0_FRAC_POS) | c.REG0_ADDR
