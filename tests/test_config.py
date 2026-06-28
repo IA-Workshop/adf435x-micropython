@@ -11,6 +11,10 @@ from adf435x.register_file import ADF435xRegisterFile
 WORKED = [0x00D30068, 0x080080C9, 0x18004E42, 0x00800003, 0x0091403C, 0x00580005]
 
 
+def _plan_indices(plan: list) -> list:
+    return [word & 0b111 for word in plan]
+
+
 @pytest.fixture
 def worked():
     f = ADF435xRegisterFile(ADF4351)
@@ -65,22 +69,22 @@ class TestRetune:
     def test_frac_writes_only_r0(self, worked):
         worked.commit()
         worked.configure(frac=14)
-        assert [i for i, _ in worked.commit()] == [0]
+        assert _plan_indices(worked.commit()) == [0]
 
     def test_mod_forces_r0(self, worked):
         worked.commit()
         worked.configure(mod=50)
-        assert [i for i, _ in worked.commit()] == [1, 0]
+        assert _plan_indices(worked.commit()) == [1, 0]
 
     def test_divider_writes_r4_and_r0(self, worked):
         worked.commit()
         worked.configure(rf_divider=4, int_n=211)
-        assert [i for i, _ in worked.commit()] == [4, 0]
+        assert _plan_indices(worked.commit()) == [4, 0]
 
     def test_power_writes_only_r4(self, worked):
         worked.commit()
         worked.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
-        assert [i for i, _ in worked.commit()] == [4]
+        assert _plan_indices(worked.commit()) == [4]
 
 
 class TestSelectiveReencode:

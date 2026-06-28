@@ -16,6 +16,15 @@ WORDS = [0xA0, 0xB1, 0xC2, 0xD3, 0xE4, 0xF5]
 DBB_BIT = 1 << consts.REG2_DOUBLE_BUFFER_POS
 
 
+def _reg_addr(word: int) -> int:
+    """Register index encoded in DB2:DB0 of a word."""
+    return word & 0b111
+
+
+def _plan_indices(plan: list) -> list:
+    return [_reg_addr(word) for word in plan]
+
+
 @pytest.fixture(params=[ADF4350, ADF4351], ids=lambda profile: profile.name)
 def rf(request):
     f = ADF435xRegisterFile(profile=request.param)
@@ -48,8 +57,7 @@ class TestInitialState:
 class TestFirstCommit:
     def test_emits_all_six_r5_to_r0(self, rf):
         plan = rf.commit()
-        assert plan == [(5, 0xF5), (4, 0xE4), (3, 0xD3),
-                        (2, 0xC2), (1, 0xB1), (0, 0xA0)]
+        assert plan == [0xF5, 0xE4, 0xD3, 0xC2, 0xB1, 0xA0]
 
     def test_clears_staleness(self, rf):
         rf.commit()
@@ -64,30 +72,30 @@ class TestIncrementalCommit:
     def test_r0_only_change_writes_only_r0(self, rf):
         rf.commit()
         rf._update_current([0xAA, 0xB1, 0xC2, 0xD3, 0xE4, 0xF5])
-        assert rf.commit() == [(0, 0xAA)]
+        assert rf.commit() == [0xAA]
 
     def test_r4_only_change_does_not_force_r0(self, rf):
         # R4 is not double-buffered (R2 DB13 disabled), so it writes alone.
         rf.commit()
         rf._update_current([0xA0, 0xB1, 0xC2, 0xD3, 0xEE, 0xF5])
-        assert rf.commit() == [(4, 0xEE)]
+        assert rf.commit() == [0xEE]
 
     def test_r1_change_forces_r0_last(self, rf):
         # R1 is double-buffered: changing it forces an R0 write to latch.
         rf.commit()
         rf._update_current([0xA0, 0xBB, 0xC2, 0xD3, 0xE4, 0xF5])
-        assert rf.commit() == [(1, 0xBB), (0, 0xA0)]
+        assert rf.commit() == [0xBB, 0xA0]
 
     def test_r2_change_forces_r0_last(self, rf):
         rf.commit()
         rf._update_current([0xA0, 0xB1, 0xCC, 0xD3, 0xE4, 0xF5])
-        assert rf.commit() == [(2, 0xCC), (0, 0xA0)]
+        assert rf.commit() == [0xCC, 0xA0]
 
     def test_r1_and_r4_change_gives_fast_retune_order(self, rf):
         # [R4], [R1], R0 -- the cheat-sheet fast-retune, falling out of the diff.
         rf.commit()
         rf._update_current([0xA0, 0xBB, 0xC2, 0xD3, 0xEE, 0xF5])
-        assert rf.commit() == [(4, 0xEE), (1, 0xBB), (0, 0xA0)]
+        assert rf.commit() == [0xEE, 0xBB, 0xA0]
 
 
 class TestDoubleBuffer:
@@ -98,19 +106,19 @@ class TestDoubleBuffer:
         words[consts.REG2_ADDR] |= DBB_BIT
         words[consts.REG4_ADDR] = 0xEE
         rf_dbb._update_current(words)
-        assert rf_dbb.commit() == [(4, 0xEE), (0, 0xA0)]
+        assert rf_dbb.commit() == [0xEE, 0xA0]
 
     def test_r2_still_forces_r0_when_dbb_enabled(self, rf_dbb):
         rf_dbb.commit()
         rf_dbb._update_current([0xA0, 0xB1, 0xCC, 0xD3, 0xE4, 0xF5])
-        assert rf_dbb.commit() == [(2, 0xCC), (0, 0xA0)]
+        assert rf_dbb.commit() == [0xCC, 0xA0]
 
     @pytest.mark.parametrize("profile", [ADF4350, ADF4351], ids=lambda p: p.name)
     def test_enabling_double_buffer_writes_r2_and_r0(self, profile):
         f = ADF435xRegisterFile(profile)
         f.commit()
         f.configure(double_buffer=True)
-        assert [i for i, _ in f.commit()] == [consts.REG2_ADDR, consts.REG0_ADDR]
+        assert _plan_indices(f.commit()) == [consts.REG2_ADDR, consts.REG0_ADDR]
 
     @pytest.mark.parametrize("profile", [ADF4350, ADF4351], ids=lambda p: p.name)
     def test_disabling_double_buffer_writes_r2_and_r0(self, profile):
@@ -119,7 +127,7 @@ class TestDoubleBuffer:
         f.configure(double_buffer=True)
         f.commit()
         f.configure(double_buffer=False)
-        assert [i for i, _ in f.commit()] == [consts.REG2_ADDR, consts.REG0_ADDR]
+        assert _plan_indices(f.commit()) == [consts.REG2_ADDR, consts.REG0_ADDR]
 
     def test_non_divider_r4_field_forces_r0_when_dbb_enabled(self):
         # output_power is not double-buffered, but with DB13 set we
@@ -129,7 +137,7 @@ class TestDoubleBuffer:
         f.configure(double_buffer=True)
         f.commit()
         f.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
-        assert [i for i, _ in f.commit()] == [
+        assert _plan_indices(f.commit()) == [
             consts.REG4_ADDR, consts.REG0_ADDR]
 
     def test_non_divider_r4_field_alone_when_dbb_disabled(self):
@@ -137,7 +145,7 @@ class TestDoubleBuffer:
         f = ADF435xRegisterFile(ADF4351)
         f.commit()
         f.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
-        assert [i for i, _ in f.commit()] == [consts.REG4_ADDR]
+        assert _plan_indices(f.commit()) == [consts.REG4_ADDR]
 
     @pytest.mark.parametrize("profile", [ADF4350, ADF4351], ids=lambda p: p.name)
     def test_r4_only_via_configure_forces_r0_when_dbb_enabled(self, profile):
@@ -146,7 +154,8 @@ class TestDoubleBuffer:
         f.configure(double_buffer=True)
         f.commit()
         f.configure(rf_divider=2)
-        assert [i for i, _ in f.commit()] == [consts.REG4_ADDR, consts.REG0_ADDR]
+        assert _plan_indices(f.commit()) == [
+            consts.REG4_ADDR, consts.REG0_ADDR]
 
     def test_r4_and_mod_gives_fast_retune_order_with_dbb(self):
         f = ADF435xRegisterFile(ADF4351)
@@ -154,27 +163,55 @@ class TestDoubleBuffer:
         f.configure(double_buffer=True)
         f.commit()
         f.configure(rf_divider=2, mod=50)
-        assert [i for i, _ in f.commit()] == [
+        assert _plan_indices(f.commit()) == [
             consts.REG4_ADDR, consts.REG1_ADDR, consts.REG0_ADDR]
+
+
+class TestCommitPlan:
+    def test_plan_leaves_stale_until_mark_written(self, rf):
+        rf.commit()
+        rf._update_current([0xAA, 0xB1, 0xC2, 0xD3, 0xE4, 0xF5])
+        plan = rf.commit_plan()
+        assert plan == [0xAA]
+        assert rf.is_stale()
+        rf.mark_written()
+        assert not rf.is_stale()
+
+    def test_mark_write_failed_restores_staleness(self, rf):
+        rf.commit()
+        assert not rf.is_stale()
+        rf.mark_write_failed()
+        assert rf.is_stale()
+        assert rf.stale_indices() == [0, 1, 2, 3, 4, 5]
+
+    def test_commit_all_plan_without_mark_written(self, rf):
+        rf.commit()
+        count_before = rf.dump()["commit_count"]
+        rf._update_current([0xA8, 0xB1, 0xC2, 0xD3, 0xE4, 0xF5])
+        plan = rf.commit_all_plan()
+        assert plan == [0xF5, 0xE4, 0xD3, 0xC2, 0xB1, 0xA8]
+        assert rf.is_stale()
+        assert rf.dump()["commit_count"] == count_before
 
 
 class TestOrdering:
     def test_pairs_are_descending_by_index(self, rf):
-        indices = [index for index, _ in rf.commit()]
+        indices = _plan_indices(rf.commit())
         assert indices == sorted(indices, reverse=True)
 
     def test_r0_is_written_last_when_present(self, rf):
         rf.commit()
-        rf._update_current([0xAA, 0xBB, 0xC2, 0xD3, 0xE4, 0xF5])
+        # Low 3 bits of each word must match register address (see WORDS).
+        rf._update_current([0xA8, 0xB9, 0xC2, 0xD3, 0xE4, 0xF5])
         plan = rf.commit()
-        assert plan[-1][0] == 0
+        assert _plan_indices(plan)[-1] == 0
 
 
 class TestCommitAll:
     def test_emits_all_six_regardless_of_staleness(self, rf):
         rf.commit()                      # now nothing is stale
         plan = rf.commit_all()
-        assert [index for index, _ in plan] == [5, 4, 3, 2, 1, 0]
+        assert _plan_indices(plan) == [5, 4, 3, 2, 1, 0]
 
     def test_marks_everything_written(self, rf):
         rf.commit_all()

@@ -4,11 +4,13 @@ words last written to the device, and computes the minimal ordered set of writes
 needed to bring the device up to date.
 
 Staleness is derived by diffing the freshly encoded words against the
-last-written words, so it can't disagree with a hand-kept flag. Committing is
-optimistic: commit and commit_all return the words to write and advance the
-last-written cache in the same call. The device is write-only, so a write that
-returns without raising is the only confirmation available; if a write raises,
-the device state is unknown and you re-program with commit_all.
+last-written words, so it can't disagree with a hand-kept flag.
+
+``commit_plan()`` returns the register words to write (R5 down to R0) without
+updating the last-written cache. ``commit()`` is the optimistic shortcut:
+``commit_plan()`` followed by ``mark_written()``. After a successful device
+write, call ``mark_written()``; if the write fails, call ``mark_write_failed()``
+and reprogram with ``commit_all()``.
 
 Double-buffer latching (datasheet Figure 23):
 - R1 (phase, modulus) and R2 (R counter, ref doubler/div-by-2, CP current)
@@ -211,44 +213,70 @@ class ADF435xRegisterFile:
             stale.add(consts.REG0_ADDR)
         return stale
 
-    def commit(self) -> list:
-        """The minimal set of writes to bring the device up to date.
-
-        Stale registers are returned as (index, word) pairs ordered R5 down to
-        R0, so R0 is written last. If a double-buffered register changed (R1,
-        R2, or R4 with ``double_buffer`` enabled), R0 is added so its write
-        latches the buffered fields. The last-written cache is advanced here,
-        assuming the words are written to the device next.
+    def commit_plan(self) -> list:
+        """Register words to write, ordered R5 down to R0, without updating cache.
 
         Returns
         -------
-        list of (int, int)
-            (register_index, word) pairs in write order, empty if nothing is
-            stale.
+        list of int
+            32-bit register words in SPI write order. Empty if nothing is stale.
+            Register address is in DB2:DB0 of each word.
         """
         stale = set(self.stale_indices())
         if not stale:
             return []
         stale = self._commit_stale_set(stale)
-        plan = [(i, self._current[i]) for i in sorted(stale, reverse=True)]
-        self._last_written = list(self._current)
-        self._commit_count += 1
-        return plan
+        return [self._current[i] for i in sorted(stale, reverse=True)]
 
-    def commit_all(self) -> list:
-        """All six words as the full power-up transaction, ordered R5 down to R0.
-
-        Ignores staleness and always emits every register, for initial
-        programming and for recovery after a failed write. Advances the
-        last-written cache like commit.
+    def commit_all_plan(self) -> list:
+        """All six register words, R5 down to R0, without updating cache.
 
         Returns
         -------
-        list of (int, int)
-            All six (register_index, word) pairs, R5 down to R0.
+        list of int
+            Full power-up / recovery transaction.
         """
-        plan = [(i, self._current[i])
+        return [self._current[i]
                 for i in range(self.NUM_REGISTERS - 1, -1, -1)]
+
+    def mark_written(self) -> None:
+        """Record that the planned words were successfully written to the device."""
         self._last_written = list(self._current)
         self._commit_count += 1
+
+    def mark_write_failed(self) -> None:
+        """Discard the last-written cache after a failed device write.
+
+        Call before ``commit_all()`` to force a full reprogram.
+        """
+        self._last_written = [None] * self.NUM_REGISTERS
+
+    invalidate = mark_write_failed
+
+    def commit(self) -> list:
+        """Minimal write transaction, advancing the last-written cache.
+
+        Equivalent to ``commit_plan()`` followed by ``mark_written()`` when
+        the plan is non-empty.
+
+        Returns
+        -------
+        list of int
+            Register words in SPI write order (R5 down to R0).
+        """
+        plan = self.commit_plan()
+        if plan:
+            self.mark_written()
+        return plan
+
+    def commit_all(self) -> list:
+        """Full six-word transaction, advancing the last-written cache.
+
+        Returns
+        -------
+        list of int
+            All register words in SPI write order (R5 down to R0).
+        """
+        plan = self.commit_all_plan()
+        self.mark_written()
         return plan
