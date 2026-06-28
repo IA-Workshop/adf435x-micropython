@@ -19,7 +19,7 @@ RF divider : Output divider (1, 2, 4, ... 64) that divides f_VCO down to the
 """
 
 from . import consts
-from .profiles import ADF4351, ADF435xDeviceProfile
+from .profiles import ADF435xDeviceProfile
 
 # Device-agnostic limits shared by ADF4350 and ADF4351 (integer Hz).
 VCO_MIN_HZ = 2_200_000_000
@@ -95,11 +95,18 @@ def _gcd(a: int, b: int) -> int:
 
 class DeviceLimits:
     """
-    Parameter bounds for a fractional-N frequency synthesizer based on the
-    ADF4351.
+    Parameter bounds for an ADF435x fractional-N frequency synthesizer.
+
+    Construct via ``limits_for_profile()``; profile-specific fields
+    (``rf_dividers``, ``prescaler_4_5_max_hz``) have no defaults.
 
     Parameters
     ----------
+    rf_dividers : tuple of int
+        Available RF output divider values, ascending.
+    prescaler_4_5_max_hz : int
+        Highest VCO frequency permitted with the 4/5 prescaler; above this the
+        8/9 prescaler is mandatory.
     vco_min_hz, vco_max_hz : int
         Fundamental VCO tuning range in hertz.
     int_min_4_5, int_min_8_9 : int
@@ -108,11 +115,6 @@ class DeviceLimits:
         Maximum allowed INT value.
     mod_min, mod_max : int
         Inclusive bounds on the fractional modulus MOD.
-    rf_dividers : tuple of int
-        Available RF output divider values, ascending.
-    prescaler_4_5_max_hz : int
-        Highest VCO frequency permitted with the 4/5 prescaler; above this the
-        8/9 prescaler is mandatory.
     pfd_max_frac_hz, pfd_max_int_hz : int
         Maximum fPFD in fractional-N and integer-N operation.
     ref_max_doubler_hz : int
@@ -121,6 +123,9 @@ class DeviceLimits:
 
     def __init__(
         self,
+        *,
+        rf_dividers: tuple[int, ...],
+        prescaler_4_5_max_hz: int,
         vco_min_hz: int = VCO_MIN_HZ,
         vco_max_hz: int = VCO_MAX_HZ,
         int_min_4_5: int = 23,
@@ -128,8 +133,6 @@ class DeviceLimits:
         int_max: int = 65535,
         mod_min: int = 2,
         mod_max: int = 4095,
-        rf_dividers: tuple = (1, 2, 4, 8, 16, 32, 64),
-        prescaler_4_5_max_hz: int = 3_600_000_000,
         pfd_max_frac_hz: int = PFD_MAX_FRAC_HZ,
         pfd_max_int_hz: int = PFD_MAX_INT_HZ,
         ref_max_doubler_hz: int = REF_MAX_DOUBLER_HZ,
@@ -177,23 +180,16 @@ def limits_for_profile(profile: ADF435xDeviceProfile) -> DeviceLimits:
         1 << i for i in range(profile.rf_divider_max.bit_length())
     )
     return DeviceLimits(
-        vco_min_hz=VCO_MIN_HZ,
-        vco_max_hz=VCO_MAX_HZ,
+        rf_dividers=dividers,
+        prescaler_4_5_max_hz=profile.prescaler_4_5_max_hz,
         int_min_4_5=profile.int_min_4_5,
         int_min_8_9=profile.int_min_8_9,
         int_max=profile.int_max,
         mod_min=profile.mod_min,
         mod_max=profile.mod_max,
-        rf_dividers=dividers,
-        prescaler_4_5_max_hz=profile.prescaler_4_5_max_hz,
-        pfd_max_frac_hz=PFD_MAX_FRAC_HZ,
-        pfd_max_int_hz=PFD_MAX_INT_HZ,
-        ref_max_doubler_hz=REF_MAX_DOUBLER_HZ,
     )
 
 
 # Prescaler register values (same encoding as consts.REG1_PRESCALER_*).
 PRESCALER_4_5 = consts.REG1_PRESCALER_4_5
 PRESCALER_8_9 = consts.REG1_PRESCALER_8_9
-
-ADF4351_LIMITS = limits_for_profile(ADF4351)

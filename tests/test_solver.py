@@ -3,7 +3,8 @@
 import pytest
 
 from adf435x import consts
-from adf435x.solver import ADF4351_LIMITS, DeviceLimits, _round_div
+from adf435x.profiles import ADF4351
+from adf435x.solver import DeviceLimits, _round_div, limits_for_profile
 
 
 @pytest.mark.parametrize(
@@ -32,8 +33,9 @@ def test_round_div(num, den, expected):
 )
 def test_device_limits_output_min_hz(vco_min_hz, max_divider, expected):
     limits = DeviceLimits(
-        vco_min_hz=vco_min_hz,
         rf_dividers=(1, 2, 4, max_divider),
+        prescaler_4_5_max_hz=3_600_000_000,
+        vco_min_hz=vco_min_hz,
     )
     assert limits.output_min_hz == expected
 
@@ -43,7 +45,11 @@ def test_device_limits_output_min_hz(vco_min_hz, max_divider, expected):
     [4_400_000_000, 3_600_000_000, 2_800_000_000],
 )
 def test_device_limits_output_max_hz(vco_max_hz):
-    limits = DeviceLimits(vco_max_hz=vco_max_hz)
+    limits = DeviceLimits(
+        rf_dividers=(1,),
+        prescaler_4_5_max_hz=3_600_000_000,
+        vco_max_hz=vco_max_hz,
+    )
     assert limits.output_max_hz == vco_max_hz
 
 
@@ -60,8 +66,10 @@ def test_device_limits_output_max_hz(vco_max_hz):
         ("mod_max", 4095),
     ],
 )
-def test_adf4351_limits_defaults(attr, expected):
-    assert getattr(ADF4351_LIMITS, attr) == expected
+def test_limits_for_profile_adf4351(attr, expected):
+    """ADF4351 limits come from the profile plus shared VCO/PFD constants."""
+    limits = limits_for_profile(ADF4351)
+    assert getattr(limits, attr) == expected
 
 
 @pytest.mark.parametrize(
