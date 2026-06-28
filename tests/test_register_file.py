@@ -184,6 +184,21 @@ class TestCommitPlan:
         assert rf.is_stale()
         assert rf.stale_indices() == [0, 1, 2, 3, 4, 5]
 
+    def test_invalidate_alias(self, rf):
+        rf.commit()
+        rf.invalidate()
+        assert rf.is_stale()
+
+    def test_plan_is_idempotent_without_mark_written(self, rf):
+        # Without mark_written the cache is untouched, so repeated planning
+        # must return the identical plan and leave staleness unchanged.
+        rf.commit()
+        rf._update_current([0xAA, 0xBB, 0xC2, 0xD3, 0xE4, 0xF5])
+        first = rf.commit_plan()
+        second = rf.commit_plan()
+        assert first == second == [0xBB, 0xAA]
+        assert rf.is_stale()
+
     def test_commit_all_plan_without_mark_written(self, rf):
         rf.commit()
         count_before = rf.dump()["commit_count"]

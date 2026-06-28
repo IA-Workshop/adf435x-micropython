@@ -213,7 +213,7 @@ class ADF435xRegisterFile:
             stale.add(consts.REG0_ADDR)
         return stale
 
-    def commit_plan(self) -> list:
+    def commit_plan(self) -> list[int]:
         """Register words to write, ordered R5 down to R0, without updating cache.
 
         Returns
@@ -228,7 +228,7 @@ class ADF435xRegisterFile:
         stale = self._commit_stale_set(stale)
         return [self._current[i] for i in sorted(stale, reverse=True)]
 
-    def commit_all_plan(self) -> list:
+    def commit_all_plan(self) -> list[int]:
         """All six register words, R5 down to R0, without updating cache.
 
         Returns
@@ -253,7 +253,7 @@ class ADF435xRegisterFile:
 
     invalidate = mark_write_failed
 
-    def commit(self) -> list:
+    def commit(self) -> list[int]:
         """Minimal write transaction, advancing the last-written cache.
 
         Equivalent to ``commit_plan()`` followed by ``mark_written()`` when
@@ -269,7 +269,7 @@ class ADF435xRegisterFile:
             self.mark_written()
         return plan
 
-    def commit_all(self) -> list:
+    def commit_all(self) -> list[int]:
         """Full six-word transaction, advancing the last-written cache.
 
         Returns
