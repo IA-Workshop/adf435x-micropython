@@ -96,7 +96,7 @@ write_plan(adf, regfile, plan)
 print("Wrote %d register words" % len(plan))
 
 print(
-    "RF output should be about %.3f MHz — probe RFOUTA with your scope"
+    "RF output should be about %.3f MHz -- probe RFOUTA with your scope"
     % (EXPECTED_RFOUT_HZ / 1e6)
 )
 
