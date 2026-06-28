@@ -72,6 +72,34 @@ class TestRetune:
         assert [i for i, _ in worked.commit()] == [4]
 
 
+class TestSelectiveReencode:
+    def test_frac_only_changes_r0_word(self, worked):
+        worked.commit()
+        before = worked.current_words()
+        worked.configure(frac=14)
+        after = worked.current_words()
+        assert after[0] != before[0]
+        assert after[1:] == before[1:]
+
+    def test_output_power_only_changes_r4_word(self, worked):
+        worked.commit()
+        before = worked.current_words()
+        worked.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
+        after = worked.current_words()
+        assert after[4] != before[4]
+        assert after[0:4] == before[0:4]
+        assert after[5] == before[5]
+
+    def test_muxout_only_changes_r2_word(self, worked):
+        worked.commit()
+        before = worked.current_words()
+        worked.configure(muxout=consts.REG2_MUX_DVDD)
+        after = worked.current_words()
+        assert after[2] != before[2]
+        assert after[0:2] == before[0:2]
+        assert after[3:] == before[3:]
+
+
 class TestDump:
     def test_clean_after_commit(self, worked):
         worked.commit()

@@ -21,7 +21,7 @@ is unchanged, so the new values take effect.
 """
 
 from . import consts
-from .config import ADF435xConfig
+from .config import ADF435xConfig, FIELD_REGISTER
 from .profiles import ADF435xDeviceProfile
 from .register_mapper import ADF435xRegisterMapper
 
@@ -81,46 +81,39 @@ class ADF435xRegisterFile:
             first.
         """
         for name in fields:
-            if not hasattr(self._config, name):
+            if name not in FIELD_REGISTER:
                 raise AttributeError("unknown configuration field: %s" % name)
         previous = {name: getattr(self._config, name) for name in fields}
+        dirty = {FIELD_REGISTER[name] for name in fields}
         for name, value in fields.items():
             setattr(self._config, name, value)
         try:
-            self._recompute()
-        except Exception:
+            self._recompute(dirty)
+        except ValueError:
             for name, value in previous.items():
                 setattr(self._config, name, value)
             self._recompute()
             raise
 
-    def _recompute(self) -> None:
-        """Encode the configuration into the six current words."""
-        c = self._config
+    def _recompute(self, dirty=None) -> None:
+        """Encode configuration into ``_current``.
+
+        Parameters
+        ----------
+        dirty : set of int or None
+            Register indices to re-encode. ``None`` encodes all six (initial
+            load and rollback recovery).
+        """
         m = self._mapper
-        m.check_pll(c.int_n, c.frac, c.mod, c.prescaler)
-        self._update_current([
-            m.register_0(c.int_n, c.frac),
-            m.register_1(c.mod, c.prescaler, c.phase, c.phase_adjust),
-            m.register_2(
-                c.r_counter, c.cp_current_code,
-                muxout=c.muxout, noise_mode=c.noise_mode,
-                doubler=c.doubler, rdiv2=c.rdiv2, ldf=c.ldf, ldp=c.ldp,
-                pd_polarity=c.pd_polarity, double_buffer=c.double_buffer,
-                power_down=c.power_down, cp_threestate=c.cp_threestate,
-                counter_reset=c.counter_reset),
-            m.register_3(
-                band_clk_mode=c.band_clk_mode, abp=c.abp,
-                charge_cancel=c.charge_cancel, csr=c.csr,
-                clockdiv_mode=c.clockdiv_mode, clockdiv_value=c.clockdiv_value),
-            m.register_4(
-                c.rf_divider, c.band_clk_div, feedback=c.feedback,
-                output_power=c.output_power, rf_enable=c.rf_enable,
-                mtld=c.mtld, vco_power_down=c.vco_power_down,
-                aux_select=c.aux_select, aux_enable=c.aux_enable,
-                aux_power=c.aux_power),
-            m.register_5(c.lock_pin),
-        ])
+        c = self._config
+        if dirty is None:
+            for i, word in enumerate(m.encode_config(c)):
+                self._current[i] = word
+            return
+        if dirty & {consts.REG0_ADDR, consts.REG1_ADDR}:
+            m.check_pll(c.int_n, c.frac, c.mod, c.prescaler)
+        for index in dirty:
+            self._current[index] = m._encode_register_at(c, index)
 
     def _update_current(self, words) -> None:
         """Replace the current (desired) words.
