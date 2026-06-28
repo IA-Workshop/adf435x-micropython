@@ -152,6 +152,18 @@ class ADF435xDeviceProfile:
             )
         return _log2_power_of_two(rf_divider)
 
+    def legal_rf_dividers(self):
+        """
+        Return ascending legal RF output dividers for this device.
+
+        Returns
+        -------
+        tuple of int
+            Powers of two from 1 through ``rf_divider_max``.
+        """
+        count = _log2_power_of_two(self.rf_divider_max) + 1
+        return tuple(1 << i for i in range(count))
+
     def __repr__(self) -> str:
         """Return a short debug representation naming the device.
 

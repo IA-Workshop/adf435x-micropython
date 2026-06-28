@@ -14,12 +14,12 @@ from adf435x.solver import (
     _compute_achieved_hz,
     _compute_f_pfd,
     _normalize_frac_mod,
-    _output_max_hz,
     _output_min_hz,
     _pick_band_clk,
     _pick_prescaler,
     _pick_rf_divider,
     _round_div,
+    build_frequency_table,
     solve,
 )
 
@@ -111,9 +111,10 @@ class TestOutputRange:
         assert _output_min_hz(profile) == expected_min
 
     @pytest.mark.parametrize("profile", [ADF4350, ADF4351])
-    def test_output_max_hz(self, profile):
+    def test_output_max_is_vco_max(self, profile):
         """Maximum output equals the VCO maximum."""
-        assert _output_max_hz(profile) == VCO_MAX_HZ
+        result = solve(VCO_MAX_HZ, REF_HZ, profile)
+        assert result.achieved_hz == VCO_MAX_HZ
 
 
 class TestPickRfDivider:
@@ -221,6 +222,15 @@ class TestSolveIntegerN:
         assert result.fields["abp"] == consts.REG3_ABP_3NS
         assert result.fields["charge_cancel"] is True
 
+    def test_fractional_n_clears_int_n_fields(self):
+        """Fractional-N after integer-N sets frac-N register mode."""
+        int_n = solve(VCO_MIN_HZ, REF_HZ, ADF4351)
+        frac_n = solve(GOLDEN_TARGET_HZ, REF_HZ, ADF4351)
+        assert int_n.fields["ldf"] == consts.REG2_LDF_INT_N
+        assert frac_n.fields["ldf"] == consts.REG2_LDF_FRAC_N
+        assert frac_n.fields["abp"] == consts.REG3_ABP_6NS
+        assert frac_n.fields["charge_cancel"] is False
+
 
 class TestSolveNearest:
     """Nearest-frequency fit with signed error."""
@@ -295,6 +305,19 @@ class TestSolveBandEdges:
         result = solve(_output_min_hz(ADF4351), REF_HZ, ADF4351)
         assert result.fields["rf_divider"] == 64
         assert result.achieved_hz == _output_min_hz(ADF4351)
+
+
+class TestBuildFrequencyTable:
+    """Sweep table planning."""
+
+    def test_example_band_has_multiple_entries(self):
+        """190–210 MHz with 2 MHz step yields a multi-point table."""
+        table, step = build_frequency_table(
+            190_000_000, 210_000_000, 2_000_000, REF_HZ, ADF4351
+        )
+        assert step > 0
+        assert len(table) >= 3
+        assert table[0].achieved_hz <= table[-1].achieved_hz
 
 
 class TestSolveExact:

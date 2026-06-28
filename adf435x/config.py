@@ -134,7 +134,7 @@ class ADF435xConfig:
 
     Defaults are PLL-valid placeholders so a freshly constructed register file
     always encodes six well-formed words. They are not a tuned frequency plan;
-    the solver (future) sets ``int_n``, ``frac``, ``mod``, ``prescaler``,
+    ``adf435x.solver.solve()`` sets ``int_n``, ``frac``, ``mod``, ``prescaler``,
     ``rf_divider``, and ``band_clk_div`` for a target output.
 
     Constructing ``ADF435xConfig(**kw)`` checks field names only. To validate

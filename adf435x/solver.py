@@ -18,7 +18,7 @@ RF divider : Output divider (1, 2, 4, ... 64) that divides f_VCO to RFout
 """
 
 from . import consts
-from .profiles import ADF435xDeviceProfile, _log2_power_of_two
+from .profiles import ADF435xDeviceProfile
 
 # Device-agnostic limits shared by ADF4350 and ADF4351 (integer Hz).
 VCO_MIN_HZ = 2_200_000_000
@@ -26,7 +26,6 @@ VCO_MAX_HZ = 4_400_000_000
 BANDSEL_MAX_HZ_NORMAL = 125_000
 BANDSEL_MAX_HZ_FAST = 500_000
 PFD_MAX_FRAC_HZ = 32_000_000
-PFD_MAX_INT_HZ = 90_000_000
 REF_MAX_DOUBLER_HZ = 30_000_000
 _BAND_CLK_DIV_MAX = 255
 
@@ -171,20 +170,53 @@ def _gcd(a: int, b: int) -> int:
     return a
 
 
-def _rf_dividers(profile: ADF435xDeviceProfile) -> tuple[int, ...]:
-    """Return ascending RF output dividers legal for *profile*."""
-    count = _log2_power_of_two(profile.rf_divider_max) + 1
-    return tuple(1 << i for i in range(count))
-
-
 def _output_min_hz(profile: ADF435xDeviceProfile) -> int:
     """Lowest reachable output frequency for *profile*."""
     return _round_div(VCO_MIN_HZ, profile.rf_divider_max)
 
 
-def _output_max_hz(profile: ADF435xDeviceProfile) -> int:
-    """Highest reachable output frequency for *profile*."""
-    return VCO_MAX_HZ
+def achieved_hz_from_n_num(n_num, mod, f_pfd, rf_divider):
+    """
+    RF output in hertz for fractional-N numerator *n_num* (N = n_num / mod).
+
+    Parameters
+    ----------
+    n_num : int
+        Combined numerator INT * MOD + FRAC.
+    mod : int
+        Fractional modulus.
+    f_pfd : int
+        PFD frequency in hertz.
+    rf_divider : int
+        RF output divider.
+
+    Returns
+    -------
+    int
+        Achieved RF output frequency in hertz.
+    """
+    return ((n_num * f_pfd) // mod) // rf_divider
+
+
+def rf_channel_step_hz(f_pfd, mod, rf_divider):
+    """
+    Minimum RF output spacing for fixed MOD and dividers.
+
+    Parameters
+    ----------
+    f_pfd : int
+        PFD frequency in hertz.
+    mod : int
+        Fractional modulus.
+    rf_divider : int
+        RF output divider.
+
+    Returns
+    -------
+    int
+        Channel step at the RF output in hertz.
+    """
+    return f_pfd // mod // rf_divider
 
 
 def _compute_f_pfd(
@@ -304,7 +336,7 @@ def _pick_rf_divider(target_hz: int, profile: ADF435xDeviceProfile) -> int:
     NoSolutionError
         If no legal divider yields an in-band VCO frequency.
     """
-    for div in _rf_dividers(profile):
+    for div in profile.legal_rf_dividers():
         vco = target_hz * div
         if VCO_MIN_HZ <= vco <= VCO_MAX_HZ:
             return div
@@ -381,19 +413,12 @@ def _mod_candidates(
     return range(profile.mod_min, profile.mod_max + 1)
 
 
-def _candidate_valid(
-    int_n: int,
-    frac: int,
-    mod: int,
-    vco_hz: int,
-    profile: ADF435xDeviceProfile,
-) -> bool:
+def _candidate_valid(int_n, frac, mod, vco_hz, profile, prescaler):
     """Return True if INT, FRAC, MOD, and VCO satisfy PLL constraints."""
     if not (VCO_MIN_HZ <= vco_hz <= VCO_MAX_HZ):
         return False
     if frac >= mod:
         return False
-    prescaler = _pick_prescaler(vco_hz, profile)
     int_min = _int_min_for_prescaler(prescaler, profile)
     return int_min <= int_n <= profile.int_max
 
@@ -425,26 +450,167 @@ def _best_pll(
             continue
         int_n, frac, mod = solved
         vco_hz = _compute_vco_hz(int_n, frac, mod, f_pfd)
-        if not _candidate_valid(int_n, frac, mod, vco_hz, profile):
-            continue
         prescaler = _pick_prescaler(vco_hz, profile)
+        if not _candidate_valid(int_n, frac, mod, vco_hz, profile, prescaler):
+            continue
         achieved = vco_hz // rf_divider
         error = abs(target_hz - achieved)
         score = (error, mod)
         if best_score is None or score < best_score:
             best_score = score
             best = (mod, int_n, frac, prescaler)
+        if error == 0:
+            break
 
     return best
 
 
-def _apply_int_n_fields(fields, profile):
-    """Add integer-N register optimizations when FRAC is zero."""
-    fields["ldf"] = consts.REG2_LDF_INT_N
-    if profile.has_programmable_abp:
-        fields["abp"] = consts.REG3_ABP_3NS
-    if profile.has_charge_cancel:
-        fields["charge_cancel"] = True
+def _set_pll_mode_fields(fields, frac, profile):
+    """Set LDF, ABP, and charge-cancel for integer-N or fractional-N."""
+    if frac == 0:
+        fields["ldf"] = consts.REG2_LDF_INT_N
+        if profile.has_programmable_abp:
+            fields["abp"] = consts.REG3_ABP_3NS
+        if profile.has_charge_cancel:
+            fields["charge_cancel"] = True
+    else:
+        fields["ldf"] = consts.REG2_LDF_FRAC_N
+        if profile.has_programmable_abp:
+            fields["abp"] = consts.REG3_ABP_6NS
+        if profile.has_charge_cancel:
+            fields["charge_cancel"] = False
+
+
+def _enumerate_achievable_hz(n_low, n_high, mod, f_pfd, rf_divider):
+    """
+    List achievable RF frequencies on the PLL grid from *n_low* to *n_high*.
+
+    Parameters
+    ----------
+    n_low, n_high : int
+        Inclusive fractional-N numerators (INT * MOD + FRAC).
+    mod : int
+        Fractional modulus.
+    f_pfd : int
+        PFD frequency in hertz.
+    rf_divider : int
+        RF output divider.
+
+    Returns
+    -------
+    list of int
+        Sorted unique achievable RF frequencies in hertz.
+    """
+    freqs = []
+    prev = None
+    for n_num in range(n_low, n_high + 1):
+        rf_hz = achieved_hz_from_n_num(n_num, mod, f_pfd, rf_divider)
+        if rf_hz != prev:
+            freqs.append(rf_hz)
+            prev = rf_hz
+    return freqs
+
+
+def _pick_step_grid(achievable_hz, step_hz):
+    """
+    Select grid points closest to each ``start + n * step`` target.
+
+    Always includes the first and last achievable frequencies in the range.
+
+    Parameters
+    ----------
+    achievable_hz : list of int
+        Sorted achievable frequencies (ascending).
+    step_hz : int
+        Desired spacing between table entries in hertz.
+
+    Returns
+    -------
+    list of int
+        Selected RF frequencies for the sweep table.
+    """
+    if not achievable_hz:
+        return []
+    if step_hz <= 0:
+        raise ValueError("step_hz must be positive")
+
+    selected = [achievable_hz[0]]
+    while True:
+        goal = selected[-1] + step_hz
+        if goal > achievable_hz[-1]:
+            break
+        best = min(achievable_hz, key=lambda f: abs(f - goal))
+        if best <= selected[-1]:
+            break
+        selected.append(best)
+
+    if selected[-1] != achievable_hz[-1]:
+        selected.append(achievable_hz[-1])
+    return selected
+
+
+def build_frequency_table(lower_hz, upper_hz, step_hz, ref_hz, profile):
+    """
+    Build a sweep table between *lower_hz* and *upper_hz*.
+
+    Solves the endpoints, locks MOD from the lower solve, verifies both ends
+    share the same RF divider, enumerates the PLL grid, and picks entries
+    nearest the requested step.
+
+    Parameters
+    ----------
+    lower_hz, upper_hz : int
+        Frequency bounds in hertz (lower must not exceed upper).
+    step_hz : int
+        Desired table spacing in hertz.
+    ref_hz : int
+        Reference input frequency in hertz.
+    profile : ADF435xDeviceProfile
+        Device profile (ADF4350 or ADF4351).
+
+    Returns
+    -------
+    tuple of (list, int)
+        ``(entries, channel_step_hz)`` where each entry is a ``SolveResult``
+        and ``channel_step_hz`` is the RF channel spacing from MOD and fPFD.
+
+    Raises
+    ------
+    ValueError
+        If bounds are invalid or the range crosses an RF divider octave.
+    """
+    if lower_hz > upper_hz:
+        raise ValueError("lower_hz must not exceed upper_hz")
+
+    low = solve(lower_hz, ref_hz, profile)
+    mod = low.fields["mod"]
+    rf_divider = low.fields["rf_divider"]
+    opts = SolveOptions(mod=mod)
+
+    high = solve(upper_hz, ref_hz, profile, options=opts)
+    if high.fields["rf_divider"] != rf_divider:
+        raise ValueError(
+            "Lower and upper frequencies need different RF dividers "
+            "(octave crossing); narrow the range"
+        )
+
+    f_pfd = low.f_pfd_hz
+    channel_step_hz = rf_channel_step_hz(f_pfd, mod, rf_divider)
+
+    n_low = low.fields["int_n"] * mod + low.fields["frac"]
+    n_high = high.fields["int_n"] * mod + high.fields["frac"]
+    if n_low > n_high:
+        n_low, n_high = n_high, n_low
+
+    achievable = _enumerate_achievable_hz(
+        n_low, n_high, mod, f_pfd, rf_divider
+    )
+    table_hz = _pick_step_grid(achievable, step_hz)
+
+    entries = []
+    for hz in table_hz:
+        entries.append(solve(hz, ref_hz, profile, options=opts))
+    return entries, channel_step_hz
 
 
 def solve(
@@ -487,10 +653,9 @@ def solve(
     opts = options if options is not None else SolveOptions()
 
     out_min = _output_min_hz(profile)
-    out_max = _output_max_hz(profile)
-    if target_hz < out_min or target_hz > out_max:
+    if target_hz < out_min or target_hz > VCO_MAX_HZ:
         raise FrequencyOutOfRangeError(
-            "target_hz=%d outside [%d, %d]" % (target_hz, out_min, out_max)
+            "target_hz=%d outside [%d, %d]" % (target_hz, out_min, VCO_MAX_HZ)
         )
 
     f_pfd = _compute_f_pfd(ref_hz, opts.r_counter, opts.doubler, opts.rdiv2)
@@ -528,8 +693,7 @@ def solve(
         "band_clk_mode": band_clk_mode,
         "feedback": consts.REG4_FEEDBACK_FUNDAMENTAL,
     }
-    if frac == 0:
-        _apply_int_n_fields(fields, profile)
+    _set_pll_mode_fields(fields, frac, profile)
 
     achieved_hz = _compute_achieved_hz(
         int_n, frac, mod, f_pfd, rf_divider

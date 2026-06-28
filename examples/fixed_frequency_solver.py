@@ -102,9 +102,8 @@ print("Powering on (CE high)")
 device.chip_enable()
 
 print("Initial programming (R5..R0)")
-plan = regfile.commit_all_plan()
-write_plan(device, regfile, plan)
-print("Wrote %d register words" % len(plan))
+write_plan(device, regfile, regfile.commit_all_plan())
+print("Wrote register words")
 
 print(
     "RF output should be about %.6f MHz -- probe RFOUTA with your scope"
