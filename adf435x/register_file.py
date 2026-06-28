@@ -1,55 +1,123 @@
 """
-Register file for tracking the configuration state of ADF435x family devices.
+Register file for the ADF435x family. Tracks the desired configuration and the
+words last written to the device, and computes the minimal ordered set of writes
+needed to bring the device up to date.
 
-The register file holds the words last written to the device and the freshly
-encoded "current" words. It also computes the minimal, correctly ordered set of
-writes needed to apply configuration updates to the device. Staleness is
-derived by diffing the current state against the last-written state.
-
-This first layer is the staleness and transaction-ordering engine; it operates
-on raw words so it can be tested without a device, a profile, or a clock. The
-register mapper and configuration setters plug into ``_update_current`` in a
-later layer.
+Staleness is derived by diffing the freshly encoded words against the
+last-written words, so it can't disagree with a hand-kept flag. Committing is
+optimistic: commit and commit_all return the words to write and advance the
+last-written cache in the same call. The device is write-only, so a write that
+returns without raising is the only confirmation available; if a write raises,
+the device state is unknown and you re-program with commit_all.
 """
+
+from . import consts
+from .config import ADF435xConfig
+from .profiles import ADF435xDeviceProfile
+from .register_mapper import ADF435xRegisterMapper
 
 
 class ADF435xRegisterFile:
     """
     Track register state and emit ordered write transactions.
 
-    The file maintains two sets of six words: ``_current`` (the desired state,
-    freshly encoded) and ``_last_written`` (what the device was last given). A
-    register is stale when the two differ. ``commit`` returns the stale words in
-    write order; ``commit_all`` returns all six unconditionally.
+    Parameters
+    ----------
+    profile : ADF435xDeviceProfile
+        Target device; selects the mapper used to encode the configuration.
+    config : ADF435xConfig, optional
+        Initial configuration. A default ADF435xConfig is used if omitted.
     """
 
-    NUM_REGISTERS = 6
+    NUM_REGISTERS = consts.NUM_REGISTERS
 
-    # Registers carrying double-buffered fields. Per the datasheet, the modulus
-    # and phase (R1) and the R counter, reference doubler, reference
-    # divide-by-2, and charge-pump current (R2) latch only on a subsequent write
-    # to R0. So whenever one of these registers changes, R0 must also be
-    # written, even if R0 itself is unchanged. R4's divider select is
-    # double-buffered only when R2 DB13 is set, which this file leaves disabled,
-    # so R4 takes effect on its own write and is excluded here.
+    # Registers carrying double-buffered fields. The modulus and phase (R1) and
+    # the R counter, reference doubler, reference divide-by-2, and charge-pump
+    # current (R2) latch only on a write to R0, so changing any of them forces
+    # an R0 write even when R0 itself is unchanged. R4's divider select is
+    # double-buffered only when R2 DB13 is set, which we leave disabled, so R4
+    # takes effect on its own write and is not listed here.
     _DOUBLE_BUFFERED = (1, 2)
 
-    def __init__(self) -> None:
+    def __init__(self, profile: ADF435xDeviceProfile, config=None) -> None:
+        self._mapper = ADF435xRegisterMapper(profile)
+        self._config = config if config is not None else ADF435xConfig()
         self._current = [0] * self.NUM_REGISTERS
-        # None means "never written"; every register starts stale.
+        # None means never written, so every register starts stale.
         self._last_written = [None] * self.NUM_REGISTERS
+        self._commit_count = 0
+        self._recompute()
 
-    def _update_current(self, words) -> None:
-        """Replace the current (desired) words.
+    # -- configuration -------------------------------------------------------
 
-        This is the seam the register mapper plugs into: a later layer encodes
-        the configuration into six words and calls this. It does not touch
-        ``_last_written``, so the change shows up as staleness until committed.
+    @property
+    def config(self) -> ADF435xConfig:
+        """The current configuration."""
+        return self._config
+
+    def configure(self, **fields) -> None:
+        """Update configuration fields and re-encode.
+
+        The update is transactional: if encoding fails (for example, requesting
+        a capability the device lacks), every field is restored and the error
+        re-raised, leaving the file unchanged.
 
         Parameters
         ----------
-        words : sequence of int
-            Exactly ``NUM_REGISTERS`` register words, indexed R0..R5.
+        **fields
+            Field name/value pairs, each matching an ADF435xConfig attribute.
+
+        Raises
+        ------
+        AttributeError
+            If a field name is not a known configuration field.
+        ValueError
+            If the new configuration cannot be encoded. The file is rolled back
+            first.
+        """
+        for name in fields:
+            if not hasattr(self._config, name):
+                raise AttributeError("unknown configuration field: %s" % name)
+        previous = {name: getattr(self._config, name) for name in fields}
+        for name, value in fields.items():
+            setattr(self._config, name, value)
+        try:
+            self._recompute()
+        except Exception:
+            for name, value in previous.items():
+                setattr(self._config, name, value)
+            self._recompute()
+            raise
+
+    def _recompute(self) -> None:
+        """Encode the configuration into the six current words."""
+        c = self._config
+        m = self._mapper
+        self._update_current([
+            m.register_0(c.int_n, c.frac),
+            m.register_1(c.mod, c.prescaler, c.phase, c.phase_adjust),
+            m.register_2(
+                c.r_counter, c.cp_current_code,
+                muxout=c.muxout, noise_mode=c.noise_mode,
+                doubler=c.doubler, rdiv2=c.rdiv2, ldf=c.ldf, ldp=c.ldp,
+                pd_polarity=c.pd_polarity, double_buffer=c.double_buffer,
+                power_down=c.power_down, cp_threestate=c.cp_threestate,
+                counter_reset=c.counter_reset),
+            m.register_3(
+                band_clk_mode=c.band_clk_mode, abp=c.abp,
+                charge_cancel=c.charge_cancel, csr=c.csr,
+                clockdiv_mode=c.clockdiv_mode, clockdiv_value=c.clockdiv_value),
+            m.register_4(
+                c.rf_divider, c.band_clk_div, feedback=c.feedback,
+                output_power=c.output_power, rf_enable=c.rf_enable,
+                mtld=c.mtld, vco_power_down=c.vco_power_down,
+                aux_select=c.aux_select, aux_enable=c.aux_enable,
+                aux_power=c.aux_power),
+            m.register_5(c.lock_pin),
+        ])
+
+    def _update_current(self, words) -> None:
+        """Replace the current (desired) words.
 
         Raises
         ------
@@ -61,37 +129,59 @@ class ADF435xRegisterFile:
                 "expected %d words, got %d" % (self.NUM_REGISTERS, len(words)))
         self._current = list(words)
 
-    def stale_indices(self) -> list:
-        """Return the register indices whose current word differs from the last
-        written one, in ascending order.
+    def current_words(self) -> list:
+        """A copy of the six current (desired) register words."""
+        return list(self._current)
 
-        Returns
-        -------
-        list of int
-            Indices in [0, NUM_REGISTERS) that need writing.
+    # -- staleness -----------------------------------------------------------
+
+    def stale_indices(self) -> list:
+        """Register indices whose current word differs from the last written
+        one, ascending.
         """
         return [i for i in range(self.NUM_REGISTERS)
                 if self._current[i] != self._last_written[i]]
 
     def is_stale(self) -> bool:
-        """Return True if any register needs writing."""
+        """True if any register needs writing."""
         return bool(self.stale_indices())
 
+    def dump(self) -> dict:
+        """A snapshot of register state for inspection.
+
+        Returns
+        -------
+        dict
+            ``commit_count``, ``is_stale``, and a ``registers`` list giving each
+            register's current word, last-written word, and stale flag.
+        """
+        return {
+            "commit_count": self._commit_count,
+            "is_stale": self.is_stale(),
+            "registers": [
+                {"index": i,
+                 "current": self._current[i],
+                 "last_written": self._last_written[i],
+                 "stale": self._current[i] != self._last_written[i]}
+                for i in range(self.NUM_REGISTERS)
+            ],
+        }
+
+    # -- transactions --------------------------------------------------------
+
     def commit(self) -> list:
-        """Compute the minimal ordered transaction and mark it as written.
+        """The minimal set of writes to bring the device up to date.
 
-        Stale registers are returned as ``(index, word)`` pairs ordered R5 down
-        to R0, so R0 is written last. If any double-buffered register changed,
-        R0 is added to the set so its write latches the buffered fields.
-
-        This is optimistic: it advances the last-written cache assuming the
-        caller will write the returned words to the device.
+        Stale registers are returned as (index, word) pairs ordered R5 down to
+        R0, so R0 is written last. If a double-buffered register changed, R0 is
+        added so its write latches the buffered fields. The last-written cache is
+        advanced here, assuming the words are written to the device next.
 
         Returns
         -------
         list of (int, int)
-            ``(register_index, word)`` pairs in write order. Empty if nothing
-            is stale.
+            (register_index, word) pairs in write order, empty if nothing is
+            stale.
         """
         stale = set(self.stale_indices())
         if not stale:
@@ -100,22 +190,23 @@ class ADF435xRegisterFile:
             stale.add(0)
         plan = [(i, self._current[i]) for i in sorted(stale, reverse=True)]
         self._last_written = list(self._current)
+        self._commit_count += 1
         return plan
 
     def commit_all(self) -> list:
-        """Return all six words as the full power-up transaction (R5 -> R0).
+        """All six words as the full power-up transaction, ordered R5 down to R0.
 
-        Unlike ``commit``, this ignores staleness and always emits every
-        register, for the initial power-up programming sequence. It also marks
-        everything as written.
+        Ignores staleness and always emits every register, for initial
+        programming and for recovery after a failed write. Advances the
+        last-written cache like commit.
 
         Returns
         -------
         list of (int, int)
-            All ``NUM_REGISTERS`` ``(register_index, word)`` pairs, ordered R5
-            down to R0.
+            All six (register_index, word) pairs, R5 down to R0.
         """
         plan = [(i, self._current[i])
                 for i in range(self.NUM_REGISTERS - 1, -1, -1)]
         self._last_written = list(self._current)
+        self._commit_count += 1
         return plan

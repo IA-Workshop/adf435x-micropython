@@ -2,12 +2,12 @@ import pytest
 
 from adf435x import consts
 from adf435x.profiles import ADF4350, ADF4351
-from adf435x.register_mapper import AD435xRegisterMapper
+from adf435x.register_mapper import ADF435xRegisterMapper
 
 
 @pytest.fixture
 def mapper():
-    return AD435xRegisterMapper(ADF4351)
+    return ADF435xRegisterMapper(ADF4351)
 
 
 # --- bit-for-bit against the datasheet worked example (2112.6 MHz) ----------
@@ -54,40 +54,40 @@ class TestStructure:
 
 class TestDividerCode:
     def test_4351_divider_64(self):
-        m = AD435xRegisterMapper(ADF4351)
+        m = ADF435xRegisterMapper(ADF4351)
         assert (m.register_4(64, 20) >> consts.REG4_RF_DIVIDER_POS) & 0b111 == 6
 
     def test_4350_rejects_divider_32(self):
-        m = AD435xRegisterMapper(ADF4350)
+        m = ADF435xRegisterMapper(ADF4350)
         with pytest.raises(ValueError):
             m.register_4(32, 20)
 
 
 class TestCapabilityGating:
     def test_4350_rejects_phase_adjust(self):
-        m = AD435xRegisterMapper(ADF4350)
+        m = ADF435xRegisterMapper(ADF4350)
         with pytest.raises(ValueError):
             m.register_1(2, 0, phase_adjust=True)
 
     def test_4351_allows_phase_adjust(self):
-        m = AD435xRegisterMapper(ADF4351)
+        m = ADF435xRegisterMapper(ADF4351)
         assert (m.register_1(2, 0, phase_adjust=True)
                 >> consts.REG1_PHASE_ADJUST_POS) & 1 == 1
 
     def test_4350_rejects_fast_band_select(self):
-        m = AD435xRegisterMapper(ADF4350)
+        m = ADF435xRegisterMapper(ADF4350)
         with pytest.raises(ValueError):
             m.register_3(band_clk_mode=consts.REG3_BAND_CLK_HIGH)
 
     def test_4350_rejects_charge_cancel(self):
-        m = AD435xRegisterMapper(ADF4350)
+        m = ADF435xRegisterMapper(ADF4350)
         with pytest.raises(ValueError):
             m.register_3(charge_cancel=True)
 
     def test_4350_forces_abp_reserved_zero(self):
         # ABP (DB22) is reserved on the 4350; the bit must encode 0 even if a
         # 3 ns pulse is requested.
-        m = AD435xRegisterMapper(ADF4350)
+        m = ADF435xRegisterMapper(ADF4350)
         word = m.register_3(abp=consts.REG3_ABP_3NS)
         assert (word >> consts.REG3_ABP_POS) & 1 == 0
 

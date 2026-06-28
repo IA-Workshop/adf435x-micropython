@@ -6,14 +6,15 @@ seam, so no profile, mapper, or device is needed.
 import pytest
 
 from adf435x.register_file import ADF435xRegisterFile
+from adf435x.profiles import ADF4350, ADF4351
 
 # Six distinct sentinel words (low 3 bits = register address, for readability).
 WORDS = [0xA0, 0xB1, 0xC2, 0xD3, 0xE4, 0xF5]
 
 
-@pytest.fixture
-def rf():
-    f = ADF435xRegisterFile()
+@pytest.fixture(params=[ADF4350, ADF4351], ids=lambda profile: profile.name)
+def rf(request):
+    f = ADF435xRegisterFile(profile=request.param)
     f._update_current(WORDS)
     return f
 

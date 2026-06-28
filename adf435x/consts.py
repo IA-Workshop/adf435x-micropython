@@ -1,6 +1,6 @@
 """Shared constants for the ADF435x register map.
 
-This module provides constant definitaions for word formats, register
+This module provides constant definitions for word formats, register
 addresses, field positions and widths, and the symbolic encodings of
 multi-valued fields. Device-specific differences in how the fields are
 implemented are defined in ``profiles``.

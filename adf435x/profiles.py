@@ -1,49 +1,51 @@
 """
 Device profiles for the ADF435x family.
 
-A DeviceProfile captures only the differences between the ADF4350 and ADF4351
-parts from one, such as the capability bits they implement and the
-output-divider range. The field positions, widths, and value encodings that
-are common to both parts are implemented in ``consts`` and shared.
+An ADF435xDeviceProfile captures only what differs between the ADF4350 and
+ADF4351: the capability bits each part implements and the output-divider range.
+The field positions, widths, and value encodings common to both parts live in
+``consts`` and are shared.
 
 Notes
 -----
-Only ADF4530 and ADF4351 parts are supported. Support for other device
-families should be implemented elsewhere.
+Only the ADF4350 and ADF4351 are supported. Other device families have a
+different register map and belong elsewhere.
 """
 
+
 def _is_power_of_two(value: int) -> bool:
-    """Return True if ``value`` is a positive power of two."""
+    """Return True if value is a positive power of two."""
     return value > 0 and (value & (value - 1)) == 0
 
 
-class DeviceProfile:
+class ADF435xDeviceProfile:
     """
-    Per-device capabilities and bounds for an ADF435x synthesizer.
+    Per-device capabilities for an ADF435x synthesizer.
 
     Only device-specific differences are held here; the shared field layout is
-    defined in ``consts``.
+    in ``consts``.
 
     Parameters
     ----------
     name : str
-        Human-readable device name.
+        Device name.
     rf_divider_max : int
-        Largest available RF output divider (16 for the ADF4350, 64 for the
-        ADF4351). Valid dividers are the powers of two from 1 to this value.
+        Largest RF output divider (16 for the ADF4350, 64 for the ADF4351).
+        Valid dividers are the powers of two from 1 to this value.
     has_phase_adjust : bool
         Whether the phase-adjust bit (R1 DB28) is implemented.
     has_fast_band_select : bool
         Whether the fast band-select clock mode (R3 DB23) is available.
     has_programmable_abp : bool
-        Whether the antibacklash pulse width (R3 DB22) is programmable; if not,
+        Whether the antibacklash pulse width (R3 DB22) is programmable. If not,
         the part uses a fixed 3 ns pulse.
     has_charge_cancel : bool
         Whether charge-pump charge cancellation (R3 DB21) is available.
     prescaler_4_5_max_hz : int
-        Highest VCO frequency permitted with the 4/5 prescaler; above this the
-        8/9 prescaler is required. Used by the solver, not the encoder.
+        Highest VCO frequency allowed with the 4/5 prescaler; above this the 8/9
+        prescaler is required. Used by the solver, not the encoder.
     """
+
     def __init__(self,
                  name: str,
                  rf_divider_max: int,
@@ -63,8 +65,8 @@ class DeviceProfile:
     def divider_code(self, rf_divider: int) -> int:
         """Map an RF output divider to its 3-bit R4 code.
 
-        The code is the base-2 logarithm of the divider: 0 for /1, 1 for /2, 2
-        for /4, and so on up to the device maximum.
+        The code is log2 of the divider: 0 for /1, 1 for /2, and so on up to the
+        device maximum.
 
         Parameters
         ----------
@@ -93,10 +95,10 @@ class DeviceProfile:
         return code
 
     def __repr__(self) -> str:
-        return "DeviceProfile(%s)" % self.name
+        return "ADF435xDeviceProfile(%s)" % self.name
 
 
-ADF4350 = DeviceProfile(
+ADF4350 = ADF435xDeviceProfile(
     name="ADF4350",
     rf_divider_max=16,
     has_phase_adjust=False,
@@ -106,7 +108,7 @@ ADF4350 = DeviceProfile(
     prescaler_4_5_max_hz=3_000_000_000,
 )
 
-ADF4351 = DeviceProfile(
+ADF4351 = ADF435xDeviceProfile(
     name="ADF4351",
     rf_divider_max=64,
     has_phase_adjust=True,

@@ -1,9 +1,9 @@
 """
 Profile-aware register encoder for the ADF435x family.
 
-A RegisterMapper turns field values into the six 32-bit register words used in
+An ADF435xRegisterMapper turns field values into the six 32-bit register words used in
 the ADF435x devices. It uses the shared bit layout in ``consts`` along with a
-``DeviceProfile`` to handle the fields that differ between the ADF4350 and
+``ADF435xDeviceProfile`` to handle the fields that differ between the ADF4350 and
 ADF4351.
 
 Notes
@@ -13,21 +13,21 @@ begin at Figure 23 (p. 14) of both the ADF4350 and ADF4351 datasheets. Each
 method below cites the figure for the register it encodes.
 """
 from . import consts
-from .profiles import DeviceProfile
+from .profiles import ADF435xDeviceProfile
 
 
-class AD435xRegisterMapper:
+class ADF435xRegisterMapper:
     """
     Encode ADF435x register words for a specific device profile.
 
     Parameters
     ----------
-    profile : DeviceProfile
+    profile : ADF435xDeviceProfile
         The target device. Selects the capability-gated fields and the
         RF-divider code mapping.
     """
 
-    def __init__(self, profile: DeviceProfile):
+    def __init__(self, profile: ADF435xDeviceProfile):
         self._profile = profile
 
     def _check_field(self, value: int, bits: int, name: str) -> int:
@@ -57,7 +57,7 @@ class AD435xRegisterMapper:
         return value
 
     @property
-    def profile(self) -> DeviceProfile:
+    def profile(self) -> ADF435xDeviceProfile:
         """The device profile this mapper encodes for."""
         return self._profile
 
@@ -134,7 +134,7 @@ class AD435xRegisterMapper:
         self._check_field(phase, consts.REG1_PHASE_WIDTH, "phase")
         if phase_adjust and not self._profile.has_phase_adjust:
             raise ValueError(
-                "%s does not support phase adjust" % self._profile.name)
+                f"{self._profile.name} does not support phase adjust")
         word = 0
         word |= int(phase_adjust) << consts.REG1_PHASE_ADJUST_POS
         word |= prescaler << consts.REG1_PRESCALER_POS
@@ -283,10 +283,10 @@ class AD435xRegisterMapper:
         if band_clk_mode == consts.REG3_BAND_CLK_HIGH \
                 and not self._profile.has_fast_band_select:
             raise ValueError(
-                "%s does not support fast band select" % self._profile.name)
+                f"{self._profile.name} does not support fast band select")
         if charge_cancel and not self._profile.has_charge_cancel:
             raise ValueError(
-                "%s does not support charge cancellation" % self._profile.name)
+                f"{self._profile.name} does not support charge cancellation")
         abp_bit = abp if self._profile.has_programmable_abp else 0
         word = 0
         word |= band_clk_mode << consts.REG3_BAND_CLK_MODE_POS

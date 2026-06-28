@@ -1,6 +1,6 @@
 import pytest
 
-from adf435x.profiles import ADF4350, ADF4351, DeviceProfile
+from adf435x.profiles import ADF4350, ADF4351, ADF435xDeviceProfile
 
 # Capability flags the ADF4351 implements and the ADF4350 does not.
 CAPABILITY_FLAGS = [
@@ -66,7 +66,7 @@ class TestDividerCode:
 class TestCustomProfile:
     @pytest.fixture
     def profile(self):
-        return DeviceProfile(
+        return ADF435xDeviceProfile(
             "X", rf_divider_max=8, has_phase_adjust=True,
             has_fast_band_select=False, has_programmable_abp=True,
             has_charge_cancel=False, prescaler_4_5_max_hz=4_000_000_000)
