@@ -1,0 +1,38 @@
+---
+description: ADF435x frequency solver — PLL math and field output
+globs: adf435x/solver.py
+alwaysApply: false
+---
+
+# Solver rules
+
+Consult [agent/DATASHEET.md](agent/DATASHEET.md) for PLL equations and limits.
+
+## Output contract
+
+- `solve()` returns `SolveResult` with **fields dict only** — never register words
+- Caller merges via `register_file.configure(**result.fields)`
+- Encoding always through mapper + register file
+
+## Math
+
+- Integer Hz only (`_round_div`, `_ceil_div`, `_gcd`)
+- VCO band: 2.2–4.4 GHz; smallest power-of-two RF divider
+- MOD search: minimize |error|, then prefer smaller MOD; gcd-reduce when frac > 0
+- Bounds from `ADF435xDeviceProfile` + module constants — no `DeviceLimits` class
+
+## Reference path
+
+Default eval board: R=1, doubler off, div-by-2 off. Overridable via `SolveOptions`.
+
+## Integer-N
+
+When frac == 0: set LDF, ABP=3ns, charge_cancel (ADF4351) per datasheet.
+
+## Errors
+
+Use `{Condition}Error` naming. Do not silently clamp out-of-range frequencies.
+
+## Tests
+
+Golden vector must pass after solver changes. Update [agent/DATASHEET.md](agent/DATASHEET.md) if extracted facts change.

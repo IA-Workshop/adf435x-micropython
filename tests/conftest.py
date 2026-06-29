@@ -75,6 +75,50 @@ def make_config(**fields):
     return c
 
 
+class FakeDevice:
+    """Record SPI writes and simulate CE / MUXOUT for synthesizer tests."""
+
+    def __init__(self, *, muxout=0):
+        self.writes = []
+        self.ce = 0
+        self.muxout = muxout
+        self.fail_next = False
+
+    def write_registers(self, words):
+        """Append *words* to the write log or raise if configured to fail."""
+        if self.fail_next:
+            self.fail_next = False
+            raise OSError("SPI write failed")
+        self.writes.extend(words)
+
+    def chip_enable(self):
+        """Drive CE high."""
+        self.ce = 1
+
+    def chip_disable(self):
+        """Drive CE low."""
+        self.ce = 0
+
+    def read_muxout(self):
+        """Return the simulated MUXOUT level."""
+        return self.muxout
+
+
+@pytest.fixture
+def fake_device():
+    """Fake SPI/GPIO device for synthesizer tests."""
+    return FakeDevice(muxout=1)
+
+
+@pytest.fixture
+def synth(fake_device):
+    """ADF4351 synthesizer backed by FakeDevice."""
+    from adf435x.profiles import ADF4351
+    from adf435x.synthesizer import ADF435xSynthesizer
+
+    return ADF435xSynthesizer(fake_device, ADF4351, 10_000_000)
+
+
 @pytest.fixture
 def mock_machine(monkeypatch):
     """Install a fake ``machine`` module for ``adf435x.device`` tests."""
