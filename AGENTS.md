@@ -3,8 +3,11 @@
 ```bash
 pip install -e ".[test]"
 pytest
-pytest --device    # hardware; maintainer reference pin map — see agent/HARDWARE.md
 ```
+
+On-board bench validation: [`examples/validate.py`](examples/validate.py)
+— host **Run current file** (not bulk-synced). See
+[agent/HARDWARE.md](agent/HARDWARE.md).
 
 ## Scope
 
@@ -49,7 +52,7 @@ for implementation tasks).
 | Frequency / MOD | [DATASHEET](agent/DATASHEET.md), [GLOSSARY](agent/GLOSSARY.md) | `test_solver.py` |
 | Synthesizer / SPI writes | [DESIGN_DECISIONS](agent/DESIGN_DECISIONS.md) §4–5, §11–13; `adf435x/synthesizer.py` | `test_synthesizer.py` |
 | Sweep / fast-hop | [DATASHEET](agent/DATASHEET.md) (int-N / fast-hop), [DESIGN_DECISIONS](agent/DESIGN_DECISIONS.md); `adf435x/sweep.py` | `test_sweep.py` |
-| Board pins / SPI wiring | [HARDWARE](agent/HARDWARE.md) | `test_device.py`; optional `--device` |
+| Board pins / SPI wiring | [HARDWARE](agent/HARDWARE.md) | `test_device.py`; `examples/validate.py` on board |
 | New public names | [GLOSSARY](agent/GLOSSARY.md) | matching layer tests |
 | Test harness / fixtures | [TESTING](agent/TESTING.md) | touched `tests/` files |
 | Milestones only | [STATUS](agent/STATUS.md) | — |
@@ -67,7 +70,7 @@ Do not open [JOURNAL](agent/JOURNAL.md), [ARCHITECTURE](agent/ARCHITECTURE.md), 
 | Call optimistic `commit()` from the synthesizer | `commit_plan()` → device write → `mark_written()` or `mark_write_failed()` |
 | Use float Hz or emit register words from `solve()` | Integer Hz; `solve()` → `configure(**result.fields)` |
 | `import machine` at package root | `adf435x.device` submodule only |
-| Hard-code board pins in `adf435x/` | Pass SPI/GPIO from caller, examples, or HIL tests |
+| Hard-code board pins in `adf435x/` | Pass SPI/GPIO from caller or examples |
 | Add `SynthPolicy`, `DeviceLimits`, or a second options bag | `SolveOptions` + `ADF435xDeviceProfile` bounds |
 
 Full invariants: [agent/DESIGN_DECISIONS.md](agent/DESIGN_DECISIONS.md).
@@ -81,8 +84,7 @@ Full invariants: [agent/DESIGN_DECISIONS.md](agent/DESIGN_DECISIONS.md).
 
 ## Definition of done
 
-- [ ] `pytest` exits 0 (**301** collected; **299** pass, **2** skip without
-      `--device`)
+- [ ] `pytest` exits 0 (**299** collected; refresh with `pytest -q`)
 - [ ] Register / solver / datasheet edit: layer tests updated;
       [DATASHEET.md](agent/DATASHEET.md) updated if an extracted fact changed
 - [ ] No new hex register values in markdown (reference `WORKED_*` by name)

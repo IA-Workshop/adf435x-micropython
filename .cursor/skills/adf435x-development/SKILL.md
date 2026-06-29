@@ -20,6 +20,11 @@ agent/README for implementation.
 - Board pins in caller/examples/tests only
 - Minimal diff
 
+**Step complete:** run pytest for touched layers → append
+[agent/JOURNAL.md](../../agent/JOURNAL.md) → update agent docs per
+[adf435x-agent-docs.mdc](../../.cursor/rules/adf435x-agent-docs.mdc) routing
+table. Do not skip the journal for small steps.
+
 ## 3. Test
 
 ```bash

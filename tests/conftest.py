@@ -27,26 +27,6 @@ WORKED_WORDS = [
 ]
 
 
-def pytest_addoption(parser):
-    """Register the ``--device`` flag for hardware-in-the-loop tests."""
-    parser.addoption(
-        "--device",
-        action="store_true",
-        default=False,
-        help="run tests that require a connected ADF435x device",
-    )
-
-
-def pytest_collection_modifyitems(config, items):
-    """Skip ``@pytest.mark.device`` tests unless ``--device`` was passed."""
-    if config.getoption("--device"):
-        return
-    skip = pytest.mark.skip(reason="needs --device (no connected ADF435x)")
-    for item in items:
-        if "device" in item.keywords:
-            item.add_marker(skip)
-
-
 @pytest.fixture
 def mapper():
     """ADF4351 register mapper."""

@@ -26,9 +26,8 @@ application — not fixed by the library.
 
 ## Reference setup (maintainer)
 
-Examples in [`examples/`](../examples/) and hardware tests in
-[`test_device_hw.py`](../tests/test_device_hw.py) assume this wiring. **Adjust
-pins and SPI bus for your board.**
+Examples in [`examples/`](../examples/) assume this wiring.
+**Adjust pins and SPI bus for your board.**
 
 - **MCU:** WeAct RP2350B (MicroPython) — one of many compatible boards
 - **PLL:** ADF4351 evaluation board
@@ -44,7 +43,7 @@ pins and SPI bus for your board.**
 | MOSI | GP11 | SPI1 data |
 | LE | GP13 | Latch enable |
 | CE | GP14 | Chip enable |
-| MUXOUT | GP15 | Digital lock detect (input) |
+| MUXOUT | GP9 | Digital lock detect (input) |
 
 SPI: 1 MHz, mode 0.
 
@@ -66,16 +65,87 @@ Reference examples assume:
 
 Do not hard-code board-specific pins in library modules under `adf435x/`.
 
+## Deploy to board (MicroPico)
+
+The maintainer uses the [MicroPico](https://github.com/paulober/MicroPico)
+extension (v4.1+). A repo-root [`.micropico`](../.micropico) marker enables
+project auto-detection.
+
+### Preserve `import adf435x`
+
+**Do not** set `micropico.syncFolder` to `"adf435x"`. That uploads the
+*contents* of `adf435x/` to the board filesystem root (`/register_file.py`, …)
+and breaks `import adf435x`.
+
+Sync from the **repository root** and exclude non-library trees with
+`pyIgnore` so `/adf435x/` lands on flash as a package directory.
+
+Add to **local** [`.vscode/settings.json`](../.vscode/settings.json)
+(`.vscode/` is gitignored — copy this block per machine):
+
+```jsonc
+{
+  "micropico.syncFolder": "",
+  "micropico.syncFileTypes": ["py"],
+  "micropico.pyIgnore": [
+    "tests", "examples", "agent", "conftest.py",
+    "**/.git", "**/__pycache__", "**/.pytest_cache"
+  ]
+}
+```
+
+- `syncFolder: ""` — repo root; only `adf435x/**/*.py` bulk-syncs to flash.
+- `pyIgnore` — excludes all of `examples/` (demos and validation scripts).
+
+### Run examples from the host
+
+Examples and [`validate.py`](../examples/validate.py) are **not**
+bulk-synced. With `adf435x/` on flash, open a script on the host and use
+**MicroPico → Run current file** (or `mpremote connect run path/to/script.py`).
+
+Validation scripts must not `import tests.*` on the Pico.
+
 ## Bring-up checklist
 
-1. Deploy `adf435x/` (see [README](../README.md)).
+1. Bulk-sync `adf435x/` per [Deploy to board (MicroPico)](#deploy-to-board-micropico).
 2. Wire SPI + LE + CE + MUXOUT for your board.
-3. Run `power_up()` at golden frequency (2112.6 MHz); confirm lock via MUXOUT.
-4. Scope RFOUT; compare to `result.achieved_hz`.
-5. Step through a small frequency range via `set_frequency()`.
-6. Optional: run `pytest --device` if your board matches the reference pin map.
+3. Run [`fixed_frequency.py`](../examples/fixed_frequency.py) or
+   [`validate.py`](../examples/validate.py) with default
+   ``scope_200mhz`` (**Run current file**); scope RFOUTA at ~200 MHz.
+4. Try other catalog slugs via ``validate.py`` (``SELECT`` or ``list``).
+5. Optional GHz checks: ``golden_2112p6mhz`` (counter/spectrum).
+6. Wide scope sweeps: [`frequency_sweep.py`](../examples/frequency_sweep.py).
 
 Analog output verification (spectrum, power) remains manual.
+
+## Validation vector bench table
+
+Bench cases live in [`validate.py`](../examples/validate.py) ``CASES`` (10 MHz
+REFIN). Other examples reference slugs in comments only.
+
+| Slug | Output (Hz) | Profile | Bench instrument |
+|------|-------------|---------|----------------|
+| `scope_50mhz` | 50_000_000 | ADF4351 | Oscilloscope |
+| `scope_75mhz` | 75_000_000 | ADF4351 | Oscilloscope |
+| `scope_100mhz` | 100_000_000 | ADF4351 | Oscilloscope |
+| `scope_150mhz` | 150_000_000 | ADF4351 | Oscilloscope |
+| `scope_200mhz` | 200_000_000 | ADF4351 | Oscilloscope |
+| `scope_250mhz` | 250_000_000 | ADF4351 | Oscilloscope |
+| `golden_2112p6mhz` | 2_112_600_000 | ADF4351 | RF counter / spectrum |
+| `cross_part_scope_137p5mhz` | 137_500_000 | both | Oscilloscope (≤150 MHz) |
+| `adf4351_scope_equiv_132p0375mhz` | 132_037_500 | ADF4351 | Oscilloscope |
+| `adf4351_prescaler_edge_3600mhz` | 3_600_000_000 | ADF4351 | RF counter / spectrum |
+| `adf4351_prescaler_over_3700mhz` | 3_700_000_000 | ADF4351 | RF counter / spectrum |
+
+Host-run [`validate.py`](../examples/validate.py) programs one
+catalog case per run (``SELECT`` or ``sys.argv[1]``; ``list`` for names).
+
+## Lock detect vs frequency proof
+
+Digital lock detect (MUXOUT) confirms the PLL acquired and VCO band-select
+succeeded. It does **not** prove the absolute RF output frequency. Confirm
+output with a scope or counter on RFOUTA; ``validate.py`` prints target and
+achieved Hz for that purpose.
 
 ## MUXOUT caveat
 

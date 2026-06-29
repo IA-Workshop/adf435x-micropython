@@ -13,8 +13,8 @@ build/
 
 # --- IDEs and Extensions ---
 # VS Code / MicroPico (formerly Pico-W-Go)
+# .micropico is tracked at repo root — see agent/HARDWARE.md
 .vscode/
-.micropico
 *.vsix
 
 # Cursor personal/experimental rules (project rules in .cursor/rules/ are committed)

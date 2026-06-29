@@ -17,9 +17,9 @@ Pin assignment and SPI bus selection are the caller's responsibility.
   [`ADF435xDevice`](../adf435x/device.py).
 - Code in `adf435x/` avoids CPython-only stdlib and uses MicroPython-compatible
   patterns (`const` shim, `time.ticks_*` fallbacks).
-- Examples and [`test_device_hw.py`](../tests/test_device_hw.py) use one
-  maintainer pin map (WeAct RP2350B + ADF4351 eval); adjust pins for your board.
-  See [HARDWARE.md](HARDWARE.md).
+- Examples and [`examples/validate.py`](../examples/validate.py) use
+  one maintainer pin map (WeAct RP2350B + ADF4351 eval); adjust pins for your
+  board. See [HARDWARE.md](HARDWARE.md).
 
 ## Layer stack
 

@@ -33,7 +33,7 @@ PINS = {
     "mosi": 11,
     "le": 13,
     "ce": 14,
-    "muxout": 15,
+    "muxout": 9,
 }
 
 spi = SPI(

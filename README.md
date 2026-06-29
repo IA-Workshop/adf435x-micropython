@@ -32,8 +32,10 @@ pip install -e ".[test]"
 pytest
 ```
 
-Hardware-in-the-loop tests are marked `@pytest.mark.device` and are skipped
-unless you pass `pytest --device` with a connected ADF435x board.
+On-board bench validation (scope/counter checks):
+[`examples/validate.py`](examples/validate.py).
+Run from the host (**Run current file**); bulk-sync deploys `adf435x/` only.
+See [agent/HARDWARE.md](agent/HARDWARE.md).
 
 See [agent/TESTING.md](agent/TESTING.md) for fixtures, conventions, and the
 golden vector.

@@ -7,13 +7,18 @@ RFOUTA with an oscilloscope.
 Example pin map (ADF4351 eval board — adjust for your MicroPython board)
 ------------------------------------------------------------------------
 - 10 MHz reference on REFIN (R counter = 1, no doubler).
-- SPI1: SCK=GP10, MOSI=GP11, LE=GP13, CE=GP14, MUXOUT=GP15.
+- SPI1: SCK=GP10, MOSI=GP11, LE=GP13, CE=GP14, MUXOUT=GP9.
 - 1 MHz SPI, mode 0. See agent/HARDWARE.md for generic wiring requirements.
 
 Scope notes
 -----------
-- Default target is 200 MHz (scope-friendly). For the datasheet golden
-  example, use ``TARGET_FREQ_HZ = 2_112_600_000`` (needs sufficient BW).
+- Default target is 200 MHz (scope-friendly). Catalog slug: ``scope_200mhz``.
+  For all bench cases use ``examples/validate.py`` (``list``
+  prints slugs; default ``SELECT`` is ``scope_200mhz``).
+- For 137.5 MHz cross-part scope verification use ``TARGET_FREQ_HZ = 137_500_000``
+  (ADF4350 floor, integer-N). Catalog: ``cross_part_scope_137p5mhz``.
+- For the datasheet golden example, use ``TARGET_FREQ_HZ = 2_112_600_000``
+  (needs sufficient BW). Catalog: ``golden_2112p6mhz``.
 """
 
 from machine import SPI
@@ -32,7 +37,7 @@ PINS = {
     "mosi": 11,
     "le": 13,
     "ce": 14,
-    "muxout": 15,
+    "muxout": 9,
 }
 
 spi = SPI(
@@ -57,14 +62,11 @@ synth = ADF435xSynthesizer(device, ADF4351, ref_hz=REF_HZ)
 print("Powering up at %.6f MHz" % (TARGET_FREQ_HZ / 1e6))
 synth.power_up(frequency_hz=TARGET_FREQ_HZ)
 
-if synth.wait_locked(timeout_us=500_000):
-    print("Locked (MUXOUT high)")
-else:
-    print("Not locked within timeout — check loop filter and wiring")
-
-print("Target:    %d Hz" % synth.frequency)
+locked = synth.wait_locked(timeout_us=500_000)
+print("Target:    %d Hz (%.6f MHz)" % (TARGET_FREQ_HZ, TARGET_FREQ_HZ / 1e6))
 print("Achieved:  %d Hz (%.6f MHz)" % (
     synth.achieved_hz,
     synth.achieved_hz / 1e6,
 ))
-print("Probe RFOUTA to verify.")
+print("MUXOUT:    %s" % ("high" if locked else "not high within timeout"))
+print("Probe RFOUTA with scope or counter.")

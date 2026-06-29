@@ -2,7 +2,7 @@
 
 Living summary of completed work and open items.
 
-**Host tests:** 301 collected; 299 pass, 2 skipped without `--device`.
+**Host tests:** refresh with `pytest -q` (see [TESTING.md](TESTING.md) for counts).
 
 ## Completed milestones
 
@@ -18,19 +18,21 @@ Living summary of completed work and open items.
   sweep, frequency table builder, raw device/register demos
 - **Agent documentation** — `agent/` directory, `AGENTS.md`, `.cursor/` rules
   and skill; board-agnostic portability documented
+- **Bench validation example** — [`examples/validate.py`](../examples/validate.py)
+  (host-run catalog cases; not part of pytest)
 
 ## Partially complete
 
-- **Hardware bring-up** — [`test_device_hw.py`](../tests/test_device_hw.py)
-  provides digital HIL tests gated by `pytest --device` on the reference pin
-  map. Scope/RFOUTA analog verification remains manual.
+- **Hardware bring-up** — host-run [`validate.py`](../examples/validate.py)
+  (scope-tier + PLL edge catalog cases); manual RFOUTA verification per
+  [HARDWARE.md](HARDWARE.md) bench table.
 
 ## Open work
 
 | Priority | Item | Notes |
 |----------|------|-------|
-| Medium | Eval board bring-up | Golden freq lock, scope RFOUTA, retune sweep on hardware |
-| Low | Cheat-sheet golden vectors | Only one worked example in tests; see [cheat sheet](https://ez.analog.com/rf/w/documents/14697/adf4350-and-adf4351-common-questions-cheat-sheet) |
+| Medium | Eval board bring-up | Host-run validate.py; scope RFOUT per bench table |
+| Low | Cheat-sheet golden vectors | Catalog beyond datasheet golden; see [cheat sheet](https://ez.analog.com/rf/w/documents/14697/adf4350-and-adf4351-common-questions-cheat-sheet) |
 | Low | MOD search profiling | Exhaustive search fine for single retunes; profile on target MCU if hopping latency matters |
 | Low | Export sweep from `__init__.py` | Deferred until sweep API fully stable |
 | Low | Remove `HANDOFF_synthesizer.md` stub | Content migrated to `agent/` |

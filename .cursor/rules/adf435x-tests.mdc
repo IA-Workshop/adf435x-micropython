@@ -16,7 +16,7 @@ pip install -e ".[test]"
 pytest
 ```
 
-Hardware: `pytest --device`.
+Run `pytest` after every change to touched modules.
 
 ## Golden vector
 
@@ -28,7 +28,6 @@ Hardware: `pytest --device`.
 
 - `Test{FeatureArea}` classes
 - `@pytest.mark.parametrize` for profiles and edges
-- `@pytest.mark.device` for hardware tests (skipped without `--device`)
 
 ## Invariants to test
 
@@ -36,5 +35,3 @@ Hardware: `pytest --device`.
 - DBR/DBB forces trailing R0 when R1/R2/R4 divider change
 - In-band sweep hops: single R0 write
 - SPI failure: `mark_write_failed`, cache unchanged
-
-Run `pytest` after every change to touched modules.

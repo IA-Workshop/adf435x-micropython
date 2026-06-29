@@ -32,9 +32,15 @@ channel_step ≈ fPFD / MOD
 
 ## Reference path and PFD
 
-- R counter minimum: **1** (`REG2_R_COUNTER_MIN`)
+- R counter minimum: **1** (`REG2_R_COUNTER_MIN`); maximum **1023** (10-bit field)
 - Eval-board default: R=1, doubler off, div-by-2 off → fPFD = REFIN
+- **REFIN rated range (Table 1):** **10 MHz – 250 MHz** on both ADF4350 and ADF4351
+- Below 10 MHz REFIN: permitted with **slew rate > 21 V/µs** (footnote, not a
+  separate rated band)
+- **REFIN maximum with doubler enabled:** **30 MHz** (`REF_MAX_DOUBLER_HZ`)
 - PFD maximum (fractional-N): **32 MHz** (`PFD_MAX_FRAC_HZ`)
+- ADF4351 integer-N PFD maxima (45 / 90 MHz) are out of scope for the frac-N
+  solver path
 - Band-select clock: ≤ **125 kHz** normal; ADF4351 fast mode ≤ **500 kHz**
   when fPFD > 125 kHz
 

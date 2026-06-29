@@ -90,6 +90,21 @@ Use explicit names, not vague `_program`:
 - `commit_plan()` and SPI logs use **R5→R0** order — reverse when comparing
   a full six-register write to `WORKED_WORDS`.
 
+### Bench validation (`examples/validate.py`)
+
+| Term | Meaning |
+|------|---------|
+| `CASES` | Named bench frequencies and sweep config (host-run example) |
+| slug | Case name in `CASES` (e.g. `scope_200mhz`, `golden_2112p6mhz`) |
+
+**Slug pattern:** `[{adf4350_|adf4351_}]{role}_{freq}mhz` in snake_case.
+`scope_*` rows are oscilloscope-friendly integer-N frequencies. `golden_*`
+matches the datasheet worked example. See the bench table in
+[HARDWARE.md](HARDWARE.md).
+
+Examples reference slugs in comments; they do not import each other on the
+board.
+
 ### Tests
 
 `Test{FeatureArea}` classes. Shared fixtures in [`tests/conftest.py`](../tests/conftest.py)

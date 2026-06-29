@@ -19,6 +19,8 @@ Hardware assumptions
 
   The data-sheet example uses RF divide-by-2 for 2112.6 MHz; divide-by-32
   keeps the same PLL numbers but brings the output into scope range.
+  Catalog slug: ``adf4351_scope_equiv_132p0375mhz`` (see ``examples/validate.py``;
+  ADF4351 only).
 
 Modify pin numbers to match your specific setup.
 """

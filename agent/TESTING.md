@@ -25,18 +25,22 @@ Requirements: CPython ≥ 3.10 and pytest (declared in
 [`pyproject.toml`](../pyproject.toml)). Environment name is not prescribed;
 `general` is the maintainer's local conda env.
 
-Hardware-in-the-loop tests:
+**Counts:** 299 collected; 299 pass (refresh with `pytest --collect-only -q`
+and `pytest -q`).
 
-```bash
-pytest --device
-```
+## Bench validation (host-run)
 
-Requires a connected ADF435x on the **maintainer reference pin map** (see
-[HARDWARE.md](HARDWARE.md)). Tests marked `@pytest.mark.device` are skipped
-unless `--device` is passed.
+[`examples/validate.py`](../examples/validate.py)
+is **not** bulk-synced; run from the host with MicroPico **Run current file**
+(``adf435x/`` must already be on flash). Not part of pytest.
 
-**Counts:** 301 collected; 299 pass, 2 skip without `--device` (refresh with
-`pytest --collect-only -q` and `pytest -q`).
+- ``SELECT`` at top of file, or ``sys.argv[1]``; ``list`` prints case names
+- Scope slugs: ``scope_50mhz`` … ``scope_250mhz`` (default ``scope_200mhz``)
+- PLL edge slugs: ``golden_2112p6mhz``, ``cross_part_scope_137p5mhz``, etc.
+- ``narrow_band_sweep`` — 140–145 MHz with per-step Hz printed
+
+Output reports target/achieved Hz for bench instruments; no pass/fail verdict.
+See [HARDWARE.md](HARDWARE.md#run-examples-from-the-host).
 
 ## Golden vector chain
 
@@ -92,7 +96,6 @@ Do not duplicate hex values in agent docs; reference these names.
 | `test_synthesizer.py` | End-to-end with FakeDevice |
 | `test_sweep.py` | Table building, single-R0 hop invariant |
 | `test_device.py` | SPI byte order, LE sequence |
-| `test_device_hw.py` | Hardware lock detect (`--device`) |
 
 ## Key invariants to preserve in tests
 
