@@ -13,21 +13,19 @@ from .profiles import ADF435xDeviceProfile
 from .register_file import ADF435xRegisterFile
 from .solver import SolveOptions, SolveResult, solve
 
-_TICKS_MS_STUB = 0
+_TICKS_US_STUB = 0
 
 
-def _ticks_ms():
+def _ticks_us():
     """
-    Return a millisecond timestamp.
+    Return a microsecond timestamp.
 
-    Uses ``time.ticks_ms()`` on MicroPython; a monotonic stub under CPython.
+    Uses ``time.ticks_us()`` on MicroPython; ``time.monotonic()`` under CPython.
     """
-    global _TICKS_MS_STUB
     try:
-        return time.ticks_ms()
+        return time.ticks_us()
     except AttributeError:
-        _TICKS_MS_STUB += 1
-        return _TICKS_MS_STUB
+        return int(time.monotonic() * 1_000_000)
 
 
 class ADF435xSynthesizer:
@@ -74,7 +72,7 @@ class ADF435xSynthesizer:
         self._powered = False
         self._target_hz = None
         self._achieved_hz = None
-        self._last_write_ms = None
+        self._last_write_us = None
         self._fast_hop_mode = False
 
     @property
@@ -108,9 +106,9 @@ class ADF435xSynthesizer:
         return self._powered
 
     @property
-    def last_write_ms(self):
-        """Timestamp of the last successful SPI write, or None."""
-        return self._last_write_ms
+    def last_write_us(self):
+        """Microsecond timestamp of the last successful SPI write, or None."""
+        return self._last_write_us
 
     def power_up(self, *, frequency_hz=None):
         """
@@ -167,25 +165,25 @@ class ADF435xSynthesizer:
         """
         return bool(self._device.read_muxout())
 
-    def wait_locked(self, timeout_ms=100):
+    def wait_locked(self, timeout_us=100_000):
         """
         Poll lock detect until locked or timeout.
 
         Parameters
         ----------
-        timeout_ms : int
-            Maximum wait in milliseconds.
+        timeout_us : int
+            Maximum wait in microseconds (default 100 ms).
 
         Returns
         -------
         bool
             True if lock was detected before timeout.
         """
-        deadline = _ticks_ms() + timeout_ms
-        while _ticks_diff(_ticks_ms(), deadline) < 0:
+        deadline = _ticks_us() + timeout_us
+        while _ticks_diff(_ticks_us(), deadline) < 0:
             if self.is_locked():
                 return True
-            _sleep_ms(1)
+            _sleep_us(100)
         return self.is_locked()
 
     def mute(self):
@@ -213,6 +211,28 @@ class ADF435xSynthesizer:
         if self._powered:
             self._write_stale_registers()
 
+    def _solve(self, hz, *, options=None):
+        """
+        Run the frequency solver with this synthesizer's reference path.
+
+        Parameters
+        ----------
+        hz : int
+            Target frequency in hertz.
+        options : SolveOptions or None
+            Overrides; defaults to ``self._solve_options``.
+
+        Returns
+        -------
+        SolveResult
+        """
+        return solve(
+            hz,
+            self._ref_hz,
+            self._profile,
+            options=options or self._solve_options,
+        )
+
     def _apply_solve(self, hz):
         """
         Run the solver and apply fields to the register file.
@@ -226,12 +246,7 @@ class ADF435xSynthesizer:
         -------
         SolveResult
         """
-        result = solve(
-            hz,
-            self._ref_hz,
-            self._profile,
-            options=self._solve_options,
-        )
+        result = self._solve(hz)
         self._regfile.configure(**result.fields)
         self._target_hz = hz
         self._achieved_hz = result.achieved_hz
@@ -279,7 +294,7 @@ class ADF435xSynthesizer:
         try:
             self._device.write_registers(words)
             self._regfile.mark_written()
-            self._last_write_ms = _ticks_ms()
+            self._last_write_us = _ticks_us()
         except Exception:
             self._regfile.mark_write_failed()
             raise
@@ -287,7 +302,7 @@ class ADF435xSynthesizer:
 
 def _ticks_diff(a, b):
     """
-    Difference between two ``ticks_ms`` values.
+    Difference between two ``ticks_us`` values.
 
     MicroPython-safe wrapper around ``time.ticks_diff``.
     """
@@ -297,9 +312,9 @@ def _ticks_diff(a, b):
         return a - b
 
 
-def _sleep_ms(ms):
-    """Sleep for milliseconds; MicroPython and CPython compatible."""
+def _sleep_us(us):
+    """Sleep for microseconds; MicroPython and CPython compatible."""
     try:
-        time.sleep_ms(ms)
+        time.sleep_us(us)
     except AttributeError:
-        time.sleep(ms / 1000.0)
+        time.sleep(us / 1_000_000.0)

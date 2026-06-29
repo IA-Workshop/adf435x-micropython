@@ -57,7 +57,7 @@ synth = ADF435xSynthesizer(device, ADF4351, ref_hz=REF_HZ)
 print("Powering up at %.6f MHz" % (TARGET_FREQ_HZ / 1e6))
 synth.power_up(frequency_hz=TARGET_FREQ_HZ)
 
-if synth.wait_locked(timeout_ms=500):
+if synth.wait_locked(timeout_us=500_000):
     print("Locked (MUXOUT high)")
 else:
     print("Not locked within timeout — check loop filter and wiring")

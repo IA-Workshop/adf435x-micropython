@@ -11,7 +11,7 @@ from machine import SPI
 
 from adf435x.device import ADF435xDevice
 from adf435x.profiles import ADF4351
-from adf435x.sweep import ADF435xSweeper, FrequencyTable
+from adf435x.sweep import ADF435xSweeper
 from adf435x.synthesizer import ADF435xSynthesizer
 
 # --- User settings -----------------------------------------------------------
@@ -19,7 +19,7 @@ LOWER_HZ = 190_000_000
 UPPER_HZ = 210_000_000
 STEP_HZ = 2_000_000
 REF_HZ = 10_000_000
-DWELL_MS = 500
+DWELL_US = 500_000
 
 PINS = {
     "spi_channel": 1,
@@ -52,14 +52,14 @@ synth = ADF435xSynthesizer(device, ADF4351, ref_hz=REF_HZ)
 # One-shot linear sweep (builds table internally):
 print(
     "Sweeping %.1f–%.1f MHz, step %.1f MHz, dwell %d ms"
-    % (LOWER_HZ / 1e6, UPPER_HZ / 1e6, STEP_HZ / 1e6, DWELL_MS)
+    % (LOWER_HZ / 1e6, UPPER_HZ / 1e6, STEP_HZ / 1e6, DWELL_US // 1000)
 )
 ADF435xSweeper.run_range(
     synth,
     LOWER_HZ,
     UPPER_HZ,
     STEP_HZ,
-    dwell_ms=DWELL_MS,
+    dwell_us=DWELL_US,
 )
 print("Sweep complete.")
 
@@ -68,6 +68,6 @@ print("Sweep complete.")
 # print("Table has %d entries, channel step %d Hz" % (
 #     len(table), table.channel_step_hz,
 # ))
-# player = ADF435xSweeper(synth, table, dwell_ms=DWELL_MS)
+# player = ADF435xSweeper(synth, table, dwell_us=DWELL_US)
 # while player.step() is not None:
 #     pass

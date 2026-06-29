@@ -49,7 +49,7 @@ class TestWritePath:
         """Successful write advances regfile commit count."""
         synth.power_up(frequency_hz=200_000_000)
         assert synth.regfile.dump()["commit_count"] == 1
-        assert synth.last_write_ms is not None
+        assert synth.last_write_us is not None
 
     def test_mark_write_failed_on_spi_error(self, synth, fake_device):
         """Failed SPI write invalidates the last-written cache."""
@@ -94,12 +94,12 @@ class TestLockDetect:
     def test_wait_locked_succeeds_when_muxout_high(self, synth, fake_device):
         """wait_locked returns True when already locked."""
         fake_device.muxout = 1
-        assert synth.wait_locked(timeout_ms=10)
+        assert synth.wait_locked(timeout_us=10_000)
 
     def test_wait_locked_times_out(self, synth, fake_device):
         """wait_locked returns False when MUXOUT stays low."""
         fake_device.muxout = 0
-        assert not synth.wait_locked(timeout_ms=5)
+        assert not synth.wait_locked(timeout_us=5_000)
 
 
 class TestOutputControls:

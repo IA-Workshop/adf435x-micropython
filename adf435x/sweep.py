@@ -7,12 +7,11 @@ back. MicroPython-safe; no ``machine`` import.
 
 from .register_file import ADF435xRegisterFile
 from .solver import (
-    SolveOptions,
     _raise_divider_crossing,
+    boundary_indices_from_results,
     build_frequency_table,
-    solve,
 )
-from .synthesizer import _sleep_ms
+from .synthesizer import _sleep_us
 
 
 class FrequencyEntry:
@@ -36,7 +35,7 @@ class FrequencyEntry:
         self.achieved_hz = achieved_hz
         self.error_hz = error_hz
         self.plan = plan
-        self._fields = fields
+        self.fields = fields
         self.divider_boundary = divider_boundary
 
 
@@ -96,19 +95,16 @@ class FrequencyTable:
             When endpoints need different RF dividers and
             *allow_divider_change* is False.
         """
-        results, channel_step_hz, boundary_indices = build_frequency_table(
+        results, channel_step_hz = build_frequency_table(
             lower_hz,
             upper_hz,
             step_hz,
             synth.ref_hz,
             synth.profile,
             allow_divider_change=allow_divider_change,
+            options=synth._solve_options,
         )
-        entries = _encode_plans(
-            synth.profile,
-            results,
-            boundary_indices=boundary_indices,
-        )
+        entries = _encode_plans(synth.profile, results)
         return cls(entries, channel_step_hz)
 
     @classmethod
@@ -148,25 +144,13 @@ class FrequencyTable:
         if not frequencies:
             raise ValueError("frequencies must not be empty")
 
-        results, boundary_indices = _solve_frequencies(
+        results = _solve_frequencies(
             synth,
             frequencies,
             allow_divider_change=allow_divider_change,
         )
-        entries = _encode_plans(
-            synth.profile,
-            results,
-            boundary_indices=boundary_indices,
-        )
+        entries = _encode_plans(synth.profile, results)
         return cls(entries)
-
-    @property
-    def segment_boundaries(self):
-        """Indices of divider-boundary entries (first hop in each new band)."""
-        return tuple(
-            i for i in range(len(self._entries))
-            if self._entries[i].divider_boundary
-        )
 
     def __len__(self):
         """Number of table entries."""
@@ -188,110 +172,44 @@ def _solve_frequencies(synth, frequencies, *, allow_divider_change=False):
 
     Returns
     -------
-    tuple of (list of SolveResult, frozenset)
-        Results and indices of divider-boundary entries.
+    list of SolveResult
+        Solve results in playback order.
     """
-    if not allow_divider_change:
-        results = _solve_frequencies_locked(synth, frequencies)
-        return results, frozenset()
-
     results = []
-    boundary_indices = set()
     i = 0
     while i < len(frequencies):
-        first = solve(
-            frequencies[i],
-            synth.ref_hz,
-            synth.profile,
-            options=synth._solve_options,
-        )
+        first = synth._solve(frequencies[i])
         div = first.fields["rf_divider"]
         mod = first.fields["mod"]
-        opts = SolveOptions(
-            r_counter=synth._solve_options.r_counter,
-            doubler=synth._solve_options.doubler,
-            rdiv2=synth._solve_options.rdiv2,
-            mod=mod,
-        )
-        if results:
-            boundary_indices.add(len(results))
+        opts = synth._solve_options.with_locked_pll(mod)
         results.append(first)
         i += 1
         while i < len(frequencies):
-            trial = solve(
-                frequencies[i],
-                synth.ref_hz,
-                synth.profile,
-                options=opts,
-            )
+            trial = synth._solve(frequencies[i], options=opts)
             if trial.fields["rf_divider"] != div:
+                if not allow_divider_change:
+                    _raise_divider_crossing(
+                        frequencies[0],
+                        frequencies[i],
+                        div,
+                        trial.fields["rf_divider"],
+                    )
                 break
             results.append(trial)
             i += 1
-    return results, frozenset(boundary_indices)
-
-
-def _solve_frequencies_locked(synth, frequencies):
-    """
-    Solve a frequency list with MOD locked from the first entry.
-
-    Raises ``DividerOctaveCrossingError`` when RF divider changes mid-list.
-    """
-    first = solve(
-        frequencies[0],
-        synth.ref_hz,
-        synth.profile,
-        options=synth._solve_options,
-    )
-    mod = first.fields["mod"]
-    rf_divider = first.fields["rf_divider"]
-    opts = SolveOptions(
-        r_counter=synth._solve_options.r_counter,
-        doubler=synth._solve_options.doubler,
-        rdiv2=synth._solve_options.rdiv2,
-        mod=mod,
-    )
-
-    results = [first]
-    for hz in frequencies[1:]:
-        result = solve(
-            hz,
-            synth.ref_hz,
-            synth.profile,
-            options=opts,
-        )
-        if result.fields["rf_divider"] != rf_divider:
-            _raise_divider_crossing(
-                frequencies[0],
-                hz,
-                rf_divider,
-                result.fields["rf_divider"],
-            )
-        results.append(result)
     return results
 
 
-def _encode_plans(profile, results, *, boundary_indices=None):
+def _encode_plans(profile, results):
     """
     Pre-encode SPI commit plans for a list of solve results.
-
-    Parameters
-    ----------
-    boundary_indices : frozenset of int or None
-        Table indices that start a new RF divider band (full R5..R0 write).
     """
-    boundary_indices = (
-        boundary_indices if boundary_indices is not None else frozenset()
-    )
+    boundary_indices = boundary_indices_from_results(results)
     regfile = ADF435xRegisterFile(profile)
     entries = []
-    prev_divider = None
     for i, result in enumerate(results):
         regfile.configure(**result.fields)
-        div = result.fields["rf_divider"]
-        is_boundary = i in boundary_indices or (
-            prev_divider is not None and div != prev_divider
-        )
+        is_boundary = i in boundary_indices
         if i == 0 or is_boundary:
             plan = regfile.commit_all_plan()
         else:
@@ -306,7 +224,6 @@ def _encode_plans(profile, results, *, boundary_indices=None):
             )
         )
         regfile.mark_written()
-        prev_divider = div
     return entries
 
 
@@ -320,12 +237,12 @@ class ADF435xSweeper:
         Target synthesizer (duck-typed device inside).
     table : FrequencyTable
         Precomputed frequency sequence.
-    dwell_ms : int
-        Milliseconds to wait after each hop (default 0).
+    dwell_us : int
+        Microseconds to wait after each hop (default 0).
     wait_for_lock : bool
         When True, call ``wait_locked()`` after each in-band hop.
-    boundary_dwell_ms : int
-        Milliseconds to dwell after a divider-boundary hop (default 500).
+    boundary_dwell_us : int
+        Microseconds to dwell after a divider-boundary hop (default 500 ms).
         Boundary hops always wait for lock regardless of *wait_for_lock*.
     """
 
@@ -334,16 +251,16 @@ class ADF435xSweeper:
         synth,
         table,
         *,
-        dwell_ms=0,
+        dwell_us=0,
         wait_for_lock=False,
-        boundary_dwell_ms=500,
+        boundary_dwell_us=500_000,
     ):
         """Store synthesizer, table, and playback options."""
         self._synth = synth
         self._table = table
-        self._dwell_ms = dwell_ms
+        self._dwell_us = dwell_us
         self._wait_for_lock = wait_for_lock
-        self._boundary_dwell_ms = boundary_dwell_ms
+        self._boundary_dwell_us = boundary_dwell_us
         self._ready = False
         self._index = 0
 
@@ -355,10 +272,10 @@ class ADF435xSweeper:
         upper_hz,
         step_hz,
         *,
-        dwell_ms=0,
+        dwell_us=0,
         wait_for_lock=False,
         allow_divider_change=False,
-        boundary_dwell_ms=500,
+        boundary_dwell_us=500_000,
     ):
         """
         Build a range table, play once, and return.
@@ -367,11 +284,11 @@ class ADF435xSweeper:
         ----------
         synth : ADF435xSynthesizer
         lower_hz, upper_hz, step_hz : int
-        dwell_ms : int
+        dwell_us : int
         wait_for_lock : bool
         allow_divider_change : bool
             Passed to ``FrequencyTable.from_range``.
-        boundary_dwell_ms : int
+        boundary_dwell_us : int
             Dwell after divider-boundary hops.
         """
         table = FrequencyTable.from_range(
@@ -384,9 +301,9 @@ class ADF435xSweeper:
         player = cls(
             synth,
             table,
-            dwell_ms=dwell_ms,
+            dwell_us=dwell_us,
             wait_for_lock=wait_for_lock,
-            boundary_dwell_ms=boundary_dwell_ms,
+            boundary_dwell_us=boundary_dwell_us,
         )
         player.run()
 
@@ -450,17 +367,17 @@ class ADF435xSweeper:
         ----------
         entry : FrequencyEntry
         """
-        self._synth._regfile.configure(**entry._fields)
+        self._synth._regfile.configure(**entry.fields)
         self._synth._achieved_hz = entry.achieved_hz
         self._synth._target_hz = entry.achieved_hz + entry.error_hz
         self._synth._write_prebuilt_plan(entry.plan)
         if entry.divider_boundary:
             self._synth.wait_locked()
-            if self._boundary_dwell_ms > 0:
-                _sleep_ms(self._boundary_dwell_ms)
+            if self._boundary_dwell_us > 0:
+                _sleep_us(self._boundary_dwell_us)
         else:
             if self._wait_for_lock:
                 self._synth.wait_locked()
-            if self._dwell_ms > 0:
-                _sleep_ms(self._dwell_ms)
+            if self._dwell_us > 0:
+                _sleep_us(self._dwell_us)
 

@@ -12,7 +12,8 @@ from adf435x.solver import (
     SolveOptions,
     VCO_MAX_HZ,
     VCO_MIN_HZ,
-    _compute_achieved_hz,
+    achieved_hz_from_n_num,
+    boundary_indices_from_results,
     _compute_f_pfd,
     _normalize_frac_mod,
     _output_min_hz,
@@ -78,7 +79,7 @@ class TestComputeAchieved:
 
     def test_golden_vector(self):
         """Worked-example INT/FRAC/MOD reproduces 2112.6 MHz out."""
-        achieved = _compute_achieved_hz(422, 13, 25, REF_HZ, 2)
+        achieved = achieved_hz_from_n_num(422 * 25 + 13, 25, REF_HZ, 2)
         assert achieved == GOLDEN_TARGET_HZ
 
 
@@ -314,12 +315,12 @@ class TestBuildFrequencyTable:
 
     def test_example_band_has_multiple_entries(self):
         """190–210 MHz with 2 MHz step yields a multi-point table."""
-        table, step, boundaries = build_frequency_table(
+        table, step = build_frequency_table(
             190_000_000, 210_000_000, 2_000_000, REF_HZ, ADF4351
         )
         assert step > 0
         assert len(table) >= 3
-        assert not boundaries
+        assert not boundary_indices_from_results(table)
         assert table[0].achieved_hz <= table[-1].achieved_hz
 
     def test_octave_crossing_error_includes_bands(self):
@@ -337,7 +338,7 @@ class TestBuildFrequencyTable:
 
     def test_allow_divider_change_builds_segmented_table(self):
         """allow_divider_change builds per-band tables with boundaries."""
-        table, step, boundaries = build_frequency_table(
+        table, step = build_frequency_table(
             100_000_000,
             300_000_000,
             25_000_000,
@@ -345,6 +346,7 @@ class TestBuildFrequencyTable:
             ADF4351,
             allow_divider_change=True,
         )
+        boundaries = boundary_indices_from_results(table)
         assert step == 0
         assert len(table) >= 2
         assert boundaries

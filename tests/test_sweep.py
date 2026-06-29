@@ -20,7 +20,7 @@ class TestFrequencyTableFromRange:
     def test_matches_solver_entry_count(self, synth):
         """from_range yields the same length as build_frequency_table."""
         lo, hi, step = 190_000_000, 210_000_000, 2_000_000
-        solver_table, _, _ = build_frequency_table(
+        solver_table, _ = build_frequency_table(
             lo, hi, step, REF_HZ, ADF4351
         )
         table = FrequencyTable.from_range(synth, lo, hi, step)
@@ -85,7 +85,7 @@ class TestFrequencyTableFromFrequencies:
             25_000_000,
             allow_divider_change=True,
         )
-        assert table.segment_boundaries
+        assert [i for i, e in enumerate(table) if e.divider_boundary]
         # Some mid-segment hop should be a fast R0-only update.
         in_band = [
             e
@@ -103,8 +103,10 @@ class TestFrequencyTableFromFrequencies:
             50_000_000,
             allow_divider_change=True,
         )
-        mods = [table[i]._fields["mod"] for i in range(len(table))]
-        boundary = set(table.segment_boundaries)
+        mods = [table[i].fields["mod"] for i in range(len(table))]
+        boundary = {
+            i for i, e in enumerate(table) if e.divider_boundary
+        }
         seg_start = 0
         for b in sorted(boundary) + [len(table)]:
             seg_mods = mods[seg_start:b]
@@ -179,18 +181,18 @@ class TestSweeperPlayback:
         assert isinstance(second, int)
         assert player.step() is None
 
-    def test_dwell_ms_sleeps(self, synth, monkeypatch):
-        """dwell_ms invokes the sleep helper between hops."""
+    def test_dwell_us_sleeps(self, synth, monkeypatch):
+        """dwell_us invokes the sleep helper between hops."""
         sleeps = []
         monkeypatch.setattr(
-            "adf435x.sweep._sleep_ms",
-            lambda ms: sleeps.append(ms),
+            "adf435x.sweep._sleep_us",
+            lambda us: sleeps.append(us),
         )
         table = FrequencyTable.from_frequencies(
             synth, [200_000_000, 201_000_000]
         )
-        ADF435xSweeper(synth, table, dwell_ms=50).run()
-        assert sleeps.count(50) >= 1
+        ADF435xSweeper(synth, table, dwell_us=50_000).run()
+        assert sleeps.count(50_000) >= 1
 
     def test_wait_for_lock_calls_synth(self, synth, monkeypatch):
         """wait_for_lock=True polls wait_locked after each hop."""
@@ -198,7 +200,7 @@ class TestSweeperPlayback:
         monkeypatch.setattr(
             synth,
             "wait_locked",
-            lambda timeout_ms=100: calls.append(timeout_ms) or True,
+            lambda timeout_us=100_000: calls.append(timeout_us) or True,
         )
         table = FrequencyTable.from_frequencies(
             synth, [200_000_000, 201_000_000]
@@ -207,17 +209,17 @@ class TestSweeperPlayback:
         assert len(calls) >= 1
 
     def test_boundary_dwell_at_divider_crossing(self, synth, monkeypatch):
-        """Divider boundaries use boundary_dwell_ms and always wait lock."""
+        """Divider boundaries use boundary_dwell_us and always wait lock."""
         sleeps = []
         lock_calls = []
         monkeypatch.setattr(
-            "adf435x.sweep._sleep_ms",
-            lambda ms: sleeps.append(ms),
+            "adf435x.sweep._sleep_us",
+            lambda us: sleeps.append(us),
         )
         monkeypatch.setattr(
             synth,
             "wait_locked",
-            lambda timeout_ms=100: lock_calls.append(timeout_ms) or True,
+            lambda timeout_us=100_000: lock_calls.append(timeout_us) or True,
         )
         table = FrequencyTable.from_frequencies(
             synth,
@@ -227,10 +229,10 @@ class TestSweeperPlayback:
         ADF435xSweeper(
             synth,
             table,
-            dwell_ms=10,
-            boundary_dwell_ms=200,
+            dwell_us=10_000,
+            boundary_dwell_us=200_000,
         ).run()
-        assert 200 in sleeps
+        assert 200_000 in sleeps
         assert len(lock_calls) >= 1
 
     def test_reset_restarts_playback(self, synth):
