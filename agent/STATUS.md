@@ -1,10 +1,9 @@
 # Project status
 
-Living summary of completed work and open items. Reconciled against
-[`HANDOFF_synthesizer.md`](../HANDOFF_synthesizer.md) (now deprecated) and
-current code as of 2026-06-28.
+Living summary of completed work and open items. Last updated 2026-06-28.
 
-**Host tests:** 301 collected (`pytest --collect-only`).
+**Host tests:** 301 collected; **299 pass**, 2 skipped without `--device`
+(`pytest --collect-only` / `pytest`).
 
 ## Completed milestones
 
@@ -19,13 +18,13 @@ current code as of 2026-06-28.
 - **Examples** — fixed frequency, solver demo, linear sweep, octave-crossing
   sweep, frequency table builder, raw device/register demos
 - **Agent documentation** — `agent/` directory, `AGENTS.md`, `.cursor/` rules
-  and skill
+  and skill; board-agnostic portability documented
 
 ## Partially complete
 
 - **Hardware bring-up** — [`test_device_hw.py`](../tests/test_device_hw.py)
-  provides digital HIL tests gated by `pytest --device`. Scope/RFOUTA analog
-  verification and eval-board lock confirmation remain manual/open.
+  provides digital HIL tests gated by `pytest --device` on the reference pin
+  map. Scope/RFOUTA analog verification remains manual.
 
 ## Open work
 
@@ -35,29 +34,13 @@ current code as of 2026-06-28.
 | Low | Cheat-sheet golden vectors | Only one worked example in tests; see cheat sheet PDF |
 | Low | MOD search profiling | Exhaustive search fine for single retunes; profile on target MCU if hopping latency matters |
 | Low | Export sweep from `__init__.py` | Deferred until sweep API fully stable |
+| Low | Remove `HANDOFF_synthesizer.md` stub | Content migrated to `agent/` |
 
-## HANDOFF reconciliation notes
+## Package export notes
 
-Items that were **TODO in HANDOFF** but are **done in code**:
+Exported from package root: synthesizer, solver, register stack, profiles.
 
-| HANDOFF claim | Current state |
-|---------------|---------------|
-| `synthesizer.py` — TODO | Implemented |
-| `sweep.py` — deferred | Implemented |
-| Solver not exported from `__init__.py` | Exported (`solve`, `SolveOptions`, etc.) |
-| 258 host tests | 301 tests (synthesizer + sweep suites added) |
-
-Still accurate from HANDOFF:
-
-- Scope limited to ADF4350/ADF4351
-- Golden vector in conftest
-- `sweep` and `device` remain submodule imports (not package root)
-
-## Known doc/code drift
-
-- [`README.md`](../README.md) previously listed `uv`; aligned to conda/pip in
-  agent docs (see [TESTING.md](TESTING.md))
-- [`HANDOFF_synthesizer.md`](../HANDOFF_synthesizer.md) deprecated; use `agent/`
+Submodule-only (by design): `adf435x.sweep`, `adf435x.device`.
 
 When completing a milestone, update this file and append rationale to
 [JOURNAL.md](JOURNAL.md) if non-obvious.

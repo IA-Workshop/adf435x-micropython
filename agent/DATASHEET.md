@@ -50,13 +50,13 @@ Implemented in `_pick_band_clk` in [`solver.py`](../adf435x/solver.py).
 
 ## Integer-N vs fractional-N settings
 
-When FRAC = 0, the solver sets (ADF4351):
+When FRAC = 0, the solver sets:
 
-| Setting | frac-N default | int-N value | Rationale |
-|---------|----------------|-------------|-----------|
+| Setting | frac-N default | int-N value | Notes |
+|---------|----------------|-------------|-------|
 | LDF | FRAC_N | INT_N | Lock-detect mode |
-| ABP | 6 ns | 3 ns | Antibacklash pulse |
-| charge_cancel | off | on (4351) | CP spur cancellation |
+| ABP | 6 ns (4351) / fixed 3 ns (4350) | 3 ns | ADF4350 ABP not programmable |
+| charge_cancel | off | on | ADF4351 only |
 
 Fast-hop / sweep mode ([`synthesizer.py`](../adf435x/synthesizer.py)):
 `double_buffer=True`, `ldp=6ns` for rapid R0-only hops.
@@ -99,8 +99,13 @@ Defined in [`tests/conftest.py`](../tests/conftest.py):
 - Target: 2112.6 MHz, ADF4351, 10 MHz ref, RF divide-by-2
 - Fields: INT=422, FRAC=13, MOD=25, prescaler 8/9, fast band-select,
   `band_clk_div=20`
-- Register words: reference `WORKED_WORDS` by name — **do not duplicate hex
-  values in other docs**
+- Words: `WORKED_WORDS[0]` … `WORKED_WORDS[5]` are registers R0 … R5
+- SPI / `commit_plan()` order is R5→R0 — use `reversed(WORKED_WORDS)` for a
+  full six-register sequence
+- **Do not duplicate hex values in other docs** — reference `WORKED_WORDS` by name
+
+Config field names map to registers via `ADF435xConfig.FIELD_REGISTER` in
+[`config.py`](../adf435x/config.py).
 
 ## Figure map (code cross-reference)
 

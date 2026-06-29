@@ -14,10 +14,19 @@ start at the repo root [AGENTS.md](../AGENTS.md).
 | [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) | Non-negotiable invariants |
 | [JOURNAL.md](JOURNAL.md) | Chronological implementation decision log |
 | [TESTING.md](TESTING.md) | pytest setup, fixtures, conventions |
-| [HARDWARE.md](HARDWARE.md) | Eval board pin map and bring-up |
+| [HARDWARE.md](HARDWARE.md) | Generic wiring, reference pin map, porting |
 | [STATUS.md](STATUS.md) | Completed milestones and open work |
 
 Source PDFs: [`datasheets/`](../datasheets/).
+
+## Source of truth
+
+When documentation conflicts with code or tests, trust in this order:
+
+1. Passing tests and `adf435x/` implementation
+2. `WORKED_FIELDS` / `WORKED_WORDS` in `tests/conftest.py`
+3. [DATASHEET.md](DATASHEET.md) for extracted hardware facts
+4. Other agent docs (intent, history, status)
 
 ## Maintenance contract
 
@@ -32,6 +41,7 @@ source of truth for behavior.
 | Milestone completed or scope change | [STATUS.md](STATUS.md) |
 | New module or layer | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | New invariant | [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) |
+| Portability / reference pin map change | [HARDWARE.md](HARDWARE.md) |
 
 **Golden vector rule:** `WORKED_FIELDS` and `WORKED_WORDS` are defined once in
 [`tests/conftest.py`](../tests/conftest.py). Other docs reference them by name;

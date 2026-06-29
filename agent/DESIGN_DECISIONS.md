@@ -174,3 +174,19 @@ MicroPython boards with varying `machine` implementations.
 [`synthesizer.py`](../adf435x/synthesizer.py), [`sweep.py`](../adf435x/sweep.py)
 
 **Do not:** Use `dataclasses`, `pathlib`, or other unavailable stdlib on target.
+
+---
+
+## 13. Board-agnostic library modules
+
+**Decision:** Pin numbers, SPI bus index, and baud rate live in caller code,
+examples, and hardware tests — not in `adf435x/` library modules.
+
+**Rationale:** The library targets any MicroPython board with SPI and GPIO;
+hard-coded pins would break portability.
+
+**Enforced in:** [`device.py`](../adf435x/device.py) (accepts injected SPI/pins),
+[`synthesizer.py`](../adf435x/synthesizer.py) (duck-typed device)
+
+**Do not:** Add board-specific constants or `machine` pin assignments under
+`adf435x/` except in `device.py`'s constructor arguments from the caller.

@@ -23,6 +23,41 @@ Entry point for AI agents and contributors. Read this before making changes.
 
 Full index: [agent/README.md](agent/README.md).
 
+## Source of truth (when docs disagree)
+
+1. **Behavior:** code in `adf435x/` and passing tests
+2. **Register words:** `WORKED_WORDS` / `WORKED_FIELDS` in `tests/conftest.py`
+3. **Extracted PLL facts:** [agent/DATASHEET.md](agent/DATASHEET.md)
+4. **Intent and history:** other `agent/` docs and [agent/JOURNAL.md](agent/JOURNAL.md)
+
+Update agent docs when code changes; do not treat docs as authoritative over
+tests.
+
+## Task routing
+
+| You are changing… | Read first | Run tests |
+|-------------------|------------|-----------|
+| Bit layout / encode | DATASHEET, DESIGN_DECISIONS §1–3 | `test_register_mapper`, `test_register_file` |
+| Frequency math / MOD | DATASHEET, GLOSSARY | `test_solver` (golden vector) |
+| Synthesizer API / writes | ARCHITECTURE, DESIGN_DECISIONS §4, §11 | `test_synthesizer` |
+| Sweep / fast-hop | ARCHITECTURE (three-layer), DATASHEET §4 | `test_sweep` |
+| Board pins / SPI wiring | HARDWARE (not library modules) | `test_device`, optional `--device` |
+| New public names | GLOSSARY | matching layer tests |
+
+## Common mistakes (avoid)
+
+- **`WORKED_WORDS` index vs SPI order:** `WORKED_WORDS[n]` is register **Rn**
+  (R0 first). SPI writes and `commit_plan()` return words in **R5→R0** order.
+  Compare SPI logs with `reversed(WORKED_WORDS)` when all six registers are
+  written.
+- **`commit_plan()` vs `commit_all_plan()`:** use `commit_all_plan()` only for
+  first power-up, divider boundaries, or full reprogram; use `commit_plan()` for
+  frequency retunes (minimal stale set).
+- **Solver output:** pass `result.fields` to `configure()` — never encode in
+  the solver or skip validation.
+- **Board pins:** belong in examples/tests/caller code only — never in `adf435x/`
+  library modules.
+
 ## Do-not-break (summary)
 
 1. Validate-at-setup, trust-at-encode
@@ -32,7 +67,7 @@ Full index: [agent/README.md](agent/README.md).
 5. Integer-only Hz math in solver
 6. Solver produces fields, not register words
 7. Host-safe package root (no `machine` import at `import adf435x`)
-8. MicroPython-safe, board-agnostic code in `adf435x/` (no board-specific pins in library modules)
+8. MicroPython-safe, board-agnostic code in `adf435x/` (pins in caller only)
 
 Details: [agent/DESIGN_DECISIONS.md](agent/DESIGN_DECISIONS.md).
 

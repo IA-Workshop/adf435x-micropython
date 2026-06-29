@@ -46,6 +46,8 @@ Consult this file before introducing new types, fields, or abbreviations.
 | profile | Part capability descriptor | `ADF4350`, `ADF4351` |
 | golden vector | Datasheet worked example | `WORKED_FIELDS`, `WORKED_WORDS` |
 | plan/mark | Split commit from cache update | `commit_plan` + `mark_written` |
+| commit_plan | Minimal stale register writes | R5→R0 word list; use for retunes |
+| commit_all_plan | Full six-register write plan | R5→R0; use at power-up / boundaries |
 | fast-hop | Sweep mode with DBB + short LDP | `_enable_fast_hop_mode` |
 
 ## Naming conventions
@@ -81,6 +83,12 @@ Use explicit names, not vague `_program`:
 
 - `_write_stale_registers` — diff-based commit from regfile
 - `_write_prebuilt_plan` — play a pre-encoded word list (sweep)
+
+### Golden vector indexing
+
+- `WORKED_WORDS[i]` is register **Ri** (R0 at index 0, R5 at index 5).
+- `commit_plan()` and SPI logs use **R5→R0** order — reverse when comparing
+  a full six-register write to `WORKED_WORDS`.
 
 ### Tests
 

@@ -31,8 +31,11 @@ Hardware-in-the-loop tests:
 pytest --device
 ```
 
-Requires a connected ADF435x eval board. Tests marked `@pytest.mark.device`
-are skipped unless `--device` is passed.
+Requires a connected ADF435x on the **maintainer reference pin map** (see
+[HARDWARE.md](HARDWARE.md)). Tests marked `@pytest.mark.device` are skipped
+unless `--device` is passed.
+
+**Counts (2026-06-28):** 301 collected; 299 pass and 2 skip without `--device`.
 
 ## Golden vector chain
 
@@ -47,8 +50,9 @@ solve(2_112_600_000, 10_000_000, ADF4351)
 
 Defined in [`tests/conftest.py`](../tests/conftest.py):
 
-- `WORKED_FIELDS` — PLL field dict
-- `WORKED_WORDS` — expected R5→R0 register words
+- `WORKED_FIELDS` — PLL field dict (partial; other fields use config defaults)
+- `WORKED_WORDS` — registers R0…R5 by index (`WORKED_WORDS[0]` = R0)
+- Full SPI write order is R5→R0 — compare with `reversed(WORKED_WORDS)`
 
 Do not duplicate hex values in agent docs; reference these names.
 

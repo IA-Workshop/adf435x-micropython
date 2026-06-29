@@ -82,6 +82,19 @@ Users interact at three distinct levels:
 Do not collapse synthesizer and sweep into one class; they serve different
 mental models (single retune vs sequence playback).
 
+## Commit plans: when to use which
+
+| Method | Use when | Typical contents |
+|--------|----------|------------------|
+| `commit_all_plan()` | `power_up()`, divider boundary, full reprogram | All six registers R5→R0 |
+| `commit_plan()` | `set_frequency()` retune, partial field change | Stale registers only (+ forced R0 for DBR/DBB) |
+
+Both return 32-bit words in **R5→R0** order without updating the last-written
+cache. The synthesizer calls `mark_written()` after a successful device write.
+
+Word list index in tests: `WORKED_WORDS[n]` is register **Rn** — reverse when
+comparing to a full SPI sequence (see [GLOSSARY.md](GLOSSARY.md)).
+
 ## Public export surface
 
 [`adf435x/__init__.py`](../adf435x/__init__.py) exports:
