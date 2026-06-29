@@ -1,7 +1,10 @@
 # Development journal
 
+**Human reference only** — never on the agent implementation read path. Append
+after non-obvious merges; permanent rules belong in
+[DESIGN_DECISIONS.md](DESIGN_DECISIONS.md).
+
 Append-only log of implementation decisions. Newest entries at the top.
-Permanent invariants go in [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md).
 
 ## Entry format
 

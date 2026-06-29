@@ -35,7 +35,8 @@ Requires a connected ADF435x on the **maintainer reference pin map** (see
 [HARDWARE.md](HARDWARE.md)). Tests marked `@pytest.mark.device` are skipped
 unless `--device` is passed.
 
-**Counts (2026-06-28):** 301 collected; 299 pass and 2 skip without `--device`.
+**Counts:** 301 collected; 299 pass, 2 skip without `--device` (refresh with
+`pytest --collect-only -q` and `pytest -q`).
 
 ## Golden vector chain
 

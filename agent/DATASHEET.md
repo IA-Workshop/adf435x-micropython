@@ -1,10 +1,16 @@
 # Datasheet reference (extracted facts)
 
-Critical PLL and register facts for agent work. Source documents:
+Critical PLL and register facts for agent work. Primary sources (Analog Devices):
 
-- [`datasheets/adf4351.pdf`](../datasheets/adf4351.pdf)
-- [`datasheets/ADF4350.pdf`](../datasheets/ADF4350.pdf)
-- [`datasheets/ADF4350_ADF4351_Cheat_Sheet_v1_2.pdf`](../datasheets/ADF4350_ADF4351_Cheat_Sheet_v1_2.pdf)
+- [ADF4351 product page](https://www.analog.com/en/products/adf4351.html) —
+  [data sheet PDF](https://www.analog.com/media/en/technical-documentation/data-sheets/ADF4351.pdf)
+- [ADF4350 product page](https://www.analog.com/en/products/adf4350.html) —
+  [data sheet PDF](https://www.analog.com/media/en/technical-documentation/data-sheets/ADF4350.pdf)
+- [ADF4350/ADF4351 common questions cheat sheet](https://ez.analog.com/rf/w/documents/14697/adf4350-and-adf4351-common-questions-cheat-sheet)
+  (EngineerZone; spur/MOD guidance)
+
+Extracted facts below are maintained in-repo so agents need not rely on local
+PDF copies.
 
 **Agent rule:** datasheet-sensitive edits must update this file if they change
 an extracted fact, and add or update a test.
@@ -126,5 +132,6 @@ datasheets (see module docstring in [`register_mapper.py`](../adf435x/register_m
 
 ## Optional future test vectors
 
-Additional worked examples from the cheat sheet are not yet in the test suite.
-See [STATUS.md](STATUS.md) for tracking.
+Additional worked examples from the
+[cheat sheet](https://ez.analog.com/rf/w/documents/14697/adf4350-and-adf4351-common-questions-cheat-sheet)
+are not yet in the test suite. See [STATUS.md](STATUS.md) for tracking.

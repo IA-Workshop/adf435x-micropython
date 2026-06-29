@@ -1,5 +1,9 @@
 # Architecture
 
+**Human reference** — layer overview and examples. Agents: use the task-routing
+table in [AGENTS.md](../AGENTS.md); do not read this file for implementation
+tasks.
+
 MicroPython library for Analog Devices ADF4350 and ADF4351 wideband PLL
 synthesizers. Board-agnostic: runs on any MicroPython port with SPI and GPIO.
 Pin assignment and SPI bus selection are the caller's responsibility.

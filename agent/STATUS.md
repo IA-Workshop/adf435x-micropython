@@ -1,9 +1,8 @@
 # Project status
 
-Living summary of completed work and open items. Last updated 2026-06-28.
+Living summary of completed work and open items.
 
-**Host tests:** 301 collected; **299 pass**, 2 skipped without `--device`
-(`pytest --collect-only` / `pytest`).
+**Host tests:** 301 collected; 299 pass, 2 skipped without `--device`.
 
 ## Completed milestones
 
@@ -31,7 +30,7 @@ Living summary of completed work and open items. Last updated 2026-06-28.
 | Priority | Item | Notes |
 |----------|------|-------|
 | Medium | Eval board bring-up | Golden freq lock, scope RFOUTA, retune sweep on hardware |
-| Low | Cheat-sheet golden vectors | Only one worked example in tests; see cheat sheet PDF |
+| Low | Cheat-sheet golden vectors | Only one worked example in tests; see [cheat sheet](https://ez.analog.com/rf/w/documents/14697/adf4350-and-adf4351-common-questions-cheat-sheet) |
 | Low | MOD search profiling | Exhaustive search fine for single retunes; profile on target MCU if hopping latency matters |
 | Low | Export sweep from `__init__.py` | Deferred until sweep API fully stable |
 | Low | Remove `HANDOFF_synthesizer.md` stub | Content migrated to `agent/` |

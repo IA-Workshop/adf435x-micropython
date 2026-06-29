@@ -1,23 +1,41 @@
 # Agent documentation index
 
-Portable, tool-agnostic context for AI agents and human contributors working
-on this repository. Cursor-specific rules live in [`.cursor/`](../.cursor/);
-start at the repo root [AGENTS.md](../AGENTS.md).
+**Human reference** — not on the agent implementation read path. Agents start at
+[AGENTS.md](../AGENTS.md) (task-routing table only).
+
+Portable context for human contributors. Cursor rules:
+[`.cursor/`](../.cursor/).
 
 ## Documents
+
+**Agent-facing** (via [AGENTS.md](../AGENTS.md) task routing):
 
 | File | Purpose |
 |------|---------|
 | [GLOSSARY.md](GLOSSARY.md) | Abbreviations and naming/style conventions |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Layer stack, data flow, module roles |
 | [DATASHEET.md](DATASHEET.md) | Extracted PLL/register facts and figure map |
 | [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) | Non-negotiable invariants |
-| [JOURNAL.md](JOURNAL.md) | Chronological implementation decision log |
+
+**Task-scoped** (routed from AGENTS.md when relevant):
+
+| File | Purpose |
+|------|---------|
 | [TESTING.md](TESTING.md) | pytest setup, fixtures, conventions |
 | [HARDWARE.md](HARDWARE.md) | Generic wiring, reference pin map, porting |
 | [STATUS.md](STATUS.md) | Completed milestones and open work |
 
-Source PDFs: [`datasheets/`](../datasheets/).
+**Human reference** (not on agent implementation path):
+
+| File | Purpose |
+|------|---------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Layer stack, data flow, examples |
+| [JOURNAL.md](JOURNAL.md) | Implementation history; append after merges |
+
+Vendor documentation (Analog Devices):
+
+- [ADF4350](https://www.analog.com/en/products/adf4350.html) ·
+  [ADF4351](https://www.analog.com/en/products/adf4351.html) ·
+  [Cheat sheet (EngineerZone)](https://ez.analog.com/rf/w/documents/14697/adf4350-and-adf4351-common-questions-cheat-sheet)
 
 ## Source of truth
 

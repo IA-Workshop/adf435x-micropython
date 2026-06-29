@@ -3,7 +3,7 @@
 MicroPython library for the ADF4350 and ADF4351 wideband PLL synthesizers.
 Runs on any MicroPython board with SPI and GPIO; pin wiring is application-specific.
 
-Agent/AI contributors: see [AGENTS.md](AGENTS.md).
+Agent/AI contributors: see [AGENTS.md](AGENTS.md) (Claude Code: [CLAUDE.md](CLAUDE.md)).
 
 ## Deployment
 

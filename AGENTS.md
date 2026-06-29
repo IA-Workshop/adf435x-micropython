@@ -1,101 +1,95 @@
 # Agent guide — adf435x-micropython
 
-Entry point for AI agents and contributors. Read this before making changes.
+```bash
+pip install -e ".[test]"
+pytest
+pytest --device    # hardware; maintainer reference pin map — see agent/HARDWARE.md
+```
 
 ## Scope
 
-- **Devices:** ADF4350 and ADF4351 only (not 4355/4356 family)
-- **Target runtime:** MicroPython on any supported board (not tied to a specific
-  MCU family — RP2040/2350, STM32, ESP32, etc.)
-- **Host testing:** CPython ≥ 3.10 + pytest (no hardware required)
+- ADF4350/ADF4351 only (not 4355/4356 family)
+- MicroPython on any board with SPI + GPIO; pin numbers live in caller /
+  examples / tests — never in `adf435x/` library modules
+- Host suite: CPython ≥ 3.10, no hardware required
 
-## Read order
+Humans: [agent/README.md](agent/README.md) (doc index). Layer overview:
+[agent/ARCHITECTURE.md](agent/ARCHITECTURE.md) (human reference — not required
+for implementation tasks).
 
-1. [agent/GLOSSARY.md](agent/GLOSSARY.md) — abbreviations and naming (read before new types/fields)
-2. [agent/ARCHITECTURE.md](agent/ARCHITECTURE.md) — layer stack and data flow
-3. [agent/DESIGN_DECISIONS.md](agent/DESIGN_DECISIONS.md) — non-negotiable invariants
-4. Task-specific:
-   - Register/encode work → [agent/DATASHEET.md](agent/DATASHEET.md)
-   - Tests → [agent/TESTING.md](agent/TESTING.md)
-   - Board/pins → [agent/HARDWARE.md](agent/HARDWARE.md)
-   - History → [agent/JOURNAL.md](agent/JOURNAL.md)
-   - Current status → [agent/STATUS.md](agent/STATUS.md)
+## Critical gotchas
 
-Full index: [agent/README.md](agent/README.md).
+1. **`WORKED_WORDS[n]` = register Rn**; SPI and `commit_plan()` order is
+   **R5→R0**. Compare a full six-register write with `reversed(WORKED_WORDS)`.
+   Single source: `tests/conftest.py` — do not duplicate hex values in markdown.
 
-## Source of truth (when docs disagree)
+2. **`commit_plan()`** for retunes (minimal stale set).
+   **`commit_all_plan()`** only for power-up, divider boundaries, or full
+   reprogram.
 
-1. **Behavior:** code in `adf435x/` and passing tests
-2. **Register words:** `WORKED_WORDS` / `WORKED_FIELDS` in `tests/conftest.py`
-3. **Extracted PLL facts:** [agent/DATASHEET.md](agent/DATASHEET.md)
-4. **Intent and history:** other `agent/` docs and [agent/JOURNAL.md](agent/JOURNAL.md)
+3. **Integer Hz only** in the solver; no float frequency arguments.
 
-Update agent docs when code changes; do not treat docs as authoritative over
-tests.
+4. **Solver returns fields**, not register words. Encode only via
+   `register_file.configure(**result.fields)` (mapper validates at configure).
+
+5. **`import adf435x` must not import `machine`** (host-safe package root).
+
+## Source of truth
+
+1. Passing tests + `adf435x/` code
+2. `WORKED_FIELDS` / `WORKED_WORDS` in `tests/conftest.py`
+3. [agent/DATASHEET.md](agent/DATASHEET.md)
+4. Other agent docs (not authoritative over tests)
 
 ## Task routing
 
-| You are changing… | Read first | Run tests |
-|-------------------|------------|-----------|
-| Bit layout / encode | DATASHEET, DESIGN_DECISIONS §1–3 | `test_register_mapper`, `test_register_file` |
-| Frequency math / MOD | DATASHEET, GLOSSARY | `test_solver` (golden vector) |
-| Synthesizer API / writes | ARCHITECTURE, DESIGN_DECISIONS §4, §11 | `test_synthesizer` |
-| Sweep / fast-hop | ARCHITECTURE (three-layer), DATASHEET §4 | `test_sweep` |
-| Board pins / SPI wiring | HARDWARE (not library modules) | `test_device`, optional `--device` |
-| New public names | GLOSSARY | matching layer tests |
+| Changing… | Read | Run |
+|-----------|------|-----|
+| Bit layout / encode | [DATASHEET](agent/DATASHEET.md), [DESIGN_DECISIONS](agent/DESIGN_DECISIONS.md) §1–3, [GLOSSARY](agent/GLOSSARY.md) | `test_register_mapper.py`, `test_register_file.py`, `test_validation.py` |
+| Frequency / MOD | [DATASHEET](agent/DATASHEET.md), [GLOSSARY](agent/GLOSSARY.md) | `test_solver.py` |
+| Synthesizer / SPI writes | [DESIGN_DECISIONS](agent/DESIGN_DECISIONS.md) §4–5, §11–13; `adf435x/synthesizer.py` | `test_synthesizer.py` |
+| Sweep / fast-hop | [DATASHEET](agent/DATASHEET.md) (int-N / fast-hop), [DESIGN_DECISIONS](agent/DESIGN_DECISIONS.md); `adf435x/sweep.py` | `test_sweep.py` |
+| Board pins / SPI wiring | [HARDWARE](agent/HARDWARE.md) | `test_device.py`; optional `--device` |
+| New public names | [GLOSSARY](agent/GLOSSARY.md) | matching layer tests |
+| Test harness / fixtures | [TESTING](agent/TESTING.md) | touched `tests/` files |
+| Milestones only | [STATUS](agent/STATUS.md) | — |
 
-## Common mistakes (avoid)
+Do not open [JOURNAL](agent/JOURNAL.md), [ARCHITECTURE](agent/ARCHITECTURE.md), or
+[agent/README](agent/README.md) for implementation work.
 
-- **`WORKED_WORDS` index vs SPI order:** `WORKED_WORDS[n]` is register **Rn**
-  (R0 first). SPI writes and `commit_plan()` return words in **R5→R0** order.
-  Compare SPI logs with `reversed(WORKED_WORDS)` when all six registers are
-  written.
-- **`commit_plan()` vs `commit_all_plan()`:** use `commit_all_plan()` only for
-  first power-up, divider boundaries, or full reprogram; use `commit_plan()` for
-  frequency retunes (minimal stale set).
-- **Solver output:** pass `result.fields` to `configure()` — never encode in
-  the solver or skip validation.
-- **Board pins:** belong in examples/tests/caller code only — never in `adf435x/`
-  library modules.
+## Don't → Do
 
-## Do-not-break (summary)
+| Don't | Do instead |
+|-------|------------|
+| Re-validate ranges in `encode_register()` | `validate_config()` at `configure()`; encode masks widths only |
+| Return `(index, word)` or reorder writes in `device` | `commit_plan()` → bare 32-bit words, **R5→R0** |
+| Track DBB with a flag separate from encoded R2 | Read `double_buffer` from encoded R2; DBR/DBB logic in `register_file` only |
+| Call optimistic `commit()` from the synthesizer | `commit_plan()` → device write → `mark_written()` or `mark_write_failed()` |
+| Use float Hz or emit register words from `solve()` | Integer Hz; `solve()` → `configure(**result.fields)` |
+| `import machine` at package root | `adf435x.device` submodule only |
+| Hard-code board pins in `adf435x/` | Pass SPI/GPIO from caller, examples, or HIL tests |
+| Add `SynthPolicy`, `DeviceLimits`, or a second options bag | `SolveOptions` + `ADF435xDeviceProfile` bounds |
 
-1. Validate-at-setup, trust-at-encode
-2. Commit plans: bare 32-bit words, R5 → R0
-3. Double-buffer logic only in register file (read DBB from encoded R2)
-4. Plan/mark split at synthesizer boundary
-5. Integer-only Hz math in solver
-6. Solver produces fields, not register words
-7. Host-safe package root (no `machine` import at `import adf435x`)
-8. MicroPython-safe, board-agnostic code in `adf435x/` (pins in caller only)
+Full invariants: [agent/DESIGN_DECISIONS.md](agent/DESIGN_DECISIONS.md).
 
-Details: [agent/DESIGN_DECISIONS.md](agent/DESIGN_DECISIONS.md).
+## Vendor references
 
-## Golden vector
+- [ADF4350](https://www.analog.com/en/products/adf4350.html) ·
+  [ADF4351](https://www.analog.com/en/products/adf4351.html) ·
+  [cheat sheet](https://ez.analog.com/rf/w/documents/14697/adf4350-and-adf4351-common-questions-cheat-sheet)
+- Extracted PLL/register facts: [agent/DATASHEET.md](agent/DATASHEET.md)
 
-Datasheet worked example (2112.6 MHz, ADF4351, 10 MHz ref):
+## Definition of done
 
-- Fields: `WORKED_FIELDS` in [`tests/conftest.py`](tests/conftest.py)
-- Words: `WORKED_WORDS` in the same file
+- [ ] `pytest` exits 0 (**301** collected; **299** pass, **2** skip without
+      `--device`)
+- [ ] Register / solver / datasheet edit: layer tests updated;
+      [DATASHEET.md](agent/DATASHEET.md) updated if an extracted fact changed
+- [ ] No new hex register values in markdown (reference `WORKED_*` by name)
+- [ ] `import adf435x` does not import `machine`
+- [ ] Doc edits follow the task-routing table above (no generic filler)
 
-Do not duplicate hex register values in docs.
+## Cursor
 
-## Run tests
-
-```bash
-conda activate general          # maintainer local env; any 3.10+ env works
-pip install -e ".[test]"
-pytest
-```
-
-Hardware: `pytest --device`. See [agent/TESTING.md](agent/TESTING.md).
-
-## Datasheets
-
-PDFs in [`datasheets/`](datasheets/). Extracted facts for agents:
-[agent/DATASHEET.md](agent/DATASHEET.md).
-
-## Cursor integration
-
-Project rules: [`.cursor/rules/`](.cursor/rules/). Development skill:
-[`.cursor/skills/adf435x-development/SKILL.md`](.cursor/skills/adf435x-development/SKILL.md).
+[`.cursor/rules/`](.cursor/rules/) ·
+[`.cursor/skills/adf435x-development/SKILL.md`](.cursor/skills/adf435x-development/SKILL.md)
