@@ -13,7 +13,7 @@ GOLDEN_HZ = 2_112_600_000
 @pytest.fixture
 def hw_synth():
     """
-    Live synthesizer on SPI1 eval-board pin map.
+    Live synthesizer on the maintainer reference pin map (see agent/HARDWARE.md).
 
     Skipped unless ``--device`` is passed (see ``conftest.py``).
     """
@@ -43,7 +43,7 @@ def hw_synth():
 def test_power_up_locks_at_golden(hw_synth):
     """MUXOUT reads locked after golden-frequency power-up."""
     hw_synth.power_up(frequency_hz=GOLDEN_HZ)
-    assert hw_synth.wait_locked(timeout_ms=500)
+    assert hw_synth.wait_locked(timeout_us=500_000)
 
 
 @pytest.mark.device
@@ -54,5 +54,5 @@ def test_sweeper_narrow_band(hw_synth):
         190_000_000,
         195_000_000,
         1_000_000,
-        dwell_ms=100,
+        dwell_us=100_000,
     )

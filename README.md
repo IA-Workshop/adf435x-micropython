@@ -1,6 +1,9 @@
 # adf435x-micropython
 
 MicroPython library for the ADF4350 and ADF4351 wideband PLL synthesizers.
+Runs on any MicroPython board with SPI and GPIO; pin wiring is application-specific.
+
+Agent/AI contributors: see [AGENTS.md](AGENTS.md).
 
 ## Deployment
 
@@ -17,18 +20,23 @@ required; `tests/conftest.py` installs a fake `machine` for device-handler
 checks.
 
 ```bash
+conda activate general    # local convention; any Python 3.10+ env works
 pip install -e ".[test]"
 pytest
 ```
 
-Or with [uv](https://docs.astral.sh/uv/):
+Or with a virtual environment:
 
 ```bash
-uv run pytest
+pip install -e ".[test]"
+pytest
 ```
 
 Hardware-in-the-loop tests are marked `@pytest.mark.device` and are skipped
 unless you pass `pytest --device` with a connected ADF435x board.
+
+See [agent/TESTING.md](agent/TESTING.md) for fixtures, conventions, and the
+golden vector.
 
 ## See Also
 

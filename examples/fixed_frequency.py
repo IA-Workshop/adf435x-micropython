@@ -4,11 +4,11 @@ ADF435x fixed-frequency example using ADF435xSynthesizer.
 Set ``TARGET_FREQ_HZ`` to the desired RF output, run on the board, and probe
 RFOUTA with an oscilloscope.
 
-Hardware assumptions (ADF4351 eval board + WeAct RP2350B)
----------------------------------------------------------
+Example pin map (ADF4351 eval board — adjust for your MicroPython board)
+------------------------------------------------------------------------
 - 10 MHz reference on REFIN (R counter = 1, no doubler).
 - SPI1: SCK=GP10, MOSI=GP11, LE=GP13, CE=GP14, MUXOUT=GP15.
-- 1 MHz SPI, mode 0.
+- 1 MHz SPI, mode 0. See agent/HARDWARE.md for generic wiring requirements.
 
 Scope notes
 -----------
