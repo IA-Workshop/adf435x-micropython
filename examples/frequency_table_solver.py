@@ -56,7 +56,7 @@ print(
     % (LOWER_HZ / 1e6, UPPER_HZ / 1e6, STEP_HZ / 1e6)
 )
 
-table, channel_step_hz = build_frequency_table(
+table, channel_step_hz, _ = build_frequency_table(
     LOWER_HZ, UPPER_HZ, STEP_HZ, REF_HZ, ADF4351
 )
 

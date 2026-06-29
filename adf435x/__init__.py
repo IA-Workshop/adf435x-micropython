@@ -12,6 +12,15 @@ from .config import ADF435xConfig
 from .profiles import ADF435xDeviceProfile, ADF4350, ADF4351
 from .register_mapper import ADF435xRegisterMapper
 from .register_file import ADF435xRegisterFile
+from .solver import (
+    DividerOctaveCrossingError,
+    SolveOptions,
+    SolveResult,
+    max_hz_for_rf_divider,
+    output_band_hz,
+    solve,
+)
+from .synthesizer import ADF435xSynthesizer
 
 __all__ = [
     "consts",
@@ -25,4 +34,11 @@ __all__ = [
     "ADF4351",
     "ADF435xRegisterMapper",
     "ADF435xRegisterFile",
+    "ADF435xSynthesizer",
+    "solve",
+    "SolveOptions",
+    "SolveResult",
+    "DividerOctaveCrossingError",
+    "output_band_hz",
+    "max_hz_for_rf_divider",
 ]

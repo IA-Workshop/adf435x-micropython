@@ -7,6 +7,7 @@ from adf435x.profiles import ADF4350, ADF4351
 from adf435x.solver import (
     ExactFrequencyError,
     FrequencyOutOfRangeError,
+    DividerOctaveCrossingError,
     NoSolutionError,
     SolveOptions,
     VCO_MAX_HZ,
@@ -20,6 +21,7 @@ from adf435x.solver import (
     _pick_rf_divider,
     _round_div,
     build_frequency_table,
+    output_band_hz,
     solve,
 )
 
@@ -312,12 +314,55 @@ class TestBuildFrequencyTable:
 
     def test_example_band_has_multiple_entries(self):
         """190–210 MHz with 2 MHz step yields a multi-point table."""
-        table, step = build_frequency_table(
+        table, step, boundaries = build_frequency_table(
             190_000_000, 210_000_000, 2_000_000, REF_HZ, ADF4351
         )
         assert step > 0
         assert len(table) >= 3
+        assert not boundaries
         assert table[0].achieved_hz <= table[-1].achieved_hz
+
+    def test_octave_crossing_error_includes_bands(self):
+        """Crossing span reports divider bands and narrow ranges."""
+        with pytest.raises(DividerOctaveCrossingError) as exc:
+            build_frequency_table(
+                100_000_000,
+                3_000_000_000,
+                100_000_000,
+                REF_HZ,
+                ADF4351,
+            )
+        assert exc.value.lower_band_hz[1] > 0
+        assert "Narrow to" in str(exc.value)
+
+    def test_allow_divider_change_builds_segmented_table(self):
+        """allow_divider_change builds per-band tables with boundaries."""
+        table, step, boundaries = build_frequency_table(
+            100_000_000,
+            300_000_000,
+            25_000_000,
+            REF_HZ,
+            ADF4351,
+            allow_divider_change=True,
+        )
+        assert step == 0
+        assert len(table) >= 2
+        assert boundaries
+        # Locked MOD within the first segment.
+        first_seg_end = min(boundaries)
+        mods = [table[i].fields["mod"] for i in range(first_seg_end)]
+        if len(mods) > 1:
+            assert len(set(mods)) == 1
+
+
+class TestOutputBandHz:
+    """RF divider output band helper."""
+
+    def test_unity_divider_matches_vco_band(self):
+        """Divide-by-1 output band equals the VCO band."""
+        lo, hi = output_band_hz(1)
+        assert lo == VCO_MIN_HZ
+        assert hi == VCO_MAX_HZ
 
 
 class TestSolveExact:
