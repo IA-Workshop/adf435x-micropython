@@ -2,6 +2,7 @@
 *.mpy
 /lib/
 /dist/
+.micropico
 
 # --- Firmware Binaries (RP2040) ---
 *.uf2
@@ -16,6 +17,7 @@ build/
 # .micropico is tracked at repo root — see agent/HARDWARE.md
 .vscode/
 *.vsix
+.cursor
 
 # Cursor personal/experimental rules (project rules in .cursor/rules/ are committed)
 .cursor/rules/personal.mdc
