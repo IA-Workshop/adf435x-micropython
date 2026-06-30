@@ -20,22 +20,19 @@ Living summary of completed work and open items.
   and skill; board-agnostic portability documented
 - **Bench validation example** — [`examples/validate.py`](../examples/validate.py)
   (host-run catalog cases; not part of pytest)
-
-## Partially complete
-
-- **Hardware bring-up** — host-run [`validate.py`](../examples/validate.py)
-  (scope-tier + PLL edge catalog cases); manual RFOUTA verification per
-  [HARDWARE.md](HARDWARE.md) bench table.
+- **Hardware bring-up** — eval-board validation via `validate.py` catalog
+  (scope/counter on RFOUTA); see [HARDWARE.md](HARDWARE.md)
+- **v0.1.0 release packaging** — `package.json` for `mip`, GitHub Release zip
+  workflow, [CHANGELOG.md](../CHANGELOG.md)
 
 ## Open work
 
 | Priority | Item | Notes |
 |----------|------|-------|
-| Medium | Eval board bring-up | Host-run validate.py; scope RFOUT per bench table |
+| Low | GitHub Actions CI | Deferred for v0.1.0; local `pytest` before tag |
 | Low | Cheat-sheet golden vectors | Catalog beyond datasheet golden; see [cheat sheet](https://ez.analog.com/rf/w/documents/14697/adf4350-and-adf4351-common-questions-cheat-sheet) |
 | Low | MOD search profiling | Exhaustive search fine for single retunes; profile on target MCU if hopping latency matters |
 | Low | Export sweep from `__init__.py` | Deferred until sweep API fully stable |
-| Low | Remove `HANDOFF_synthesizer.md` stub | Content migrated to `agent/` |
 
 ## Package export notes
 

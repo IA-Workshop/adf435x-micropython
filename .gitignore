@@ -94,6 +94,9 @@ venv.bak/
 .DS_Store
 Thumbs.db
 
+# Local datasheet PDFs (facts live in agent/DATASHEET.md; never commit)
+datasheets/
+
 # --- PlatformIO (optional) ---
 .pio/
 .vscode/.browse.c_cpp.db*

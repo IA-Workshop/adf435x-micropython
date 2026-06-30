@@ -20,6 +20,26 @@ Append-only log of implementation decisions. Newest entries at the top.
 
 ---
 
+## 2026-06-29 — v0.1.0 release packaging
+
+**Context:** Library feature-complete; ship ``adf435x/`` via GitHub Releases and
+``mip`` without CI or local datasheet PDFs.
+
+**Decision:** ``package.json`` (10 modules), tag-triggered release workflow
+(zip only, no pytest gate), README install/quick-start, ``CHANGELOG.md``,
+``datasheets/`` gitignored and removed locally; facts remain in
+``agent/DATASHEET.md``.
+
+**Alternatives rejected:** PyPI, micropython-lib upstream, ``.mpy`` builds,
+GitHub Actions CI for v0.1.0, bundling ``examples/`` in release zip.
+
+**Files affected:** ``package.json``, ``.github/workflows/release.yml``,
+``README.md``, ``CHANGELOG.md``, ``.gitignore``, ``agent/STATUS.md``
+
+**Follow-ups:** CI on push/PR when release cadence warrants it.
+
+---
+
 ## 2026-06-29 — Bench validation in examples only
 
 **Context:** Pre-PR review; host ``tests/vectors/`` duplicated
