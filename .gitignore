@@ -13,9 +13,12 @@ build/
 
 # --- IDEs and Extensions ---
 # VS Code / MicroPico (formerly Pico-W-Go)
+# .micropico is tracked at repo root — see agent/HARDWARE.md
 .vscode/
-.micropico
 *.vsix
+
+# Cursor personal/experimental rules (project rules in .cursor/rules/ are committed)
+.cursor/rules/personal.mdc
 
 # Thonny IDE
 .thonny/
@@ -90,6 +93,9 @@ venv.bak/
 # --- Hardware & OS Files ---
 .DS_Store
 Thumbs.db
+
+# Local datasheet PDFs (facts live in agent/DATASHEET.md; never commit)
+datasheets/
 
 # --- PlatformIO (optional) ---
 .pio/

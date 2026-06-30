@@ -1,0 +1,15 @@
+{
+  "urls": [
+    ["adf435x/__init__.py", "adf435x/__init__.py"],
+    ["adf435x/consts.py", "adf435x/consts.py"],
+    ["adf435x/config.py", "adf435x/config.py"],
+    ["adf435x/profiles.py", "adf435x/profiles.py"],
+    ["adf435x/register_mapper.py", "adf435x/register_mapper.py"],
+    ["adf435x/register_file.py", "adf435x/register_file.py"],
+    ["adf435x/solver.py", "adf435x/solver.py"],
+    ["adf435x/synthesizer.py", "adf435x/synthesizer.py"],
+    ["adf435x/sweep.py", "adf435x/sweep.py"],
+    ["adf435x/device.py", "adf435x/device.py"]
+  ],
+  "version": "0.1.0"
+}

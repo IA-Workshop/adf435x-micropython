@@ -22,6 +22,3 @@ packages = ["adf435x"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = [
-    "device: requires a connected ADF435x; skipped unless --device is given, and asserts digital values only",
-]

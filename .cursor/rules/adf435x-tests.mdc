@@ -1,0 +1,37 @@
+---
+description: ADF435x pytest conventions and golden vector usage
+globs: tests/**
+alwaysApply: false
+---
+
+# Testing rules
+
+See [agent/TESTING.md](agent/TESTING.md) for full conventions.
+
+## Environment
+
+```bash
+conda activate general   # maintainer example; any Python 3.10+ env works
+pip install -e ".[test]"
+pytest
+```
+
+Run `pytest` after every change to touched modules.
+
+## Golden vector
+
+- `WORKED_FIELDS` and `WORKED_WORDS` in `tests/conftest.py` — single source
+- `WORKED_WORDS[n]` = register Rn; full SPI sequence = `reversed(WORKED_WORDS)`
+- Do not duplicate hex words in docs or duplicate `FakeDevice` in test files
+
+## Style
+
+- `Test{FeatureArea}` classes
+- `@pytest.mark.parametrize` for profiles and edges
+
+## Invariants to test
+
+- Solver → configure → encode → commit chain matches golden vector
+- DBR/DBB forces trailing R0 when R1/R2/R4 divider change
+- In-band sweep hops: single R0 write
+- SPI failure: `mark_write_failed`, cache unchanged

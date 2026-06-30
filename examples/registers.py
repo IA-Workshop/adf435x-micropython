@@ -19,6 +19,8 @@ Hardware assumptions
 
   The data-sheet example uses RF divide-by-2 for 2112.6 MHz; divide-by-32
   keeps the same PLL numbers but brings the output into scope range.
+  Catalog slug: ``adf4351_scope_equiv_132p0375mhz`` (see ``examples/validate.py``;
+  ADF4351 only).
 
 Modify pin numbers to match your specific setup.
 """
@@ -45,8 +47,7 @@ EXPECTED_RFOUT_HZ = 131_912_500
 def write_plan(device, regfile, plan):
     """Write a commit plan to the chip and update the register-file cache."""
     try:
-        for word in plan:
-            device.write_register(word)
+        device.write_registers(plan)
         regfile.mark_written()
     except Exception:
         regfile.mark_write_failed()

@@ -27,26 +27,6 @@ WORKED_WORDS = [
 ]
 
 
-def pytest_addoption(parser):
-    """Register the ``--device`` flag for hardware-in-the-loop tests."""
-    parser.addoption(
-        "--device",
-        action="store_true",
-        default=False,
-        help="run tests that require a connected ADF435x device",
-    )
-
-
-def pytest_collection_modifyitems(config, items):
-    """Skip ``@pytest.mark.device`` tests unless ``--device`` was passed."""
-    if config.getoption("--device"):
-        return
-    skip = pytest.mark.skip(reason="needs --device (no connected ADF435x)")
-    for item in items:
-        if "device" in item.keywords:
-            item.add_marker(skip)
-
-
 @pytest.fixture
 def mapper():
     """ADF4351 register mapper."""
@@ -73,6 +53,50 @@ def make_config(**fields):
     for name, value in fields.items():
         setattr(c, name, value)
     return c
+
+
+class FakeDevice:
+    """Record SPI writes and simulate CE / MUXOUT for synthesizer tests."""
+
+    def __init__(self, *, muxout=0):
+        self.writes = []
+        self.ce = 0
+        self.muxout = muxout
+        self.fail_next = False
+
+    def write_registers(self, words):
+        """Append *words* to the write log or raise if configured to fail."""
+        if self.fail_next:
+            self.fail_next = False
+            raise OSError("SPI write failed")
+        self.writes.extend(words)
+
+    def chip_enable(self):
+        """Drive CE high."""
+        self.ce = 1
+
+    def chip_disable(self):
+        """Drive CE low."""
+        self.ce = 0
+
+    def read_muxout(self):
+        """Return the simulated MUXOUT level."""
+        return self.muxout
+
+
+@pytest.fixture
+def fake_device():
+    """Fake SPI/GPIO device for synthesizer tests."""
+    return FakeDevice(muxout=1)
+
+
+@pytest.fixture
+def synth(fake_device):
+    """ADF4351 synthesizer backed by FakeDevice."""
+    from adf435x.profiles import ADF4351
+    from adf435x.synthesizer import ADF435xSynthesizer
+
+    return ADF435xSynthesizer(fake_device, ADF4351, 10_000_000)
 
 
 @pytest.fixture
