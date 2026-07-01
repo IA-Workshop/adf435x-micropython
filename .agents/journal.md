@@ -1,8 +1,10 @@
 # Development journal
 
-**Human reference only** — never on the agent implementation read path. Append
-after non-obvious merges; permanent rules belong in
-[DESIGN_DECISIONS.md](DESIGN_DECISIONS.md).
+> Lives in `.agents/`. Append-only human history — **off the implementation
+> read path**.
+
+Append after non-obvious merges; permanent rules belong in
+[engineering_guidelines.md](engineering_guidelines.md).
 
 Append-only log of implementation decisions. Newest entries at the top.
 
@@ -17,6 +19,125 @@ Append-only log of implementation decisions. Newest entries at the top.
 **Files affected:** list
 **Follow-ups:** if any
 ```
+
+---
+
+---
+
+## 2026-06-30 — Human docs Diátaxis restructure (docs-refactor)
+
+**Context:** Human `docs/**` pages mixed tutorial, reference, and troubleshooting
+content without consistent Diátaxis modes, glossary anchors, or canonical homes
+for duplicated API and symptom tables.
+
+**Decision:** Restructure all 14 human doc pages per DOCS_SPEC: italic mode labels
+under every H1; glossary rewritten with anchored subsections; overview API
+summary points to architecture `#three-api-levels`; troubleshooting canonicalized;
+hardware split into reference + `#porting` / `#bring-up-checklist` how-tos;
+example catalog reconciled across index, components, and architecture; first-use
+glossary links on overview, hardware, pll-primer, sweeps; pll-primer link fixes
+and optional-depth framing; MUXOUT maintainer note in fixed-frequency (scripts
+still print `high`). No code changes under `adf435x/`, `tests/`, or `examples/`.
+
+**Alternatives rejected:** Editing example scripts for MUXOUT wording (deferred);
+splitting `hardware.md` into separate `porting.md` (deferred unless page grows).
+
+**Files affected:** `docs/**/*.md` (14 pages)
+
+**Follow-ups:** Align script MUXOUT print string with docs if desired; optional
+`porting.md` split if hardware guide grows.
+
+---
+
+
+**Context:** `.agents/` and the dotless `agent/` directory coexisted, splitting
+authority and risking a one-character path collision; human docs still routed
+readers into agent policy.
+
+**Decision:** Consolidate all agent docs under `.agents/` (move DATASHEET, STATUS,
+JOURNAL in); delete `agent/` outright; enforce a one-way reference rule — human
+docs never reference agent docs. `CLAUDE.md` loads via `@AGENTS.md`; path-scoped
+`.claude/rules/` and `.cursor/rules/` point into `.agents/`. Removed hardcoded
+test counts and duplicated routing tables.
+
+**Alternatives rejected:** Keeping `agent/` redirect stubs (collision persists,
+agent read path stays noisy); markdown-link "read in order" in CLAUDE.md (does
+not load files).
+
+**Files affected:** `AGENTS.md`, `CLAUDE.md`, `.agents/*`, `.claude/rules/*`,
+`.cursor/rules/*`, `docs/*`, `README.md`, removed `agent/`, `.cursorrules`,
+`docs/MIGRATION.md`/`HUMAN_REVIEW.md` (as applicable)
+
+**Follow-ups:** None.
+
+---
+
+## 2026-06-30 — Docs readability pass (docs-refactor)
+
+**Context:** Human `docs/` read too terse and spec-like after phase 2 migration.
+
+**Decision:** Remove Audience/Primary job/Success criterion headers and inline
+figure placeholders from user docs. Rewrite pages with narrative prose,
+worked PLL example, code walkthrough in fixed-frequency, expanded sweep tutorial.
+Split MicroPico deploy into `docs/development.md`; add `docs/glossary.md`.
+Deduplicate quickstart vs fixed-frequency roles.
+
+**Alternatives rejected:** Leaving metadata headers for "clarity" (hurt tone);
+inlining deploy detail in hardware (mixed audiences).
+
+**Files affected:** `docs/*.md`, `docs/examples/*.md`, `docs/reference/*.md`,
+`README.md`
+
+**Follow-ups:** Maintainer figures (wiring diagram, probe photos); run
+`docs/HUMAN_REVIEW.md` sign-off.
+
+---
+
+## 2026-06-30 — Docs refactor phase 2 (docs-refactor)
+
+**Context:** Phase 1 delivered `docs/` skeleton and `.agents/` policy; phase 2
+migrates human content and retires legacy `agent/` bodies.
+
+**Decision:** Migrate README and `agent/` source material into substantive
+`docs/*` pages (quickstart, hardware, examples, reference). Slim README to
+landing budget. Replace `agent/ARCHITECTURE`, `HARDWARE`, `TESTING`,
+`DESIGN_DECISIONS`, `GLOSSARY`, `README` with forward-compat stubs. Retain
+`DATASHEET`, `STATUS`, `JOURNAL`. Update `.agents/` and example cross-links to
+point at `docs/`.
+
+**Alternatives rejected:** Deleting `agent/` outright (breaks bookmarks);
+keeping duplicate full copies in `agent/` (maintenance drift).
+
+**Files affected:** `docs/**`, `README.md`, `agent/ARCHITECTURE.md`,
+`agent/HARDWARE.md`, `agent/TESTING.md`, `agent/DESIGN_DECISIONS.md`,
+`agent/GLOSSARY.md`, `agent/README.md`, `agent/STATUS.md`, `.agents/*`,
+`AGENTS.md`, `.cursor/rules/adf435x-agent-docs.mdc`,
+`examples/fixed_frequency.py`, `examples/validate.py`
+
+**Follow-ups:** Human review per [docs/HUMAN_REVIEW.md](../docs/HUMAN_REVIEW.md);
+create figure/photo assets noted in docs placeholders.
+
+---
+
+## 2026-06-30 — Docs refactor phase 1 (docs-refactor)
+
+**Context:** Reorganize human docs into `docs/` and agent policy into `.agents/`
+per migration plan.
+
+**Decision:** Phase 1 delivers IA skeleton, migration matrix, risk mitigations,
+human review checklist, thin `AGENTS.md` / wrapper entry points, and forward-compat
+banners on legacy `agent/` files. Full content migration deferred to phase 2.
+
+**Alternatives rejected:** Big-bang delete of `agent/`; duplicating policy in
+wrappers; full README slimming before `docs/` content is ready.
+
+**Files affected:** `docs/**`, `.agents/**`, `AGENTS.md`, `CLAUDE.md`,
+`.cursorrules`, `.claude` → `.agents`, `.cursor/rules/*.mdc`,
+`.cursor/skills/adf435x-development/SKILL.md`, `agent/*` banners,
+`agent/README.md`, `README.md` (docs links only)
+
+**Follow-ups:** Phase 2 — migrate content, slim README, update example
+cross-links, stub or retire `agent/` bodies, run HUMAN_REVIEW.
 
 ---
 

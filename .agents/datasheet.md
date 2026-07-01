@@ -1,5 +1,8 @@
 # Datasheet reference (extracted facts)
 
+> Canonical agent PLL/register reference. User-facing explanations:
+> [docs/reference/pll-primer.md](../docs/reference/pll-primer.md).
+
 Critical PLL and register facts for agent work. Primary sources (Analog Devices):
 
 - [ADF4351 product page](https://www.analog.com/en/products/adf4351.html) —
@@ -140,4 +143,4 @@ datasheets (see module docstring in [`register_mapper.py`](../adf435x/register_m
 
 Additional worked examples from the
 [cheat sheet](https://ez.analog.com/rf/w/documents/14697/adf4350-and-adf4351-common-questions-cheat-sheet)
-are not yet in the test suite. See [STATUS.md](STATUS.md) for tracking.
+are not yet in the test suite. See [status.md](status.md) for tracking.
