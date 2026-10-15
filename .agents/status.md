@@ -3,7 +3,8 @@
 Maintainer milestone tracker. Living summary of completed work and open items.
 
 **Host tests:** refresh with `pytest -q` (see [rules.md](rules.md) testing
-section for conventions).
+section for conventions). Baseline 2026-10-15: 928 passed, 44 xfailed (known
+bugs pinned in `tests/test_regressions.py`).
 
 ## Completed milestones
 
@@ -27,13 +28,17 @@ section for conventions).
   (scope/counter on RFOUTA); see [docs/hardware.md](../docs/hardware.md)
 - **v0.1.0 release packaging** — `package.json` for `mip`, GitHub Release zip
   workflow, [CHANGELOG.md](../CHANGELOG.md)
+- **Remediation A1: test safety net** — known bugs pinned as strict xfails,
+  `FakeChip` latch model, encoder/solver oracles, CI (CPython 3.10–3.13 +
+  MicroPython Unix-port smoke); releases gated on CI
 
 ## Open work
 
 | Priority | Item | Notes |
 |----------|------|-------|
 | Low | Docs figure assets | Wiring diagram, probe photos, decision tree |
-| Low | GitHub Actions CI | Deferred for v0.1.0; local `pytest` before tag |
+| High | Remediation A2–A9 | Fix the 44 pinned xfails in `tests/test_regressions.py` (sweep rewrite, solver rewrite, validation, synthesizer, docs) |
+| Medium | Remediation B (bench) | Lock-detect policy, DLD settle time, sweep/SPI checks once the testbench is back |
 | Low | Cheat-sheet golden vectors | Catalog beyond datasheet golden; see [cheat sheet](https://ez.analog.com/rf/w/documents/14697/adf4350-and-adf4351-common-questions-cheat-sheet) |
 | Low | MOD search profiling | Exhaustive search fine for single retunes; profile on target MCU if hopping latency matters |
 | Low | Export sweep from `__init__.py` | Deferred until sweep API fully stable |

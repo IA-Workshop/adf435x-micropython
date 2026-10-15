@@ -2,7 +2,6 @@
 *.mpy
 /lib/
 /dist/
-.micropico
 
 # --- Firmware Binaries (RP2040) ---
 *.uf2
@@ -17,9 +16,10 @@ build/
 # .micropico is tracked at repo root — see agent/HARDWARE.md
 .vscode/
 *.vsix
-.cursor/
-
-# Cursor personal/experimental rules (project rules in .cursor/rules/ are committed)
+# Cursor: project rules and skills are committed; everything else is local.
+.cursor/*
+!.cursor/rules/
+!.cursor/skills/
 .cursor/rules/personal.mdc
 
 # Thonny IDE
@@ -98,6 +98,8 @@ Thumbs.db
 
 # Local datasheet PDFs (facts live in agent/DATASHEET.md; never commit)
 datasheets/
+/*.pdf
+build-mpy/
 
 # --- PlatformIO (optional) ---
 .pio/

@@ -254,7 +254,12 @@ class TestSolveModTieBreak:
         assert result.fields["mod"] == 25
 
     def test_explicit_mod_gcd_reduces(self):
-        """MOD=50 gcd-reduces to the same FRAC/MOD as MOD=25."""
+        """MOD=50 gcd-reduces to the same FRAC/MOD as MOD=25.
+
+        Current behaviour only: the C4 fix (remediation step A4) keeps an
+        explicit MOD, which inverts this test. See
+        test_regressions.TestLockedMod.test_explicit_mod_is_kept.
+        """
         result = solve(
             GOLDEN_TARGET_HZ,
             REF_HZ,
@@ -353,8 +358,8 @@ class TestBuildFrequencyTable:
         # Locked MOD within the first segment.
         first_seg_end = min(boundaries)
         mods = [table[i].fields["mod"] for i in range(first_seg_end)]
-        if len(mods) > 1:
-            assert len(set(mods)) == 1
+        assert len(mods) >= 2
+        assert len(set(mods)) == 1
 
 
 class TestOutputBandHz:

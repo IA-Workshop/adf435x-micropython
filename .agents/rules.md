@@ -35,6 +35,20 @@ One assertion per parametrized test; group with `Test*` classes. Centralized
 `pytest -q` and record in `.agents/status.md`. Bench validation (not pytest):
 `examples/validate.py` → `docs/examples/validation.md`.
 
+- **Known bugs** are strict xfails in `tests/test_regressions.py`, tagged with
+  a review ID. A fix makes the test XPASS, which fails the run: remove the
+  `known_bug` marker in the same change. Never add a normal test that asserts
+  current buggy behaviour.
+- **`FakeChip`** (conftest) models register latching (DBR/DBB, data sheet p.12);
+  use it to assert `last_written` matches what the chip holds.
+- **Refactor oracles** (temporary): `tests/data/encode_golden.json` +
+  `test_encode_oracle.py` for the encoder; `tests/reference_solver.py` +
+  `test_solver_oracle.py` for solver accuracy. Regenerate the JSON only on
+  purpose (`python tests/data/gen_encode_golden.py`).
+- **MicroPython:** CI compiles `adf435x/` with `mpy-cross` and runs
+  `micropython tests/micropython_smoke.py` on the Unix port. Run it locally
+  before changing anything that might not be MicroPython-safe.
+
 ## Documentation update obligations
 
 After each implementation step:

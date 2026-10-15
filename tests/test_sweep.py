@@ -107,12 +107,14 @@ class TestFrequencyTableFromFrequencies:
         boundary = {
             i for i, e in enumerate(table) if e.divider_boundary
         }
+        segments = []
         seg_start = 0
         for b in sorted(boundary) + [len(table)]:
-            seg_mods = mods[seg_start:b]
-            if len(seg_mods) > 1:
-                assert len(set(seg_mods)) == 1
+            segments.append(mods[seg_start:b])
             seg_start = b
+        multi = [seg for seg in segments if len(seg) > 1]
+        assert multi, "no segment has more than one entry to compare"
+        assert all(len(set(seg)) == 1 for seg in multi)
 
     def test_from_range_crossing_reports_bands(self, synth):
         """from_range raises DividerOctaveCrossingError with band bounds."""
@@ -137,13 +139,13 @@ class TestPreencodedPlans:
     """Fast-hop plan shape."""
 
     def test_int_frac_only_hops_are_single_r0(self, synth):
-        """In-band hops after the first are often a single R0 write."""
+        """The first in-band hop after the full write is a single R0 word."""
         table = FrequencyTable.from_range(
             synth, 190_000_000, 210_000_000, 2_000_000
         )
-        if len(table) >= 2:
-            assert len(table[1].plan) == 1
-            assert (table[1].plan[0] & 0x7) == consts.REG0_ADDR
+        assert len(table) >= 2
+        assert table[1].plan == [table[1].plan[0]]
+        assert (table[1].plan[0] & 0x7) == consts.REG0_ADDR
 
 
 class TestSweeperPlayback:
@@ -192,7 +194,7 @@ class TestSweeperPlayback:
             synth, [200_000_000, 201_000_000]
         )
         ADF435xSweeper(synth, table, dwell_us=50_000).run()
-        assert sleeps.count(50_000) >= 1
+        assert sleeps == [50_000, 50_000]
 
     def test_wait_for_lock_calls_synth(self, synth, monkeypatch):
         """wait_for_lock=True polls wait_locked after each hop."""
@@ -206,7 +208,7 @@ class TestSweeperPlayback:
             synth, [200_000_000, 201_000_000]
         )
         ADF435xSweeper(synth, table, wait_for_lock=True).run()
-        assert len(calls) >= 1
+        assert len(calls) == 2
 
     def test_boundary_dwell_at_divider_crossing(self, synth, monkeypatch):
         """Divider boundaries use boundary_dwell_us and always wait lock."""
@@ -232,8 +234,8 @@ class TestSweeperPlayback:
             dwell_us=10_000,
             boundary_dwell_us=200_000,
         ).run()
-        assert 200_000 in sleeps
-        assert len(lock_calls) >= 1
+        assert sleeps == [10_000, 200_000]
+        assert len(lock_calls) == 1
 
     def test_reset_restarts_playback(self, synth):
         table = FrequencyTable.from_frequencies(synth, [200_000_000])

@@ -24,6 +24,35 @@ Append-only log of implementation decisions. Newest entries at the top.
 
 ---
 
+## 2026-10-15 — Test safety net before remediation (docs-refactor, step A1)
+
+**Context:** Code review found sweep, solver, and validation defects that the
+suite did not catch (weak or guarded assertions); fixes and refactors need a
+net first. No hardware available.
+
+**Decision:** Pin every confirmed defect as a strict xfail in
+`tests/test_regressions.py`, tagged with its review ID (C1..C21, Q6), so a fix
+flips it to XPASS and strict mode forces the marker's removal. Add `FakeChip`
+(conftest) modelling DBR/DBB latching from data sheet p.12 to check cache vs
+chip coherence. Freeze v0.1.0 behaviour as refactor oracles:
+`tests/data/encode_golden.json` (encoder, step A2) and
+`tests/reference_solver.py` (solver accuracy, step A4). Add CI with a
+MicroPython Unix-port smoke test and gate releases on it.
+
+**Alternatives rejected:** Fixing bugs directly without pinned tests (no proof
+of the defect or the fix); asserting current buggy values in normal tests
+(locks bugs in); pytest under MicroPython (unavailable; stub-based smoke script
+instead).
+
+**Files affected:** `tests/**`, `.github/workflows/ci.yml`,
+`.github/workflows/release.yml`, `.gitignore`, `.agents/rules.md`,
+`.agents/status.md`
+
+**Follow-ups:** Delete the oracles after A2/A4 land; FakeChip fidelity to be
+confirmed on the bench (step B1/B5).
+
+---
+
 ## 2026-06-30 — Human docs Diátaxis restructure (docs-refactor)
 
 **Context:** Human `docs/**` pages mixed tutorial, reference, and troubleshooting

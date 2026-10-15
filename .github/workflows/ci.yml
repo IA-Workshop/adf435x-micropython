@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]  # tags run CI through release.yml instead
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  # MicroPython release used for the smoke test and mpy-cross compile check.
+  MICROPYTHON_VERSION: v1.24.1
+
+jobs:
+  pytest:
+    name: pytest (CPython ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install
+        run: pip install -e ".[test]"
+
+      - name: Run tests
+        run: pytest -q -rxX
+
+  micropython:
+    name: MicroPython smoke
+    # Pinned: newer GCC releases reject v1.24.1 sources under -Werror.
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache MicroPython build
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            micropython/mpy-cross/build/mpy-cross
+            micropython/ports/unix/build-standard/micropython
+          key: micropython-${{ env.MICROPYTHON_VERSION }}-unix-standard
+
+      - name: Build mpy-cross and the Unix port
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libffi-dev pkg-config
+          git clone --depth 1 --branch "$MICROPYTHON_VERSION" \
+            https://github.com/micropython/micropython.git
+          make -C micropython/mpy-cross -j"$(nproc)"
+          make -C micropython/ports/unix submodules
+          make -C micropython/ports/unix -j"$(nproc)"
+
+      - name: Compile adf435x with mpy-cross
+        run: |
+          mkdir -p build-mpy
+          for f in adf435x/*.py; do
+            micropython/mpy-cross/build/mpy-cross -o "build-mpy/$(basename "$f" .py).mpy" "$f"
+          done
+
+      - name: Run smoke test under MicroPython
+        run: micropython/ports/unix/build-standard/micropython tests/micropython_smoke.py
