@@ -13,7 +13,7 @@ build/
 
 # --- IDEs and Extensions ---
 # VS Code / MicroPico (formerly Pico-W-Go)
-# .micropico is tracked at repo root — see agent/HARDWARE.md
+# .micropico is tracked at repo root — see docs/hardware.md
 .vscode/
 *.vsix
 # Cursor: project rules and skills are committed; everything else is local.
@@ -96,7 +96,7 @@ venv.bak/
 .DS_Store
 Thumbs.db
 
-# Local datasheet PDFs (facts live in agent/DATASHEET.md; never commit)
+# Local datasheet PDFs (facts live in .agents/datasheet.md; never commit)
 datasheets/
 /*.pdf
 build-mpy/

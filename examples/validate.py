@@ -3,7 +3,7 @@ ADF4351 bench validation example — scope/counter checks.
 
 Run from the host (MicroPico **Run current file** or ``mpremote run``). Requires
 ``adf435x/`` on flash from bulk sync; examples are not bulk-synced (see
-``agent/HARDWARE.md``).
+``docs/hardware.md``).
 
 Reference pin map (adjust for your MicroPython board):
 - 10 MHz REFIN (R counter = 1, no doubler, no ref÷2).

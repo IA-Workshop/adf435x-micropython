@@ -1,7 +1,6 @@
 # Changelog
 
-All notable user-facing changes are documented here. Agent implementation
-history lives in [agent/JOURNAL.md](agent/JOURNAL.md).
+All notable user-facing changes are documented here.
 
 ## 0.1.0
 

@@ -53,6 +53,27 @@ confirmed on the bench (step B1/B5).
 
 ---
 
+## 2026-06-30 — Human docs clarity and deduplication pass
+
+**Context:** Post-Diátaxis review found incorrect validation expected output, wiring
+miscount in quickstart, heavy duplication (install, pytest, lock-detect, example
+catalog), em-dash prose patterns, and pll-primer linking to test fixtures.
+
+**Decision:** Docs-only pass: fix validation output block; deduplicate around
+canonical homes (CONTRIBUTING for pytest, development for deploy, glossary for
+lock detect, examples/index for catalog); slim README (remove inline code);
+em-dash to colon/period style; remove WORKED_* from human pll-primer; trim
+validation catalog to exemplars + `list`; acceptance label grep uses `^\*[^:]+:`.
+
+**Alternatives rejected:** Editing example scripts for MUXOUT wording (deferred);
+keeping README inline quickstart code (diverged from fixed_frequency.py).
+
+**Files affected:** `docs/**/*.md`, `README.md`, `CONTRIBUTING.md`
+
+**Follow-ups:** None required.
+
+---
+
 ## 2026-06-30 — Human docs Diátaxis restructure (docs-refactor)
 
 **Context:** Human `docs/**` pages mixed tutorial, reference, and troubleshooting
