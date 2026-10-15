@@ -24,6 +24,32 @@ Append-only log of implementation decisions. Newest entries at the top.
 
 ---
 
+## 2026-10-15 — Register layer driven by one field table (docs-refactor, step A2)
+
+**Context:** Field layout, defaults, legal values and labels were spread over
+`register_0..5` signatures, `config._FIELDS`, four `FIELD_*` dicts and 14
+`consts.*_VALUES` tuples; flags were neither validated nor masked (C7).
+
+**Decision:** One `config.FIELDS` table (name, register, position, width,
+default, kind, legal values, label, capability). The mapper precomputes a
+per-register layout and encodes generically; validation is per-kind plus a
+table of cross-field rules re-run when any trigger field changes. Capability
+checks moved entirely to validation (trust-at-encode). New rules from the
+data sheet: phase < MOD, low-spur MOD >= 50, fast band-select divider <= 254,
+MUXOUT N-divider rejected; non-integer values rejected. Proven against the
+frozen v0.1.0 encoder (501 configs, identical words).
+
+**Alternatives rejected:** Keeping `register_N` as thin wrappers (second API
+for the same thing); allowing the MUXOUT N-divider for debugging (data sheet
+says band select fails with it).
+
+**Files affected:** `adf435x/config.py`, `adf435x/register_mapper.py`,
+`adf435x/consts.py`, register/validation/config tests, `CHANGELOG.md`
+
+**Follow-ups:** Solver must pick MOD >= 50 in low-spur mode (pinned xfail,
+step A4); until then `set_frequency()` raises there instead of programming an
+out-of-spec MOD.
+
 ## 2026-10-15 — Test safety net before remediation (docs-refactor, step A1)
 
 **Context:** Code review found sweep, solver, and validation defects that the

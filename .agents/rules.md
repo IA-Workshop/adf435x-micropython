@@ -42,9 +42,9 @@ One assertion per parametrized test; group with `Test*` classes. Centralized
 - **`FakeChip`** (conftest) models register latching (DBR/DBB, data sheet p.12);
   use it to assert `last_written` matches what the chip holds.
 - **Refactor oracles** (temporary): `tests/data/encode_golden.json` +
-  `test_encode_oracle.py` for the encoder; `tests/reference_solver.py` +
-  `test_solver_oracle.py` for solver accuracy. Regenerate the JSON only on
-  purpose (`python tests/data/gen_encode_golden.py`).
+  `test_encode_oracle.py` freeze v0.1.0 encoder output (never regenerate
+  from the current encoder); `tests/reference_solver.py` +
+  `test_solver_oracle.py` for solver accuracy.
 - **MicroPython:** CI compiles `adf435x/` with `mpy-cross` and runs
   `micropython tests/micropython_smoke.py` on the Unix port. Run it locally
   before changing anything that might not be MicroPython-safe.

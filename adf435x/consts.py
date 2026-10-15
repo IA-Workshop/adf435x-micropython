@@ -5,7 +5,9 @@ ADF4351. Device-specific capability differences live in ``profiles``.
 
 Importing this module is host-safe for pytest. When MicroPython is unavailable,
 ``const`` is replaced with an identity function so constants load under CPython.
-On the device, the real ``const`` lets the compiler fold integer constants.
+On the device, ``const`` marks these as integer constants; other modules still
+read them as ordinary attributes (``consts.X``), so expect no cross-module
+folding. Legal-value sets for each field live in ``config.FIELDS``.
 """
 
 try:
@@ -30,18 +32,11 @@ except ImportError:
         return value
 
 
-# Generic single-bit enable convention for the boolean fields.
-DISABLED = const(0)
-ENABLED = const(1)
-
 # --- Word formats -----------------------------------------------------------
 # SPI shifts one 32-bit word per register write. DB2:DB0 hold the register
 # address (0..5) and must match the last three bits of the word.
 
-WORD_SIZE_BYTES = const(4)
 NUM_REGISTERS = const(6)
-CONTROL_POS = const(0)
-CONTROL_WIDTH = const(3)
 
 REG0_ADDR = const(0)
 REG1_ADDR = const(1)
@@ -51,7 +46,9 @@ REG4_ADDR = const(4)
 REG5_ADDR = const(5)
 REG_ADDRS = (REG0_ADDR, REG1_ADDR, REG2_ADDR, REG3_ADDR, REG4_ADDR, REG5_ADDR)
 
-# R1 and R2 latch new values only after a subsequent R0 write (DBR, Figure 23).
+# R1 and R2 hold double-buffered fields that latch on the next R0 write (DBR,
+# data sheet p.12): phase and MOD in R1; doubler, RDIV2, R counter and CP
+# current in R2. Their other bits take effect immediately.
 DBR_REGISTER_INDICES = (REG1_ADDR, REG2_ADDR)
 
 
@@ -87,7 +84,7 @@ REG2_DOUBLE_BUFFER_POS = const(13)
 # Routes an internal signal to MUXOUT for lock detect or debug.
 REG2_MUXOUT_POS = const(26)
 REG2_MUXOUT_WIDTH = const(3)
-# Lock-detect function and pulse width.
+# Lock-detect function (cycle count) and precision (comparison window).
 REG2_LDF_POS = const(8)
 REG2_LDP_POS = const(7)
 # Charge-pump current code; must match the external loop filter.
@@ -163,11 +160,12 @@ REG2_MUX_NDIVIDER = const(0b100)
 REG2_MUX_ANALOGLOCK = const(0b101)
 REG2_MUX_DIGITALLOCK = const(0b110)
 
-# Lock detect: frac-N vs int-N counting mode.
+# Lock-detect function: 40 PFD cycles (frac-N) or 5 cycles (int-N).
 REG2_LDF_FRAC_N = const(0)
 REG2_LDF_INT_N = const(1)
 
-# Lock-detect pulse width: 10 ns default, 6 ns for faster sampling.
+# Lock-detect precision: comparison window of 10 ns or 6 ns. Data sheet p.19
+# recommends LDF/LDP = 00 for fractional-N and 11 for integer-N.
 REG2_LDP_10NS = const(0)
 REG2_LDP_6NS = const(1)
 
@@ -206,44 +204,6 @@ REG4_AUX_FUNDAMENTAL = const(1)
 REG5_LOCK_LOW = const(0b00)
 REG5_LOCK_DIGITAL = const(0b01)
 REG5_LOCK_HIGH = const(0b11)
-
-# Membership sets for validate_config at setup; not used on hot encode.
-REG1_PRESCALER_VALUES = (
-    REG1_PRESCALER_4_5,
-    REG1_PRESCALER_8_9,
-)
-REG2_MUXOUT_VALUES = (
-    REG2_MUX_THREESTATE,
-    REG2_MUX_DVDD,
-    REG2_MUX_DGND,
-    REG2_MUX_RCOUNTER,
-    REG2_MUX_NDIVIDER,
-    REG2_MUX_ANALOGLOCK,
-    REG2_MUX_DIGITALLOCK,
-)
-REG2_NOISE_MODE_VALUES = (REG2_LOW_NOISE, REG2_LOW_SPUR)
-REG2_LDF_VALUES = (REG2_LDF_FRAC_N, REG2_LDF_INT_N)
-REG2_LDP_VALUES = (REG2_LDP_10NS, REG2_LDP_6NS)
-REG2_PD_POLARITY_VALUES = (
-    REG2_PD_POLARITY_NEGATIVE,
-    REG2_PD_POLARITY_POSITIVE,
-)
-REG3_BAND_CLK_MODE_VALUES = (REG3_BAND_CLK_LOW, REG3_BAND_CLK_HIGH)
-REG3_ABP_VALUES = (REG3_ABP_6NS, REG3_ABP_3NS)
-REG3_CLOCKDIV_MODE_VALUES = (
-    REG3_CLOCKDIV_OFF,
-    REG3_CLOCKDIV_FASTLOCK,
-    REG3_CLOCKDIV_RESYNC,
-)
-REG4_FEEDBACK_VALUES = (REG4_FEEDBACK_DIVIDED, REG4_FEEDBACK_FUNDAMENTAL)
-REG4_OUTPUT_POWER_VALUES = (
-    REG4_POWER_MINUS_4DBM,
-    REG4_POWER_MINUS_1DBM,
-    REG4_POWER_PLUS_2DBM,
-    REG4_POWER_PLUS_5DBM,
-)
-REG4_AUX_SELECT_VALUES = (REG4_AUX_DIVIDED, REG4_AUX_FUNDAMENTAL)
-REG5_LOCK_PIN_VALUES = (REG5_LOCK_LOW, REG5_LOCK_DIGITAL, REG5_LOCK_HIGH)
 
 # Legal lower bounds beyond field width (width allows 0; hardware does not).
 REG2_R_COUNTER_MIN = const(1)

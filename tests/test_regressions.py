@@ -251,9 +251,11 @@ class TestExactArithmetic:
 
 
 class TestValidationGaps:
-    """configure() must reject values the chip cannot use."""
+    """configure() must reject values the chip cannot use.
 
-    @known_bug("C7", "on/off fields are unvalidated and unmasked")
+    Fixed in remediation step A2 (C7, C17, C21, C8 divider limit).
+    """
+
     @pytest.mark.parametrize(
         "field, value",
         [("mtld", 2), ("rf_enable", 2), ("doubler", 5)],
@@ -264,7 +266,6 @@ class TestValidationGaps:
         with pytest.raises(ValueError):
             regfile.configure(**{field: value})
 
-    @known_bug("C17", "phase is not checked against MOD")
     def test_phase_must_be_below_mod(self):
         """Phase 30 with MOD 25 raises (data sheet p.18)."""
         regfile = ADF435xRegisterFile(ADF4351)
@@ -272,7 +273,6 @@ class TestValidationGaps:
         with pytest.raises(ValueError):
             regfile.configure(phase=30)
 
-    @known_bug("C21", "low-spur mode accepts MOD below 50")
     def test_low_spur_requires_mod_50(self):
         """Low-spur noise mode with MOD 25 raises (data sheet p.23)."""
         regfile = ADF435xRegisterFile(ADF4351)
@@ -280,20 +280,29 @@ class TestValidationGaps:
         with pytest.raises(ValueError):
             regfile.configure(noise_mode=consts.REG2_LOW_SPUR)
 
-    @known_bug("C21", "N-counter on MUXOUT breaks band select")
     def test_muxout_n_divider_rejected(self):
         """MUXOUT = N divider output raises (data sheet p.18)."""
         regfile = ADF435xRegisterFile(ADF4351)
         with pytest.raises(ValueError):
             regfile.configure(muxout=consts.REG2_MUX_NDIVIDER)
 
-    @known_bug("C8", "fast band-select mode allows divider 255")
     def test_fast_band_select_divider_max_254(self):
         """band_clk_div 255 with fast mode raises (data sheet p.19)."""
         regfile = ADF435xRegisterFile(ADF4351)
         regfile.configure(band_clk_mode=consts.REG3_BAND_CLK_HIGH)
         with pytest.raises(ValueError):
             regfile.configure(band_clk_div=255)
+
+
+class TestLowSpurSolve:
+    """The solver must honour the low-spur MOD minimum (C21, solver side)."""
+
+    @known_bug("C21", "solver picks MOD < 50 in low-spur mode", ValueError)
+    def test_set_frequency_in_low_spur_mode(self, synth):
+        """A low-spur retune picks a MOD of at least 50."""
+        synth.regfile.configure(noise_mode=consts.REG2_LOW_SPUR, mod=50)
+        synth.set_frequency(2_112_600_000)
+        assert synth.regfile.config.mod >= 50
 
 
 # --- C8: valid ADF4351 PFD range rejected -------------------------------------

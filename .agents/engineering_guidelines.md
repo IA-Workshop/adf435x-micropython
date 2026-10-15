@@ -9,6 +9,7 @@ actionable and reference form.
 | Don't | Do instead |
 |-------|------------|
 | Re-validate ranges in `encode_register()` | `validate_config()` at `configure()`; encode masks widths only |
+| Add per-register encode code, defaults, or value sets | Add one row to `config.FIELDS`; cross-field checks go in `register_mapper._RULES` |
 | Return `(index, word)` or reorder writes in `device` | `commit_plan()` → bare 32-bit words, **R5→R0** |
 | Track DBB with a flag separate from encoded R2 | Read `double_buffer` from encoded R2; DBR/DBB logic in `register_file` only |
 | Call optimistic `commit()` from the synthesizer | `commit_plan()` → device write → `mark_written()` or `mark_write_failed()` |
@@ -44,7 +45,8 @@ snake_case: `int_n`, `frac`, `mod`, `rf_divider`, `double_buffer`. Do not alias
 `n`, `N`, `integer`.
 
 ### Constants
-`REG{n}_{FIELD}_{SUFFIX}` with `_POS`, `_WIDTH`, `_MIN`, `_VALUES`.
+`REG{n}_{FIELD}_{SUFFIX}` with `_POS`, `_WIDTH`, `_MIN`. Legal-value sets,
+defaults and labels live in the `config.FIELDS` table, not in `consts`.
 
 ### Golden vector indexing
 - `WORKED_WORDS[i]` is register **Ri**.

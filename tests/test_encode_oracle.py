@@ -1,9 +1,10 @@
 """The encoder reproduces the frozen v0.1.0 output in ``data/encode_golden.json``.
 
-Acceptance check for remediation step A2 (register-layer rewrite): every
-configuration must encode to exactly the same six words. Regenerate only on
-purpose (``python tests/data/gen_encode_golden.py``); delete the data, the
-generator and this test once A2 has landed.
+The 501 configurations were generated from the v0.1.0 encoder (generator in
+git history, commit ecf5a78) and kept frozen as the acceptance check for the
+register-layer rewrite (remediation step A2), which reproduces them exactly.
+It stays as an encoder regression net until the remaining remediation steps
+land; never regenerate it from the current encoder.
 """
 
 import json

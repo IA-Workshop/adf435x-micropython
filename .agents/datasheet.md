@@ -119,20 +119,16 @@ Defined in [`tests/conftest.py`](../tests/conftest.py):
   full six-register sequence
 - **Do not duplicate hex values in other docs** — reference `WORKED_WORDS` by name
 
-Config field names map to registers via `ADF435xConfig.FIELD_REGISTER` in
-[`config.py`](../adf435x/config.py).
+Config field names map to registers via `FIELD_REGISTER` (derived from
+`FIELDS`) in [`config.py`](../adf435x/config.py).
 
 ## Figure map (code cross-reference)
 
 | Topic | Datasheet | Code |
 |-------|-----------|------|
 | Double-buffer latching | Figure 23 p.14 | [`register_file.py`](../adf435x/register_file.py) |
-| Register 0 | Figure 24 | `register_mapper.register_0` |
-| Register 1 | Figure 25 | `register_mapper.register_1` |
-| Register 2 | Figure 26 | `register_mapper.register_2` |
-| Register 3 | Figure 27 | `register_mapper.register_3` |
-| Register 4 | Figure 28 | `register_mapper.register_4` |
-| Register 5 | Figure 29 | `register_mapper.register_5` |
+| Registers 0–5 (bit layout) | Figures 24–29 | `config.FIELDS` (one row per field, grouped by register) |
+| Encode / validate | Figures 24–29 | `register_mapper.encode_register`, `validate_config` |
 | Phase resync default | Figure 25 | [`config.py`](../adf435x/config.py) defaults |
 | Serial interface | Timing section | [`device.py`](../adf435x/device.py) |
 
