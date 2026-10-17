@@ -9,21 +9,22 @@ description: >-
 
 ## 1. Orient
 
-Read [AGENTS.md](../../AGENTS.md) — use the **task-routing table** only. Open
-the listed docs for your change type; do not read JOURNAL, ARCHITECTURE, or
-agent/README for implementation.
+Read [AGENTS.md](../../../AGENTS.md) for scope, invariants, and gotchas. For
+task-specific depth, open the row in
+[.agents/context.md](../../../.agents/context.md) — do not read
+`.agents/journal.md` for implementation.
 
 ## 2. Implement
 
-- Follow [agent/GLOSSARY.md](../../agent/GLOSSARY.md) for new names
+- Follow [.agents/engineering_guidelines.md](../../../.agents/engineering_guidelines.md)
+  for new names
 - MicroPython-safe `adf435x/` (no dataclasses, pathlib, etc.)
 - Board pins in caller/examples/tests only
 - Minimal diff
 
 **Step complete:** run pytest for touched layers → append
-[agent/JOURNAL.md](../../agent/JOURNAL.md) → update agent docs per
-[adf435x-agent-docs.mdc](../../.cursor/rules/adf435x-agent-docs.mdc) routing
-table. Do not skip the journal for small steps.
+[.agents/journal.md](../../../.agents/journal.md) when non-obvious → update docs
+per [.agents/rules.md](../../../.agents/rules.md).
 
 ## 3. Test
 
@@ -32,25 +33,8 @@ pip install -e ".[test]"
 pytest
 ```
 
-| Change | Tests |
-|--------|-------|
-| Register / encode | `test_register_mapper.py`, `test_register_file.py`, `test_validation.py` |
-| Solver | `test_solver.py` |
-| Synthesizer | `test_synthesizer.py` |
-| Sweep | `test_sweep.py` |
-| Device SPI | `test_device.py` |
-
-## 4. Update docs (when needed)
-
-| Change | Doc |
-|--------|-----|
-| Datasheet fact | `agent/DATASHEET.md` |
-| New name/abbrev | `agent/GLOSSARY.md` |
-| New invariant | `agent/DESIGN_DECISIONS.md` |
-| Milestone | `agent/STATUS.md` |
-| Non-obvious merge rationale | `agent/JOURNAL.md` (human; append only) |
-| Layer structure (humans) | `agent/ARCHITECTURE.md` |
+See [.agents/rules.md](../../../.agents/rules.md) for tests-by-layer map.
 
 ## Definition of done
 
-See [AGENTS.md](../../AGENTS.md) § Definition of done.
+See [.agents/context.md](../../../.agents/context.md) § Definition of done.

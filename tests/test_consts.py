@@ -12,7 +12,6 @@ def test_const_imports_on_host():
     # If the micropython->CPython shim were missing, importing this module
     # would already have raised. This test spot-checks that a folded value
     # survived.
-    assert c.WORD_SIZE_BYTES == 4
     assert c.NUM_REGISTERS == 6
 
 
@@ -52,4 +51,10 @@ def test_muxout_digital_lock_value():
 
 def test_output_power_levels_ascending():
     """Output power codes are the ascending pair encodings 0..3."""
-    assert c.REG4_OUTPUT_POWER_VALUES == (0, 1, 2, 3)
+    levels = (
+        c.REG4_POWER_MINUS_4DBM,
+        c.REG4_POWER_MINUS_1DBM,
+        c.REG4_POWER_PLUS_2DBM,
+        c.REG4_POWER_PLUS_5DBM,
+    )
+    assert levels == (0, 1, 2, 3)

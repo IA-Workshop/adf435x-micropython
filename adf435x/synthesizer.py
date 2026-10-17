@@ -1,9 +1,10 @@
 """
 Frequency-first facade for ADF435x PLL synthesizers.
 
-Owns the register file, frequency solver, and SPI write path (plan/mark split).
-Does not import ``machine``; pass a duck-typed device with ``write_registers``,
-``chip_enable``, ``chip_disable``, and ``read_muxout``.
+Owns the register file, frequency solver, SPI write path (plan/mark split),
+and frequency-table playback. Does not import ``machine``; pass a duck-typed
+device with ``write_registers``, ``chip_enable``, ``chip_disable``, and
+``read_muxout`` (which raises ``RuntimeError`` when no MUXOUT pin is wired).
 """
 
 import time
@@ -11,21 +12,46 @@ import time
 from . import consts
 from .profiles import ADF435xDeviceProfile
 from .register_file import ADF435xRegisterFile
-from .solver import SolveOptions, SolveResult, solve
+from .solver import (
+    LOW_SPUR_MOD_MIN,
+    SolveOptions,
+    SolveResult,
+    reference_fields,
+    solve,
+)
 
-_TICKS_US_STUB = 0
+# Extra settle time before the first lock-detect poll, on top of band select
+# and the lock-detect cycle count. Provisional until bench step B3 measures
+# how long digital lock detect takes to reflect a retune.
+LOCK_SETTLE_MARGIN_US = 10
 
+# Microsecond clock: MicroPython's wrapping ticks, or monotonic time on CPython.
+if hasattr(time, "ticks_us"):
+    _ticks_us = time.ticks_us
+    _ticks_diff = time.ticks_diff
+    _ticks_add = time.ticks_add
+    _sleep_us = time.sleep_us
+else:
 
-def _ticks_us():
-    """
-    Return a microsecond timestamp.
-
-    Uses ``time.ticks_us()`` on MicroPython; ``time.monotonic()`` under CPython.
-    """
-    try:
-        return time.ticks_us()
-    except AttributeError:
+    def _ticks_us():
+        """Microsecond timestamp (CPython)."""
         return int(time.monotonic() * 1_000_000)
+
+    def _ticks_diff(a, b):
+        """``a - b`` for two ``_ticks_us`` values (CPython)."""
+        return a - b
+
+    def _ticks_add(a, b):
+        """``a + b`` microseconds (CPython)."""
+        return a + b
+
+    def _sleep_us(us):
+        """Sleep for *us* microseconds (CPython)."""
+        time.sleep(us / 1_000_000)
+
+
+class LockTimeoutError(RuntimeError):
+    """Lock detect did not assert within the timeout during playback."""
 
 
 class ADF435xSynthesizer:
@@ -69,11 +95,14 @@ class ADF435xSynthesizer:
             rdiv2=rdiv2,
         )
         self._regfile = ADF435xRegisterFile(profile)
+        # The reference path does not depend on frequency: apply it now so
+        # the register file is never left with placeholder R/band-select values.
+        self._regfile.configure(**reference_fields(ref_hz, profile, self._solve_options))
         self._powered = False
         self._target_hz = None
         self._achieved_hz = None
         self._last_write_us = None
-        self._fast_hop_mode = False
+        self._has_lock_detect = None
 
     @property
     def profile(self):
@@ -106,24 +135,59 @@ class ADF435xSynthesizer:
         return self._powered
 
     @property
+    def solve_options(self):
+        """Reference-path and MOD options used for every solve."""
+        return self._solve_options
+
+    @property
+    def mod_min(self):
+        """Smallest MOD the current settings allow (50 in low-spur mode)."""
+        floor = self._profile.mod_min
+        if self._solve_options.mod_min:
+            floor = max(floor, self._solve_options.mod_min)
+        if self._regfile.config.noise_mode == consts.REG2_LOW_SPUR:
+            floor = max(floor, LOW_SPUR_MOD_MIN)
+        return floor
+
+    @property
+    def has_lock_detect(self):
+        """True if the device can read MUXOUT (checked once, then cached)."""
+        if self._has_lock_detect is None:
+            try:
+                self._device.read_muxout()
+                self._has_lock_detect = True
+            except RuntimeError:
+                self._has_lock_detect = False
+        return self._has_lock_detect
+
+    @property
     def last_write_us(self):
         """Microsecond timestamp of the last successful SPI write, or None."""
         return self._last_write_us
 
     def power_up(self, *, frequency_hz=None):
         """
-        Enable the chip and write all registers.
+        Enable the chip and write all registers (R5..R0).
 
         Parameters
         ----------
         frequency_hz : int or None
-            Optional initial output frequency. When set, PLL fields are
-            solved before the full R5..R0 write.
+            Output frequency. Required unless a frequency was already set
+            (for example with ``set_frequency()`` while powered down). It is
+            solved before CE is raised, so an invalid frequency leaves the
+            chip off.
+
+        Raises
+        ------
+        ValueError
+            If no frequency has ever been set, or *frequency_hz* is invalid.
         """
-        self._device.chip_enable()
-        self._powered = True
         if frequency_hz is not None:
             self._apply_solve(frequency_hz)
+        elif self._target_hz is None:
+            raise ValueError("power_up() needs frequency_hz until a frequency is set")
+        self._device.chip_enable()
+        self._powered = True
         self._write_stale_registers(all_registers=True)
 
     def power_down(self):
@@ -133,7 +197,10 @@ class ADF435xSynthesizer:
 
     def set_frequency(self, hz):
         """
-        Solve and write a new output frequency.
+        Solve and apply a new output frequency.
+
+        When powered, the changed registers are written at once. When powered
+        down, the settings are only stored; ``power_up()`` writes them.
 
         Parameters
         ----------
@@ -146,7 +213,8 @@ class ADF435xSynthesizer:
             Achieved frequency, error, and field dict from the solver.
         """
         result = self._apply_solve(hz)
-        self._write_stale_registers()
+        if self._powered:
+            self._write_stale_registers()
         return result
 
     def is_locked(self):
@@ -161,30 +229,60 @@ class ADF435xSynthesizer:
         Raises
         ------
         RuntimeError
-            If the device has no MUXOUT pin configured.
+            If the device has no MUXOUT pin configured, or MUXOUT is not
+            routed to digital lock detect.
         """
+        if self._regfile.config.muxout != consts.REG2_MUX_DIGITALLOCK:
+            raise RuntimeError("MUXOUT is not routed to digital lock detect")
         return bool(self._device.read_muxout())
 
     def wait_locked(self, timeout_us=100_000):
         """
         Poll lock detect until locked or timeout.
 
+        Right after a write, polling starts only once VCO band select and the
+        lock-detect count can have finished (``lock_settle_us``), so a stale
+        "locked" from the previous frequency is not mistaken for lock.
+
         Parameters
         ----------
         timeout_us : int
-            Maximum wait in microseconds (default 100 ms).
+            Maximum wait in microseconds after settling (default 100 ms).
 
         Returns
         -------
         bool
             True if lock was detected before timeout.
         """
-        deadline = _ticks_us() + timeout_us
-        while _ticks_diff(_ticks_us(), deadline) < 0:
+        if self._last_write_us is not None:
+            settle = self.lock_settle_us()
+            remaining = settle - _ticks_diff(_ticks_us(), self._last_write_us)
+            if remaining > 0:
+                _sleep_us(remaining)
+        deadline = _ticks_add(_ticks_us(), timeout_us)
+        while _ticks_diff(deadline, _ticks_us()) > 0:
             if self.is_locked():
                 return True
             _sleep_us(100)
         return self.is_locked()
+
+    def lock_settle_us(self):
+        """
+        Microseconds from a write until lock detect can be trusted.
+
+        Band select takes 10 band-select clock cycles (data sheet p.12), then
+        lock detect needs 40 (fractional-N) or 5 (integer-N) PFD cycles
+        (p.19). ``LOCK_SETTLE_MARGIN_US`` is added on top.
+
+        Returns
+        -------
+        int
+        """
+        c = self._regfile.config
+        pfd_num = self._ref_hz * (2 if c.doubler else 1)
+        pfd_den = c.r_counter * (2 if c.rdiv2 else 1)
+        cycles = 10 * c.band_clk_div + (5 if c.ldf == consts.REG2_LDF_INT_N else 40)
+        return (cycles * pfd_den * 1_000_000 + pfd_num - 1) // pfd_num + LOCK_SETTLE_MARGIN_US
 
     def mute(self):
         """Disable RF output (``rf_enable=False``)."""
@@ -211,9 +309,9 @@ class ADF435xSynthesizer:
         if self._powered:
             self._write_stale_registers()
 
-    def _solve(self, hz, *, options=None):
+    def solve(self, hz, *, options=None):
         """
-        Run the frequency solver with this synthesizer's reference path.
+        Solve *hz* with this synthesizer's reference path, without applying.
 
         Parameters
         ----------
@@ -225,13 +323,16 @@ class ADF435xSynthesizer:
         Returns
         -------
         SolveResult
+
+        Notes
+        -----
+        In low-spur noise mode the solver is asked for MOD >= 50, the data
+        sheet minimum for that mode (p.23).
         """
-        return solve(
-            hz,
-            self._ref_hz,
-            self._profile,
-            options=options or self._solve_options,
-        )
+        opts = options or self._solve_options
+        if self.mod_min > (opts.mod_min or 0):
+            opts = opts.copy(mod_min=self.mod_min)
+        return solve(hz, self._ref_hz, self._profile, options=opts)
 
     def _apply_solve(self, hz):
         """
@@ -246,25 +347,102 @@ class ADF435xSynthesizer:
         -------
         SolveResult
         """
-        result = self._solve(hz)
+        result = self.solve(hz)
         self._regfile.configure(**result.fields)
         self._target_hz = hz
         self._achieved_hz = result.achieved_hz
         return result
 
-    def _enable_fast_hop_mode(self):
-        """
-        Apply register settings for fast frequency hopping.
+    # -- frequency-table playback --------------------------------------------
 
-        Called by ``ADF435xSweeper`` on first playback. Idempotent.
+    def play_step(self, table, index):
         """
-        if self._fast_hop_mode:
-            return
-        self._regfile.configure(
-            double_buffer=True,
-            ldp=consts.REG2_LDP_6NS,
-        )
-        self._fast_hop_mode = True
+        Program one entry of a ``FrequencyTable``.
+
+        Writes only the registers that differ from what was last written, so
+        the hop is correct whatever was programmed before (another entry, or
+        ``set_frequency()``). Raises CE first if the chip is not powered.
+
+        Parameters
+        ----------
+        table : FrequencyTable
+            Table built for this synthesizer.
+        index : int
+            Entry to program.
+
+        Returns
+        -------
+        FrequencyEntry
+            The programmed entry.
+        """
+        table.sync(self._regfile)
+        entry = table[index]
+        if not self._powered:
+            self._device.chip_enable()
+            self._powered = True
+        self._regfile.load_prevalidated(entry.fields, entry.words)
+        self._target_hz = entry.target_hz
+        self._achieved_hz = entry.achieved_hz
+        self._write_stale_registers()
+        return entry
+
+    def play(
+        self,
+        table,
+        *,
+        dwell_us=0,
+        wait_for_lock=False,
+        boundary_dwell_us=500_000,
+        require_lock=False,
+        cycles=1,
+    ):
+        """
+        Play a ``FrequencyTable`` from the start, *cycles* times.
+
+        Parameters
+        ----------
+        table : FrequencyTable
+            Table built for this synthesizer.
+        dwell_us : int
+            Microseconds to wait after each in-band hop.
+        wait_for_lock : bool
+            Wait for lock detect after each in-band hop.
+        boundary_dwell_us : int
+            Microseconds to wait after a hop that changes the RF divider.
+            Such hops also wait for lock detect when MUXOUT is available.
+        require_lock : bool
+            Raise ``LockTimeoutError`` when a lock wait times out.
+        cycles : int
+            Number of passes through the table.
+
+        Returns
+        -------
+        int
+            Number of lock waits that timed out (0 if none, or if lock detect
+            was never checked).
+
+        Raises
+        ------
+        LockTimeoutError
+            If *require_lock* is True and a lock wait times out.
+        """
+        timeouts = 0
+        for _ in range(cycles):
+            for index in range(len(table)):
+                divider_before = self._regfile.config.rf_divider
+                entry = self.play_step(table, index)
+                boundary = entry.rf_divider != divider_before
+                if (boundary or wait_for_lock) and self.has_lock_detect:
+                    if not self.wait_locked():
+                        timeouts += 1
+                        if require_lock:
+                            raise LockTimeoutError(
+                                "no lock at %d Hz (entry %d)" % (entry.achieved_hz, index)
+                            )
+                pause = boundary_dwell_us if boundary else dwell_us
+                if pause > 0:
+                    _sleep_us(pause)
+        return timeouts
 
     def _write_stale_registers(self, *, all_registers=False):
         """
@@ -299,22 +477,3 @@ class ADF435xSynthesizer:
             self._regfile.mark_write_failed()
             raise
 
-
-def _ticks_diff(a, b):
-    """
-    Difference between two ``ticks_us`` values.
-
-    MicroPython-safe wrapper around ``time.ticks_diff``.
-    """
-    try:
-        return time.ticks_diff(a, b)
-    except AttributeError:
-        return a - b
-
-
-def _sleep_us(us):
-    """Sleep for microseconds; MicroPython and CPython compatible."""
-    try:
-        time.sleep_us(us)
-    except AttributeError:
-        time.sleep(us / 1_000_000.0)

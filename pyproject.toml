@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "adf435x"
-version = "0.1.0"
+version = "0.2.0.dev0"
 description = "MicroPython driver for the ADF4350/ADF4351 wideband PLL synthesizers with integrated VCO"
 readme = "README.md"
 requires-python = ">=3.10"

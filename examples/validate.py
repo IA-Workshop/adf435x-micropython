@@ -3,7 +3,7 @@ ADF4351 bench validation example — scope/counter checks.
 
 Run from the host (MicroPico **Run current file** or ``mpremote run``). Requires
 ``adf435x/`` on flash from bulk sync; examples are not bulk-synced (see
-``agent/HARDWARE.md``).
+``docs/hardware.md``).
 
 Reference pin map (adjust for your MicroPython board):
 - 10 MHz REFIN (R counter = 1, no doubler, no ref÷2).
@@ -16,6 +16,7 @@ assert pass/fail.
 """
 
 import sys
+import time
 
 REF_HZ = 10_000_000
 LOCK_TIMEOUT_US = 500_000
@@ -124,7 +125,7 @@ def _print_lock_point(slug, target_hz, synth):
 
 def _run_narrow_sweep(synth, spec):
     """Step 140–145 MHz; print each achieved frequency for bench use."""
-    from adf435x.sweep import ADF435xSweeper, FrequencyTable
+    from adf435x.sweep import FrequencyTable
 
     lower = spec["lower_hz"]
     upper = spec["upper_hz"]
@@ -137,16 +138,18 @@ def _run_narrow_sweep(synth, spec):
         step,
         dwell,
     ))
-    print("(Divider exercise; for wide scope sweeps use frequency_sweep.py.)")
+    print("(Single /16 band; for wide scope sweeps use frequency_sweep.py.)")
     synth.power_up(frequency_hz=lower)
     synth.wait_locked(timeout_us=LOCK_TIMEOUT_US)
     table = FrequencyTable.from_range(synth, lower, upper, step)
-    player = ADF435xSweeper(synth, table, dwell_us=dwell)
-    while True:
-        achieved = player.step()
-        if achieved is None:
-            break
-        print("  Step: %d Hz (%.6f MHz)" % (achieved, achieved / 1e6))
+    for i in range(len(table)):
+        entry = synth.play_step(table, i)
+        locked = synth.wait_locked(timeout_us=LOCK_TIMEOUT_US)
+        print(
+            "  Step: %d Hz (%.6f MHz)%s"
+            % (entry.achieved_hz, entry.achieved_hz / 1e6, "" if locked else " NO LOCK")
+        )
+        time.sleep_us(dwell)
     print("Sweep complete.")
 
 

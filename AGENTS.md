@@ -1,97 +1,63 @@
-# Agent guide — adf435x-micropython
+# adf435x-micropython — agent guide
+
+MicroPython library for ADF4350/ADF4351 wideband PLL synthesizers. Host-testable
+on CPython; runs on any MicroPython board with SPI + GPIO. Pin numbers live in
+callers/examples/tests, never in `adf435x/`.
 
 ```bash
 pip install -e ".[test]"
 pytest
 ```
 
-On-board bench validation: [`examples/validate.py`](examples/validate.py)
-— host **Run current file** (not bulk-synced). See
-[agent/HARDWARE.md](agent/HARDWARE.md).
-
-## Scope
-
-- ADF4350/ADF4351 only (not 4355/4356 family)
-- MicroPython on any board with SPI + GPIO; pin numbers live in caller /
-  examples / tests — never in `adf435x/` library modules
-- Host suite: CPython ≥ 3.10, no hardware required
-
-Humans: [agent/README.md](agent/README.md) (doc index). Layer overview:
-[agent/ARCHITECTURE.md](agent/ARCHITECTURE.md) (human reference — not required
-for implementation tasks).
-
-## Critical gotchas
-
-1. **`WORKED_WORDS[n]` = register Rn**; SPI and `commit_plan()` order is
-   **R5→R0**. Compare a full six-register write with `reversed(WORKED_WORDS)`.
-   Single source: `tests/conftest.py` — do not duplicate hex values in markdown.
-
-2. **`commit_plan()`** for retunes (minimal stale set).
-   **`commit_all_plan()`** only for power-up, divider boundaries, or full
-   reprogram.
-
-3. **Integer Hz only** in the solver; no float frequency arguments.
-
-4. **Solver returns fields**, not register words. Encode only via
-   `register_file.configure(**result.fields)` (mapper validates at configure).
-
-5. **`import adf435x` must not import `machine`** (host-safe package root).
-
-## Source of truth
+## Source of truth (in order)
 
 1. Passing tests + `adf435x/` code
 2. `WORKED_FIELDS` / `WORKED_WORDS` in `tests/conftest.py`
-3. [agent/DATASHEET.md](agent/DATASHEET.md)
-4. Other agent docs (not authoritative over tests)
+3. `.agents/datasheet.md` — PLL / register facts
+4. Other docs — not authoritative over tests
 
-## Task routing
+## Invariants
 
-| Changing… | Read | Run |
-|-----------|------|-----|
-| Bit layout / encode | [DATASHEET](agent/DATASHEET.md), [DESIGN_DECISIONS](agent/DESIGN_DECISIONS.md) §1–3, [GLOSSARY](agent/GLOSSARY.md) | `test_register_mapper.py`, `test_register_file.py`, `test_validation.py` |
-| Frequency / MOD | [DATASHEET](agent/DATASHEET.md), [GLOSSARY](agent/GLOSSARY.md) | `test_solver.py` |
-| Synthesizer / SPI writes | [DESIGN_DECISIONS](agent/DESIGN_DECISIONS.md) §4–5, §11–13; `adf435x/synthesizer.py` | `test_synthesizer.py` |
-| Sweep / fast-hop | [DATASHEET](agent/DATASHEET.md) (int-N / fast-hop), [DESIGN_DECISIONS](agent/DESIGN_DECISIONS.md); `adf435x/sweep.py` | `test_sweep.py` |
-| Board pins / SPI wiring | [HARDWARE](agent/HARDWARE.md) | `test_device.py`; `examples/validate.py` on board |
-| New public names | [GLOSSARY](agent/GLOSSARY.md) | matching layer tests |
-| Test harness / fixtures | [TESTING](agent/TESTING.md) | touched `tests/` files |
-| Milestones only | [STATUS](agent/STATUS.md) | — |
+Canonical list. Full rationale and the Don't→Do table: `.agents/engineering_guidelines.md`.
+Do not violate without updating tests.
 
-Do not open [JOURNAL](agent/JOURNAL.md), [ARCHITECTURE](agent/ARCHITECTURE.md), or
-[agent/README](agent/README.md) for implementation work.
+1. **Validate-at-setup, trust-at-encode** — `validate_config()` at configure; encode masks widths only.
+2. **Commit plans are bare words** — `commit_plan()` returns 32-bit ints in caller order; SPI/program order is **R5→R0**.
+3. **Double-buffer state from encoded R2** — no separate flag.
+4. **Plan/mark split** — regfile emits the plan; synthesizer calls `mark_written()` / `mark_write_failed()` after I/O.
+5. **Timestamps on synthesizer** (`_last_write_us`); `commit_count` and `config_version` on regfile for freshness.
+6. **Integer Hz only** in the solver — no float frequency arguments.
+7. **ADF4350/ADF4351 only** — no 4355/4356 register map.
+8. **Solver returns fields, not words** — encode only via `register_file.configure(**result.fields)`.
+9. **Host-safe root** — `import adf435x` must not import `machine`.
+10. **One option bag** — `SolveOptions` only; no `SynthPolicy` / `DeviceLimits`.
+11. **Explicit write verbs** — `_write_stale_registers`, `_write_prebuilt_plan`; no `_program()`.
+12. **MicroPython-safe `adf435x/`** — no `dataclasses`, `pathlib`, CPython-only stdlib.
+13. **Board-agnostic library** — pins in callers/examples/tests only.
+14. **Tables store words; playback diffs** — `FrequencyTable` entries hold all six words; `play_step()` uses `load_prevalidated()` then writes what differs from `last_written`. No precomputed delta plans.
+15. **No SPI while powered down** — `set_frequency()` / output controls stage settings; `power_up()` writes them. `power_up()` solves before raising CE.
 
-## Don't → Do
+## Critical gotchas
 
-| Don't | Do instead |
-|-------|------------|
-| Re-validate ranges in `encode_register()` | `validate_config()` at `configure()`; encode masks widths only |
-| Return `(index, word)` or reorder writes in `device` | `commit_plan()` → bare 32-bit words, **R5→R0** |
-| Track DBB with a flag separate from encoded R2 | Read `double_buffer` from encoded R2; DBR/DBB logic in `register_file` only |
-| Call optimistic `commit()` from the synthesizer | `commit_plan()` → device write → `mark_written()` or `mark_write_failed()` |
-| Use float Hz or emit register words from `solve()` | Integer Hz; `solve()` → `configure(**result.fields)` |
-| `import machine` at package root | `adf435x.device` submodule only |
-| Hard-code board pins in `adf435x/` | Pass SPI/GPIO from caller or examples |
-| Add `SynthPolicy`, `DeviceLimits`, or a second options bag | `SolveOptions` + `ADF435xDeviceProfile` bounds |
+- `WORKED_WORDS[n]` is register **Rn**. Compare a full six-register write with `reversed(WORKED_WORDS)`.
+- `commit_plan()` for every retune and table hop, divider changes included (minimal stale set + latch R0); `commit_all_plan()` only for power-up or full reprogram.
+- Prescaler threshold **3.6 GHz** (4351) / **3.0 GHz** (4350). R4 encodes **log2(divider)**, not the divider value.
+- Never duplicate hex register values in markdown — reference `WORKED_*` by name (single source: `tests/conftest.py`; enforced by `tests/test_docs.py`).
+- Register fields are defined once in `config.FIELDS`; cross-field checks live in `register_mapper._RULES`.
+- `.agents/journal.md` is human append-only history — **never** on the implementation read path.
 
-Full invariants: [agent/DESIGN_DECISIONS.md](agent/DESIGN_DECISIONS.md).
+## Going deeper (read on demand)
 
-## Vendor references
+- `.agents/engineering_guidelines.md` — Don't→Do table, expanded invariants, naming catalog
+- `.agents/rules.md` — workflow, tests-by-layer, doc-update obligations
+- `.agents/context.md` — scope, task-routing table, definition of done
+- `.agents/datasheet.md` — PLL relationships, register/figure map
 
-- [ADF4350](https://www.analog.com/en/products/adf4350.html) ·
-  [ADF4351](https://www.analog.com/en/products/adf4351.html) ·
-  [cheat sheet](https://ez.analog.com/rf/w/documents/14697/adf4350-and-adf4351-common-questions-cheat-sheet)
-- Extracted PLL/register facts: [agent/DATASHEET.md](agent/DATASHEET.md)
+## Tool wrappers
 
-## Definition of done
+- **Cursor:** `.cursor/rules/*.mdc`, `.cursor/skills/adf435x-development/SKILL.md`.
+- **Claude Code:** path-scoped rules in `.claude/rules/` load automatically when you edit matching files.
 
-- [ ] `pytest` exits 0 (**299** collected; refresh with `pytest -q`)
-- [ ] Register / solver / datasheet edit: layer tests updated;
-      [DATASHEET.md](agent/DATASHEET.md) updated if an extracted fact changed
-- [ ] No new hex register values in markdown (reference `WORKED_*` by name)
-- [ ] `import adf435x` does not import `machine`
-- [ ] Doc edits follow the task-routing table above (no generic filler)
+Human docs (`docs/**`) never reference agent docs; the reverse is allowed.
 
-## Cursor
-
-[`.cursor/rules/`](.cursor/rules/) ·
-[`.cursor/skills/adf435x-development/SKILL.md`](.cursor/skills/adf435x-development/SKILL.md)
+Wrappers point here; they do not duplicate this content.

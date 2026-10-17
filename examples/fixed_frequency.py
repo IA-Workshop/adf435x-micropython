@@ -8,7 +8,7 @@ Example pin map (ADF4351 eval board — adjust for your MicroPython board)
 ------------------------------------------------------------------------
 - 10 MHz reference on REFIN (R counter = 1, no doubler).
 - SPI1: SCK=GP10, MOSI=GP11, LE=GP13, CE=GP14, MUXOUT=GP9.
-- 1 MHz SPI, mode 0. See agent/HARDWARE.md for generic wiring requirements.
+- 1 MHz SPI, mode 0. See docs/hardware.md for generic wiring requirements.
 
 Scope notes
 -----------
@@ -21,7 +21,7 @@ Scope notes
   (needs sufficient BW). Catalog: ``golden_2112p6mhz``.
 """
 
-from machine import SPI
+from machine import Pin, SPI
 
 from adf435x.device import ADF435xDevice
 from adf435x.profiles import ADF4351
@@ -46,8 +46,8 @@ spi = SPI(
     polarity=0,
     phase=0,
     bits=8,
-    sck=PINS["sck"],
-    mosi=PINS["mosi"],
+    sck=Pin(PINS["sck"]),
+    mosi=Pin(PINS["mosi"]),
 )
 
 device = ADF435xDevice(

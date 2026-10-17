@@ -9,11 +9,23 @@ permissions:
   contents: write
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   release:
+    needs: ci
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Check tag matches package version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PYPROJECT=$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml)
+          MIP=$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')
+          echo "tag=$VERSION pyproject=$PYPROJECT package.json=$MIP"
+          test "$VERSION" = "$PYPROJECT" && test "$VERSION" = "$MIP"
 
       - name: Build zip
         run: |
