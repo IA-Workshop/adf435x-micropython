@@ -1,18 +1,12 @@
 """
-ADF4351 bench validation example — scope/counter checks.
+Bench checks for an ADF4351: program one test case and print what to expect.
 
-Run from the host (MicroPico **Run current file** or ``mpremote run``). Requires
-``adf435x/`` on flash from bulk sync; examples are not bulk-synced (see
-``docs/hardware.md``).
-
-Reference pin map (adjust for your MicroPython board):
-- 10 MHz REFIN (R counter = 1, no doubler, no ref÷2).
-- SPI1: SCK=GP10, MOSI=GP11, LE=GP13, CE=GP14, MUXOUT=GP9.
-- 1 MHz SPI, mode 0.
-
-Set ``SELECT`` below, or pass a case name as ``sys.argv[1]`` (``list`` prints
-names). Confirm output on RFOUTA with a scope or counter; this script does not
-assert pass/fail.
+Pick a case with ``SELECT`` below, or pass its name as the first argument;
+``list`` prints the names. Check RFOUTA with a scope or frequency counter:
+the script reports lock but does not decide pass or fail. The library must
+already be on the board (docs/development.md). Pins and the 10 MHz reference
+match the reference setup in docs/hardware.md. Case list:
+docs/examples/validation.md.
 """
 
 import sys
@@ -30,7 +24,7 @@ PINS = {
     "muxout": 9,
 }
 
-# Bench cases — scope-friendly frequencies first, then PLL edge cases.
+# Frequencies a scope can show come first, then PLL edge cases.
 CASES = (
     ("scope_50mhz", {"kind": "lock", "hz": 50_000_000}),
     ("scope_75mhz", {"kind": "lock", "hz": 75_000_000}),
@@ -40,35 +34,29 @@ CASES = (
     ("scope_250mhz", {"kind": "lock", "hz": 250_000_000}),
     ("golden_2112p6mhz", {"kind": "lock", "hz": 2_112_600_000}),
     ("cross_part_scope_137p5mhz", {"kind": "lock", "hz": 137_500_000}),
-    ("adf4351_scope_equiv_132p0375mhz", {
-        "kind": "lock",
-        "hz": 132_037_500,
-    }),
-    ("adf4351_prescaler_edge_3600mhz", {
-        "kind": "lock",
-        "hz": 3_600_000_000,
-    }),
-    ("adf4351_prescaler_over_3700mhz", {
-        "kind": "lock",
-        "hz": 3_700_000_000,
-    }),
-    ("narrow_band_sweep", {
-        "kind": "sweep",
-        "lower_hz": 140_000_000,
-        "upper_hz": 145_000_000,
-        "step_hz": 1_000_000,
-        "dwell_us": 500_000,
-    }),
+    ("adf4351_scope_equiv_132p0375mhz", {"kind": "lock", "hz": 132_037_500}),
+    ("adf4351_prescaler_edge_3600mhz", {"kind": "lock", "hz": 3_600_000_000}),
+    ("adf4351_prescaler_over_3700mhz", {"kind": "lock", "hz": 3_700_000_000}),
+    (
+        "narrow_band_sweep",
+        {
+            "kind": "sweep",
+            "lower_hz": 140_000_000,
+            "upper_hz": 145_000_000,
+            "step_hz": 1_000_000,
+            "dwell_us": 500_000,
+        },
+    ),
 )
 
 CASE_NAMES = tuple(name for name, _ in CASES) + ("list",)
 
-# Edit before run, or override via sys.argv[1].
+# The case to run, unless one is given on the command line.
 SELECT = "scope_200mhz"
 
 
 def make_synth():
-    """Build a synthesizer on the maintainer reference pin map."""
+    """Return a synthesizer on the reference pin map."""
     from machine import Pin, SPI
 
     from adf435x.device import ADF435xDevice
@@ -86,8 +74,8 @@ def make_synth():
     )
     device = ADF435xDevice(
         spi,
-        load_enable_pin=PINS["le"],
-        chip_enable_pin=PINS["ce"],
+        le_pin=PINS["le"],
+        ce_pin=PINS["ce"],
         muxout_pin=PINS["muxout"],
     )
     return ADF435xSynthesizer(
@@ -101,7 +89,7 @@ def make_synth():
 
 
 def _print_list():
-    """Print available case names (no hardware)."""
+    """Print the case names. Needs no hardware."""
     print("Available cases:")
     for name in CASE_NAMES:
         print("  %s" % name)
@@ -110,21 +98,19 @@ def _print_list():
 
 
 def _print_lock_point(slug, target_hz, synth):
-    """Program one frequency and print measurement hints."""
+    """Program one frequency and print what the instrument should show."""
     synth.power_up(frequency_hz=target_hz)
     locked = synth.wait_locked(timeout_us=LOCK_TIMEOUT_US)
     print("--- %s ---" % slug)
     print("Target:    %d Hz (%.6f MHz)" % (target_hz, target_hz / 1e6))
-    print("Achieved:  %d Hz (%.6f MHz)" % (
-        synth.achieved_hz,
-        synth.achieved_hz / 1e6,
-    ))
+    achieved = synth.achieved_hz
+    print("Achieved:  %d Hz (%.6f MHz)" % (achieved, achieved / 1e6))
     print("MUXOUT:    %s" % ("high" if locked else "not high within timeout"))
     print("Probe RFOUTA with scope or counter.")
 
 
 def _run_narrow_sweep(synth, spec):
-    """Step 140–145 MHz; print each achieved frequency for bench use."""
+    """Step through the sweep in *spec*, printing each achieved frequency."""
     from adf435x.sweep import FrequencyTable
 
     lower = spec["lower_hz"]
@@ -132,12 +118,7 @@ def _run_narrow_sweep(synth, spec):
     step = spec["step_hz"]
     dwell = spec["dwell_us"]
     print("--- narrow_band_sweep ---")
-    print("Range: %d–%d Hz, step %d Hz, dwell %d us" % (
-        lower,
-        upper,
-        step,
-        dwell,
-    ))
+    print("Range: %d–%d Hz, step %d Hz, dwell %d us" % (lower, upper, step, dwell))
     print("(Single /16 band; for wide scope sweeps use frequency_sweep.py.)")
     synth.power_up(frequency_hz=lower)
     synth.wait_locked(timeout_us=LOCK_TIMEOUT_US)
@@ -154,15 +135,13 @@ def _run_narrow_sweep(synth, spec):
 
 
 def run(selected):
-    """Run the named validation case."""
+    """Run the case named *selected*."""
     if selected == "list":
         _print_list()
         return
 
     if selected not in CASE_NAMES:
-        raise ValueError(
-            "Unknown case: %s (try 'list')" % selected
-        )
+        raise ValueError("Unknown case: %s (try 'list')" % selected)
 
     if selected == "narrow_band_sweep":
         spec = dict(CASES)[selected]
@@ -176,7 +155,7 @@ def run(selected):
 
 
 def main():
-    """Resolve selection and run one validation case."""
+    """Run the case named on the command line, or ``SELECT``."""
     selected = sys.argv[1] if len(sys.argv) > 1 else SELECT
     run(selected)
 

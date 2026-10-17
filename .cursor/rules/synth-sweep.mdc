@@ -1,0 +1,8 @@
+---
+description: "ADF435x synthesizer writes, frequency tables and SPI device"
+globs: adf435x/synthesizer.py,adf435x/sweep.py,adf435x/device.py
+alwaysApply: false
+---
+
+Read and follow [.claude/rules/synth-sweep.md](../../.claude/rules/synth-sweep.md). It is the
+single copy of these conventions for both Claude Code and Cursor.

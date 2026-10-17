@@ -1,15 +1,17 @@
 """
-ADF435x device handler example. This example shows how to configure a device
-handler, perform a register transaction, and read the value of the MUXOUT pin.
+Check the wiring with raw register writes and the MUXOUT pin.
 
-Modify the pin values to correspond to your specific setup.
+Writes all six registers with MUXOUT set to DVDD (logic high), reads the pin,
+then rewrites R2 with MUXOUT set to DGND (logic low) and reads it again. If
+the readings follow, SPI, LE and the MUXOUT input all work. No PLL lock is
+needed. Change the pin numbers below to match your board.
 """
 
 from machine import Pin, SPI
 
 from adf435x.device import ADF435xDevice
 
-# Default pin values, modify as needed
+# Pin numbers: change these to match your wiring.
 SPI_SCK_PIN = 10
 SPI_MOSI_PIN = 11
 
@@ -17,7 +19,6 @@ ADF435X_LE_PIN = 13
 ADF435X_CE_PIN = 14
 ADF435X_MUXOUT_PIN = 9
 
-# 1. Create an SPI channel
 SPI_CHANNEL = 1
 
 print(
@@ -36,18 +37,15 @@ spi_handle = SPI(
     mosi=Pin(SPI_MOSI_PIN),
 )
 
-# 2. Instantiate an ADF435xDevice
 adf_device = ADF435xDevice(
     spi_handle,
-    load_enable_pin=ADF435X_LE_PIN,
-    chip_enable_pin=ADF435X_CE_PIN,
+    le_pin=ADF435X_LE_PIN,
+    ce_pin=ADF435X_CE_PIN,
     muxout_pin=ADF435X_MUXOUT_PIN,
 )
 
-# 3. Define minimal register words needed for operation. (Taken from ADF4351
-#    datasheet worked example, p. 21). R2 is given in two variants that differ
-#    only in the MUXOUT source that will drive the pin high, then low, for a
-#    basic connectivity test.
+# Register words for the ADF4351 data sheet worked example (p.21), except
+# that the two R2 words route DVDD or DGND to MUXOUT instead of lock detect.
 R0 = 0x00D30068
 R1 = 0x080080C9
 R2_MUXOUT_DVDD = 0x04004E42  # MUXOUT = DVDD (drives the pin high)
@@ -57,23 +55,19 @@ R4 = 0x0091403C
 R5 = 0x00580005
 
 
-# 4. Power on device
 print("Setting CE to high -- powering on device")
 adf_device.chip_enable()
 
-# 5. Route DVDD to MUXOUT and confirm the pin reads logic high (1)
+# The chip needs R5 first and R0 last.
 print("Writing Device Registers -- MUXOUT routed to DVDD (logic high)")
 adf_device.write_registers([R5, R4, R3, R2_MUXOUT_DVDD, R1, R0])
 print("MUXOUT after init (DVDD):", adf_device.read_muxout())
 
-
-# 6. Route DGND to MUXOUT and confirm the pin reads logic low (0)
+# MUXOUT is not double-buffered, so writing R2 alone is enough.
 print("Writing Device Registers -- MUXOUT routed to DGND (logic low)")
 adf_device.write_register(R2_MUXOUT_DGND)
 print("MUXOUT after DGND:", adf_device.read_muxout())
 
-
-# 7. Power off device
 print("Setting CE to low -- powering off device")
 adf_device.chip_disable()
 

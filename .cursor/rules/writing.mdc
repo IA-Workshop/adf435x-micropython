@@ -1,0 +1,8 @@
+---
+description: "Writing rules for human docs, docstrings and comments"
+globs: README.md,CONTRIBUTING.md,CHANGELOG.md,docs/**,adf435x/**,examples/**,bench/**
+alwaysApply: false
+---
+
+Read and follow [.claude/rules/writing.md](../../.claude/rules/writing.md). It is the
+single copy of these conventions for both Claude Code and Cursor.

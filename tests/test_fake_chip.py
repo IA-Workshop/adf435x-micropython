@@ -16,7 +16,7 @@ def _with_field(word, pos, width, value):
 
 
 class TestFakeChipLatching:
-    """Double-buffer behaviour per data sheet p.12 / Figure 23."""
+    """Double-buffer behavior per data sheet p.12 / Figure 23."""
 
     def test_full_write_latches_worked_words(self):
         """R5..R0 of the golden example makes every register active."""

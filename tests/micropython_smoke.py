@@ -1,11 +1,8 @@
-"""MicroPython smoke test for adf435x (not collected by pytest).
+"""Check that the library runs under MicroPython (not collected by pytest).
 
-Runs the library under the MicroPython Unix port to enforce invariant 12
-(MicroPython-safe ``adf435x/``). From the repository root::
-
-    micropython tests/micropython_smoke.py
-
-Prints ``SMOKE OK`` and exits 0 on success; any failure raises.
+Run from the repository root on the MicroPython Unix port with
+``micropython tests/micropython_smoke.py``. It prints ``SMOKE OK`` on
+success; any failure raises. See docs/development.md.
 """
 
 import sys
@@ -61,7 +58,12 @@ sys.modules["machine"] = _MachineStub
 from conftest import WORKED_FIELDS, WORKED_WORDS, FakeDevice  # noqa: E402
 
 import adf435x  # noqa: E402
-from adf435x import ADF4351, ADF435xRegisterFile, ADF435xSynthesizer, solve  # noqa: E402
+from adf435x import (  # noqa: E402
+    ADF4351,
+    ADF435xRegisterFile,
+    ADF435xSynthesizer,
+    solve,
+)
 from adf435x.sweep import FrequencyTable  # noqa: E402
 
 REF_HZ = 10_000_000
@@ -81,7 +83,7 @@ def main():
     check("register file encodes golden words", regfile.current_words() == WORKED_WORDS)
     check(
         "commit plan is R5..R0",
-        regfile.commit_all_plan() == list(reversed(WORKED_WORDS)),
+        regfile.full_plan() == list(reversed(WORKED_WORDS)),
     )
 
     result = solve(GOLDEN_HZ, REF_HZ, ADF4351)
@@ -94,20 +96,28 @@ def main():
     device = FakeDevice(muxout=1)
     synth = ADF435xSynthesizer(device, ADF4351, REF_HZ)
     synth.power_up(frequency_hz=GOLDEN_HZ)
-    check("power-up writes golden R5..R0", device.writes == list(reversed(WORKED_WORDS)))
+    check(
+        "power-up writes golden R5..R0", device.writes == list(reversed(WORKED_WORDS))
+    )
     check("lock detect polls", synth.wait_locked(timeout_us=1_000) is True)
 
     table = FrequencyTable.from_range(synth, 190_000_000, 210_000_000, 2_000_000)
-    check("table hits every 2 MHz point exactly", table.max_error_hz == 0 and len(table) == 11)
+    check(
+        "table hits every 2 MHz point exactly",
+        table.max_error_hz == 0 and len(table) == 11,
+    )
     before = len(device.writes)
-    check("sweep plays without lock timeouts", synth.play(table, wait_for_lock=True, boundary_dwell_us=0) == 0)
+    check(
+        "sweep plays without lock timeouts",
+        synth.play(table, wait_for_lock=True, boundary_dwell_us=0) == 0,
+    )
     check("in-band hops are single R0 writes", len(device.writes) - before <= 6 + 10)
     check("synth ends on the last entry", synth.frequency == 210_000_000)
 
     from adf435x.device import ADF435xDevice
 
     spi = _FakeSPI()
-    dev = ADF435xDevice(spi, load_enable_pin=13, chip_enable_pin=14)
+    dev = ADF435xDevice(spi, le_pin=13, ce_pin=14)
     dev.write_registers(list(reversed(WORKED_WORDS)))
     check(
         "device shifts 4-byte big-endian words",

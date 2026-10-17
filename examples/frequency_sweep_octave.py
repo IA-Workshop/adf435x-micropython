@@ -1,12 +1,11 @@
 """
-ADF435x octave-crossing sweep using segmented FrequencyTable planning.
+Sweep across two RF divider boundaries.
 
-When a sweep spans several RF divider bands, ``allow_divider_change=True``
-plans each band separately (one shared MOD per band where possible). A hop
-that changes the divider waits for lock (when MUXOUT is wired) and uses the
-longer boundary dwell for cleaner scope traces.
-
-Hardware assumptions match ``fixed_frequency.py``.
+With ``allow_divider_change=True`` the table plans each divider band on its
+own. A hop that changes the divider waits for lock (if MUXOUT is wired) and
+then waits the longer ``BOUNDARY_DWELL_US``, because the VCO takes longer to
+settle after a band change. See docs/sweeps.md. Pins and reference are as
+in ``fixed_frequency.py``.
 """
 
 from machine import Pin, SPI
@@ -16,15 +15,15 @@ from adf435x.profiles import ADF4351
 from adf435x.sweep import FrequencyTable
 from adf435x.synthesizer import ADF435xSynthesizer
 
-# --- User settings -----------------------------------------------------------
-# Span crosses two divider boundaries: /32 to /16 at 137.5 MHz and /16 to /8
-# at 275 MHz.
+# --- Settings to change ------------------------------------------------------
+# This span crosses two divider boundaries: from /32 to /16 at 137.5 MHz, and
+# from /16 to /8 at 275 MHz.
 LOWER_HZ = 100_000_000
 UPPER_HZ = 300_000_000
 STEP_HZ = 25_000_000
 REF_HZ = 10_000_000
 
-# In-band hop dwell; boundary hops always wait for lock and use BOUNDARY_DWELL_US.
+# Wait after an in-band hop, and after a hop that changes the divider.
 DWELL_US = 100_000
 BOUNDARY_DWELL_US = 500_000
 
@@ -49,8 +48,8 @@ spi = SPI(
 
 device = ADF435xDevice(
     spi,
-    load_enable_pin=PINS["le"],
-    chip_enable_pin=PINS["ce"],
+    le_pin=PINS["le"],
+    ce_pin=PINS["ce"],
     muxout_pin=PINS["muxout"],
 )
 

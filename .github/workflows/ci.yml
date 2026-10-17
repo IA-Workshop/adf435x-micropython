@@ -36,6 +36,23 @@ jobs:
       - name: Run tests
         run: pytest -q -rxX
 
+  format:
+    name: black
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Check formatting
+        run: |
+          pip install "black==26.5.1"
+          black --check adf435x examples bench tests
+
   micropython:
     name: MicroPython smoke
     # Pinned: newer GCC releases reject v1.24.1 sources under -Werror.

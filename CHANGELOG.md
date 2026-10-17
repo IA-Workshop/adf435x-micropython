@@ -1,13 +1,22 @@
 # Changelog
 
-All notable user-facing changes are documented here.
+All notable user-facing changes are documented here. Terms such as MOD and
+fPFD are explained in the [glossary](docs/glossary.md) and on the
+[symbols](docs/symbols.md) page.
 
 ## Unreleased
 
 ### Changed (breaking)
 
+- Renamed for brevity (old name, then new): `ADF435xDeviceProfile` to
+  `ADF435xProfile`; `DividerOctaveCrossingError` to `DividerCrossingError`;
+  `max_hz_for_rf_divider()` to `divider_max_hz()`;
+  `SolveResult.f_pfd_hz` to `pfd_hz`;
+  `ADF435xRegisterFile.commit_all_plan()` to `full_plan()`; and the
+  `ADF435xDevice` arguments and attributes `load_enable_pin` and
+  `chip_enable_pin` to `le_pin` and `ce_pin`.
 - Register fields are described once in `adf435x.config.FIELDS`. Removed:
-  `ADF435xRegisterMapper.register_0` … `register_5` (use
+  `ADF435xRegisterMapper.register_0` to `register_5` (use
   `encode_register(index, config)`), `config.FIELD_WIDTH`,
   `config.FIELD_RANGE_MIN`, `config.FIELD_ENUM_VALUES`, the `consts.*_VALUES`
   tuples, and `consts.DISABLED`, `ENABLED`, `WORD_SIZE_BYTES`, `CONTROL_POS`,
@@ -19,14 +28,14 @@ All notable user-facing changes are documented here.
   MUXOUT set to the N-divider output (it stops VCO band select).
 - The encoder no longer raises for capability errors (validation already
   rejects them) and masks every field to its width, so a bad flag value can
-  no longer spill into a neighbouring bit.
+  no longer spill into a neighboring bit.
 - `ADF435xRegisterFile`: removed `commit()`, `commit_all()` and the
-  `invalidate` alias. Use `commit_plan()` / `commit_all_plan()`, write the
+  `invalidate` alias. Use `commit_plan()` / `full_plan()`, write the
   words, then `mark_written()` or `mark_write_failed()`.
 - Solver: `achieved_hz` and `vco_hz` are rounded to the nearest hertz (were
   floored) and `error_hz` is `target_hz - achieved_hz`.
 - Solver: `SolveOptions.channel_spacing_hz` is replaced by `channel_step_hz`,
-  the step at the **RF output** (MOD = fPFD / (step × RF divider), which must
+  the step at the RF output (MOD = fPFD / (step × RF divider), which must
   be a whole number).
 - Solver: an explicit MOD (`SolveOptions.mod`) is used as given, no longer
   reduced by a common factor.
@@ -42,7 +51,7 @@ All notable user-facing changes are documented here.
   `FrequencyEntry.plan` is replaced by `words` (all six registers); playback
   writes only what differs from the last write. `build_frequency_table()`
   and its helpers are removed from `adf435x.solver`, and
-  `DividerOctaveCrossingError` moved to `adf435x.sweep` (still exported from
+  `DividerCrossingError` moved to `adf435x.sweep` (still exported from
   the package root).
 - Tables: `from_range` targets exactly `lower_hz, lower_hz + step_hz, ...`
   plus `upper_hz`; each RF-divider band shares one MOD that hits every point
@@ -58,7 +67,7 @@ All notable user-facing changes are documented here.
 ### Added
 
 - `ADF435xRegisterFile.config_version` (counts successful `configure()`
-  calls) and `load_prevalidated(fields, words)` for precomputed state.
+  calls) and `load_words(fields, words)` for precomputed state.
 - `SolveResult.exact`: true only when the output is exactly the target;
   `SolveOptions(exact=True)` uses it.
 - `SolveOptions.mod_min` and `SolveOptions.copy(**overrides)` (replaces
@@ -81,8 +90,9 @@ All notable user-facing changes are documented here.
 ### Documentation
 
 - New user guides in `docs/`: quickstart, hardware, API guide, frequency
-  planning, sweeps, troubleshooting, development, examples, glossary; new
-  `CONTRIBUTING.md`. The README has a quickstart again, and its links work.
+  planning, sweeps, troubleshooting, development, examples, a glossary of
+  terms and a page of symbols; new `CONTRIBUTING.md`. The README has a
+  quickstart again, and its links work.
 
 ### Fixed
 
@@ -101,7 +111,7 @@ All notable user-facing changes are documented here.
   loses accuracy to a MOD locked from the first entry.
 - Divider-crossing sweeps run on boards without MUXOUT (boundary hops dwell
   instead of waiting for lock), and the crossing error suggests ranges that
-  really stay on one divider.
+  stay on one divider.
 - Table hops no longer force a 6 ns lock-detect window in fractional-N.
 - The synthesizer applies its reference path (R counter, doubler, divide-by-2)
   and band-select clock at construction, so no write can carry placeholder

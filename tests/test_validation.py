@@ -10,12 +10,11 @@ import pytest
 
 from adf435x import consts
 from adf435x.config import FIELDS, KIND, NAME, UINT, WIDTH
-from adf435x.profiles import ADF4350, ADF4351, ADF435xDeviceProfile
+from adf435x.profiles import ADF4350, ADF4351, ADF435xProfile
 from adf435x.register_file import ADF435xRegisterFile
 from adf435x.register_mapper import ADF435xRegisterMapper
 
 from conftest import WORKED_FIELDS, WORKED_WORDS, commit, make_config
-
 
 # The four PLL fields whose cross-check fires when any of them is validated.
 _PLL_ONLY = frozenset(("int_n", "frac", "mod", "prescaler"))
@@ -75,7 +74,7 @@ class TestCheckPll:
     def test_int_above_maximum_rejected(self):
         """INT above the profile maximum is rejected."""
         # Custom profile with a tiny int_max isolates the upper-bound branch.
-        profile = ADF435xDeviceProfile(
+        profile = ADF435xProfile(
             "test",
             rf_divider_max=64,
             has_phase_adjust=True,
@@ -183,7 +182,7 @@ class TestModRange:
     def test_mod_above_profile_max_rejected(self):
         """MOD above the profile maximum is rejected."""
         # Custom profile with a small mod_max isolates the upper-bound branch.
-        profile = ADF435xDeviceProfile(
+        profile = ADF435xProfile(
             "test",
             rf_divider_max=64,
             has_phase_adjust=True,
@@ -301,7 +300,7 @@ class TestRegisterFileValidation:
         assert worked_regfile.current_words() == WORKED_WORDS
 
     def test_default_config_is_pll_valid(self):
-        """The default config satisfies the PLL invariants out of the box."""
+        """The default config passes the PLL rule as it is."""
         f = ADF435xRegisterFile(ADF4351)
         assert f.config.int_n == 75
         assert f.config.frac < f.config.mod
@@ -342,8 +341,7 @@ class TestTrustedEncode:
 
     def test_oversized_int_masked_at_encode(self, mapper):
         """The encoder masks an oversized INT instead of raising."""
-        # Same oversized value validate_config rejects is silently masked here,
-        # documenting the validate-at-setup / trust-at-encode split.
+        # validate_config() rejects this value (test above); encode only masks.
         big = mapper.encode_register(0, make_config(int_n=1 << 16))
         assert big == mapper.encode_register(0, make_config(int_n=0))
 

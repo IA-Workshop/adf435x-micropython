@@ -4,7 +4,7 @@ import pytest
 
 from adf435x import consts
 from adf435x.profiles import ADF4351
-from adf435x.sweep import DividerOctaveCrossingError, FrequencyTable
+from adf435x.sweep import DividerCrossingError, FrequencyTable
 from adf435x.synthesizer import ADF435xSynthesizer, LockTimeoutError
 from conftest import FakeChip, FakeDevice
 
@@ -20,7 +20,7 @@ _MOD_640_HZ = 2_200_015_625
 
 
 class TestFromRange:
-    """Range tables honour bounds and step."""
+    """Range tables honor bounds and step."""
 
     def test_entries_on_requested_points(self, synth):
         """190-210 MHz in 2 MHz steps is exactly 190, 192, ... 210 MHz."""
@@ -132,7 +132,7 @@ class TestFromFrequencies:
 
     def test_divider_crossing_reports_bands(self, synth):
         """A crossing names each divider's band and narrower ranges."""
-        with pytest.raises(DividerOctaveCrossingError) as exc:
+        with pytest.raises(DividerCrossingError) as exc:
             FrequencyTable.from_frequencies(synth, [100_000_000, 3_000_000_000])
         err = exc.value
         assert (err.lower_hz, err.upper_hz) == (100_000_000, 3_000_000_000)
@@ -152,7 +152,9 @@ class TestFromFrequencies:
         table = FrequencyTable.from_range(
             synth, 100_000_000, 300_000_000, 25_000_000, allow_divider_change=True
         )
-        starts = [table[i].target_hz for i in range(len(table)) if table[i].divider_boundary]
+        starts = [
+            table[i].target_hz for i in range(len(table)) if table[i].divider_boundary
+        ]
         assert starts == [150_000_000, 275_000_000]
 
 

@@ -1,17 +1,12 @@
-"""
-Host tests for consts.py: the const override must be invoked when running on
-the host under CPython, and the field positions must reconstruct known-good
-register words (Datasheet worked example, 2112.6 MHz).
-"""
+"""Tests for consts.py: the CPython stand-in for ``const()``, and bit positions
+checked against the data sheet worked example (2112.6 MHz)."""
 
 from adf435x import consts as c
 
 
 def test_const_imports_on_host():
-    """The CPython ``const`` shim lets folded values import under pytest."""
-    # If the micropython->CPython shim were missing, importing this module
-    # would already have raised. This test spot-checks that a folded value
-    # survived.
+    """On CPython the ``const()`` stand-in returns each value unchanged."""
+    # Without the stand-in, the import at the top would already have failed.
     assert c.NUM_REGISTERS == 6
 
 
@@ -21,15 +16,13 @@ def test_dbr_register_indices():
 
 
 def test_r0_layout_worked_example():
-    """R0 positions reconstruct the worked-example word from INT and FRAC."""
-    # INT=422, FRAC=13 -> R0 = 0x00D30068
+    """R0 positions rebuild the worked-example word from INT=422, FRAC=13."""
     r0 = (422 << c.REG0_INT_POS) | (13 << c.REG0_FRAC_POS) | c.REG0_ADDR
     assert r0 == 0x00D30068
 
 
 def test_r1_layout_worked_example():
-    """R1 positions reconstruct the worked-example word."""
-    # prescaler 8/9, phase=1, MOD=25 -> R1 = 0x080080C9
+    """R1 positions rebuild the worked-example word: 8/9, phase 1, MOD 25."""
     r1 = (
         (c.REG1_PRESCALER_8_9 << c.REG1_PRESCALER_POS)
         | (1 << c.REG1_PHASE_POS)
@@ -45,7 +38,7 @@ def test_r5_reserved_ones():
 
 
 def test_muxout_digital_lock_value():
-    """Digital lock detect encodes to the datasheet value 0b110."""
+    """Digital lock detect encodes to the data sheet value 0b110."""
     assert c.REG2_MUX_DIGITALLOCK == 0b110
 
 

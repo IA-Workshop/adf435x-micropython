@@ -1,16 +1,11 @@
 """
-ADF435x frequency-table example: plan a table, inspect it, then step through it.
+Plan a frequency table, print it, then step through it.
 
-Builds a table of output frequencies from a lower bound to an upper bound in
-fixed steps, prints each entry's achieved frequency, error, and MOD, and (when
-``RUN_SWEEP`` is True) programs the entries one at a time with ``play_step``
-so you can observe the stepped output on a scope.
-
-Planning needs no hardware: with ``RUN_SWEEP = False`` the script only
-prints the table. See ``adf435x.sweep`` for the MOD rule.
-
-Hardware assumptions match ``fixed_frequency.py``. Modify pin numbers,
-bounds, and step for your setup.
+Prints each entry's achieved frequency, error and MOD. With ``RUN_SWEEP``
+True it then programs the entries one at a time with ``play_step()``. With
+``RUN_SWEEP`` False it only prints the table and needs no hardware. How MOD
+is chosen: docs/sweeps.md. Pins and reference are as in
+``fixed_frequency.py``.
 """
 
 import time
@@ -19,13 +14,13 @@ from adf435x.profiles import ADF4351
 from adf435x.sweep import FrequencyTable
 from adf435x.synthesizer import ADF435xSynthesizer
 
-# --- User settings -----------------------------------------------------------
+# --- Settings to change ------------------------------------------------------
 LOWER_HZ = 190_000_000
 UPPER_HZ = 210_000_000
 STEP_HZ = 2_000_000
 REF_HZ = 10_000_000
 
-# Program each table entry on the device (False = print table only).
+# False: print the table only, without touching the hardware.
 RUN_SWEEP = True
 HOLD_MS = 500
 
@@ -38,7 +33,7 @@ ADF435X_MUXOUT_PIN = 9
 
 
 def make_device():
-    """Open SPI and build the device handler (hardware only)."""
+    """Open SPI and return an ``ADF435xDevice`` (needs the board)."""
     from machine import Pin, SPI
 
     from adf435x.device import ADF435xDevice
@@ -54,13 +49,13 @@ def make_device():
     )
     return ADF435xDevice(
         spi,
-        load_enable_pin=ADF435X_LE_PIN,
-        chip_enable_pin=ADF435X_CE_PIN,
+        le_pin=ADF435X_LE_PIN,
+        ce_pin=ADF435X_CE_PIN,
         muxout_pin=ADF435X_MUXOUT_PIN,
     )
 
 
-# Planning never touches the device, so None is fine for a print-only run.
+# Planning never uses the device, so None works for a print-only run.
 synth = ADF435xSynthesizer(make_device() if RUN_SWEEP else None, ADF4351, REF_HZ)
 
 print(

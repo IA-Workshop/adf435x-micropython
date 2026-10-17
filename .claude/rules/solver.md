@@ -6,13 +6,14 @@ paths:
 
 # Solver
 
-- Integer Hz only — no float frequency arguments anywhere in the path.
-- `solve()` returns **fields, not register words**; encode only via
-  `register_file.configure(**result.fields)`.
-- Bounds come from `ADF435xDeviceProfile` + module constants — no `DeviceLimits`.
-- Exact integer math: fPFD is a fraction (`pfd_num / pfd_den`), never rounded.
-- MOD search: continued fractions; among errors that round to the same
-  hertz, the smallest MOD wins (results are already in lowest terms).
-- A fixed MOD (`SolveOptions.mod`, `channel_step_hz`) is never reduced.
-
-Full rationale: `.agents/engineering_guidelines.md` (Don't→Do), `.agents/datasheet.md`.
+- fPFD is kept as an exact fraction (`pfd_num`, `pfd_den`). Never round it
+  or use floats; `exact` is true only when the residual is zero.
+- MOD search uses continued fractions (`_farey_neighbors`,
+  `_simplest_between`). Among results whose error rounds to the same hertz,
+  the smallest MOD wins.
+- A fixed MOD (`SolveOptions.mod` or `channel_step_hz`) is used as given,
+  never reduced.
+- Lock-detect and spur bits for integer-N vs fractional-N come from
+  `pll_mode_fields()`; their data sheet basis is in `.agents/datasheet.md`.
+- The baseline speed is in `.agents/status.md`; rerun `bench/bench.py`
+  after changing the search.

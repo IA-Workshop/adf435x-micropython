@@ -1,10 +1,10 @@
-"""Host tests for ADF435xDeviceProfile: divider range, capability flags,
+"""Host tests for ADF435xProfile: divider range, capability flags,
 PLL/prescaler limits, and the divider-to-code mapping.
 """
 
 import pytest
 
-from adf435x.profiles import ADF4350, ADF4351, ADF435xDeviceProfile
+from adf435x.profiles import ADF4350, ADF4351, ADF435xProfile
 
 # Capability flags the ADF4351 implements and the ADF4350 does not.
 CAPABILITY_FLAGS = [
@@ -54,7 +54,7 @@ class TestPrescalerCeiling:
 
 
 class TestPllLimits:
-    """Datasheet INT/MOD bounds (ADF4350 and ADF4351 share these)."""
+    """Data sheet INT/MOD bounds (ADF4350 and ADF4351 share these)."""
 
     @pytest.mark.parametrize("profile", [ADF4350, ADF4351], ids=lambda p: p.name)
     def test_int_minimums(self, profile):
@@ -112,7 +112,7 @@ class TestCustomProfile:
     @pytest.fixture
     def profile(self):
         """A small custom profile with a /8 divider ceiling."""
-        return ADF435xDeviceProfile(
+        return ADF435xProfile(
             "X",
             rf_divider_max=8,
             has_phase_adjust=True,
@@ -124,7 +124,7 @@ class TestCustomProfile:
 
     def test_repr(self):
         """repr names the device for readable debug output."""
-        assert repr(ADF4351) == "ADF435xDeviceProfile(ADF4351)"
+        assert repr(ADF4351) == "ADF435xProfile(ADF4351)"
 
     def test_divider_code_within_range(self, profile):
         """A custom profile maps its maximum divider to the right code."""

@@ -1,27 +1,13 @@
 """
-ADF435x fixed-frequency example using the PLL solver.
+Program one frequency with ``solve()`` and a register file, no synthesizer.
 
-Set ``TARGET_FREQ_HZ`` to the desired RF output, run on the board, and probe
-RFOUTA with an oscilloscope. The solver computes INT, FRAC, MOD, prescaler,
-RF divider, and band-select fields; the register file encodes and programs
-them over SPI.
-
-Hardware assumptions
---------------------
-- 10 MHz reference on REFIN (R counter = 1, no doubler).
-- ADF4351 on SPI1: SCK=GP10, MOSI=GP11, LE=GP13, CE=GP14.
-- Loop filter and VCO match your board (lock depends on the analog front end).
-
-Scope notes
------------
-- Frequencies below ~500 MHz are easier on a mid-range scope (200 MHz BW,
-  1 GSa/s). The default target is 200 MHz.
-- Higher targets (for example the datasheet 2112.6 MHz example) need a scope
-  with sufficient bandwidth.
-- ``result.achieved_hz`` may differ slightly from ``TARGET_FREQ_HZ`` when the
-  PLL grid cannot hit the target exactly; the printed value is what to expect.
-
-Modify pin numbers and ``TARGET_FREQ_HZ`` for your setup.
+This shows the layers under ``ADF435xSynthesizer``: ``solve()`` works out
+the PLL fields, the register file checks and encodes them, and the script
+writes the words itself. The printed ``achieved_hz`` can differ slightly
+from ``TARGET_FREQ_HZ`` when the target is not exactly reachable (see
+docs/frequency-planning.md). The pins and the 10 MHz reference match the
+reference setup in docs/hardware.md; change them for your board. MUXOUT is
+not used here.
 """
 
 from machine import Pin, SPI
@@ -31,7 +17,7 @@ from adf435x.profiles import ADF4351
 from adf435x.register_file import ADF435xRegisterFile
 from adf435x.solver import solve
 
-# --- User settings -----------------------------------------------------------
+# --- Settings to change ------------------------------------------------------
 TARGET_FREQ_HZ = 200_000_000
 REF_HZ = 10_000_000
 
@@ -43,7 +29,7 @@ ADF435X_CE_PIN = 14
 
 
 def write_plan(device, regfile, plan):
-    """Write a commit plan to the chip and update the register-file cache."""
+    """Write *plan*, then tell the register file whether it worked."""
     try:
         device.write_registers(plan)
         regfile.mark_written()
@@ -69,8 +55,8 @@ spi = SPI(
 
 device = ADF435xDevice(
     spi,
-    load_enable_pin=ADF435X_LE_PIN,
-    chip_enable_pin=ADF435X_CE_PIN,
+    le_pin=ADF435X_LE_PIN,
+    ce_pin=ADF435X_CE_PIN,
 )
 
 regfile = ADF435xRegisterFile(ADF4351)
@@ -79,14 +65,11 @@ print("Solving for %.6f MHz" % (TARGET_FREQ_HZ / 1e6))
 result = solve(TARGET_FREQ_HZ, REF_HZ, ADF4351)
 
 if result.error_hz != 0:
-    print(
-        "Note: achieved frequency differs by %d Hz from target"
-        % result.error_hz
-    )
+    print("Note: achieved frequency differs by %d Hz from target" % result.error_hz)
 
 print("Solver result:")
 print("  achieved_hz = %d (%.6f MHz)" % (result.achieved_hz, result.achieved_hz / 1e6))
-print("  f_pfd_hz    = %d" % result.f_pfd_hz)
+print("  pfd_hz    = %d" % result.pfd_hz)
 print("  vco_hz      = %d" % result.vco_hz)
 print("  int_n       = %d" % result.fields["int_n"])
 print("  frac        = %d" % result.fields["frac"])
@@ -102,7 +85,7 @@ print("Powering on (CE high)")
 device.chip_enable()
 
 print("Initial programming (R5..R0)")
-write_plan(device, regfile, regfile.commit_all_plan())
+write_plan(device, regfile, regfile.full_plan())
 print("Wrote register words")
 
 print(

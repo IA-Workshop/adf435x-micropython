@@ -15,7 +15,7 @@ from conftest import WORKED_FIELDS, WORKED_WORDS, make_config
 
 
 class TestWorkedExample:
-    """Each register reproduces the datasheet worked-example word."""
+    """Each register reproduces the data sheet worked-example word."""
 
     @pytest.mark.parametrize("index", range(6))
     def test_register_word(self, mapper, index):
@@ -109,8 +109,9 @@ class TestTrustedEncode:
         assert big == mapper.encode_register(reg, make_config(**{field: 0}))
 
     def test_flag_value_stays_in_its_bit(self, mapper):
-        """A non-bool flag encodes as 1 and never spills into a neighbour."""
-        # mtld=2 used to set DB11 (VCO power-down) instead of DB10.
+        """A non-bool flag encodes as 1 and never spills into a neighbor."""
+        # If flags were not reduced to 0 or 1, mtld=2 would set DB11 (VCO
+        # power-down) instead of DB10.
         spilled = mapper.encode_register(consts.REG4_ADDR, make_config(mtld=2))
         assert spilled == mapper.encode_register(
             consts.REG4_ADDR, make_config(mtld=True)

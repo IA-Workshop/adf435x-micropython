@@ -13,12 +13,17 @@ keywords = ["adf4350", "adf4351", "pll", "synthesizer", "micropython", "rf"]
 
 [project.optional-dependencies]
 test = ["pytest"]
+dev = ["pytest", "black==26.5.1"]
 
 # Only the library package ships in a built distribution; tests/ and examples/
 # are development-only. (For embedded use, deployment is copying the adf435x/
 # folder to the board -- pyproject.toml is never deployed; see README.)
 [tool.setuptools]
 packages = ["adf435x"]
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

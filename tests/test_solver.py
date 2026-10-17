@@ -94,10 +94,21 @@ def _brute_neighbors(x, qmax):
     return {below, above}
 
 
-_RATIONALS = [Fraction(n, d) for n, d in [
-    (42252, 100), (10563, 25), (7, 3), (355, 113), (1, 7), (1000001, 7),
-    (31415926, 10000000), (99, 98), (5, 1), (13, 2),
-]]
+_RATIONALS = [
+    Fraction(n, d)
+    for n, d in [
+        (42252, 100),
+        (10563, 25),
+        (7, 3),
+        (355, 113),
+        (1, 7),
+        (1000001, 7),
+        (31415926, 10000000),
+        (99, 98),
+        (5, 1),
+        (13, 2),
+    ]
+]
 
 
 class TestFractionSearch:
@@ -106,7 +117,9 @@ class TestFractionSearch:
     @pytest.mark.parametrize("x", _RATIONALS, ids=str)
     def test_farey_neighbors(self, x):
         """The two returned fractions are the closest on each side."""
-        got = {Fraction(p, q) for p, q in _farey_neighbors(x.numerator, x.denominator, 50)}
+        got = {
+            Fraction(p, q) for p, q in _farey_neighbors(x.numerator, x.denominator, 50)
+        }
         assert got == _brute_neighbors(x, 50)
 
     @pytest.mark.parametrize(
@@ -122,7 +135,9 @@ class TestFractionSearch:
     def test_simplest_between(self, x, width):
         """Smallest denominator strictly inside (x - w, x + w)."""
         lo, hi = x - width, x + width
-        p, q = _simplest_between(lo.numerator, lo.denominator, hi.numerator, hi.denominator)
+        p, q = _simplest_between(
+            lo.numerator, lo.denominator, hi.numerator, hi.denominator
+        )
         assert (p, q) == _brute_simplest(lo, hi)
 
     def test_simplest_between_integer_lower_bound(self):
@@ -219,7 +234,7 @@ class TestPickBandClk:
 
 
 class TestGoldenVector:
-    """Datasheet worked example (2112.6 MHz, ADF4351)."""
+    """Data sheet worked example (2112.6 MHz, ADF4351)."""
 
     def test_fields_match_worked_example(self):
         """Solver fields match the conftest golden vector."""
@@ -228,7 +243,7 @@ class TestGoldenVector:
             assert result.fields[key] == value
 
     def test_encode_matches_worked_words(self, mapper):
-        """Encoded registers match the datasheet golden words."""
+        """Encoded registers match the data sheet golden words."""
         result = solve(GOLDEN_TARGET_HZ, REF_HZ, ADF4351)
         words = mapper.encode_config(make_config(**result.fields))
         assert words == WORKED_WORDS
@@ -326,7 +341,10 @@ class TestChannelStep:
     def test_output_step_sets_mod(self):
         """200 kHz output steps at /2 from 10 MHz give MOD 25 (data sheet p.21)."""
         result = solve(
-            GOLDEN_TARGET_HZ, REF_HZ, ADF4351, options=SolveOptions(channel_step_hz=200_000)
+            GOLDEN_TARGET_HZ,
+            REF_HZ,
+            ADF4351,
+            options=SolveOptions(channel_step_hz=200_000),
         )
         assert result.fields["mod"] == 25
 
@@ -334,7 +352,10 @@ class TestChannelStep:
         """A step that does not divide fPFD / divider evenly raises."""
         with pytest.raises(ValueError, match="channel_step_hz"):
             solve(
-                GOLDEN_TARGET_HZ, REF_HZ, ADF4351, options=SolveOptions(channel_step_hz=300_000)
+                GOLDEN_TARGET_HZ,
+                REF_HZ,
+                ADF4351,
+                options=SolveOptions(channel_step_hz=300_000),
             )
 
 

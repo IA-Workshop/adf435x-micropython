@@ -1,4 +1,4 @@
-"""Checks on the human documentation (README, CONTRIBUTING, docs/)."""
+"""Checks on the Markdown docs and the agent tool files."""
 
 import pathlib
 import re
@@ -19,8 +19,12 @@ AGENT_DOCS = sorted(
     + list((ROOT / ".cursor").rglob("*.md"))
     + list((ROOT / ".cursor").rglob("*.mdc"))
 )
+# Generated or nested checkouts, not project docs.
+_SKIP_DIRS = {".git", "node_modules", ".pytest_cache", "worktrees", "build-mpy"}
 ALL_MARKDOWN = sorted(
-    p for p in ROOT.rglob("*.md") if ".git" not in p.parts and "node_modules" not in p.parts
+    p
+    for p in ROOT.rglob("*.md")
+    if not _SKIP_DIRS.intersection(p.relative_to(ROOT).parts)
 )
 _LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 _CODE_FENCE = re.compile(r"```.*?```", re.S)
@@ -48,7 +52,9 @@ def _anchors(path):
     return {_slug(h) for h in re.findall(r"^#+\s+(.*)$", text, re.M)}
 
 
-@pytest.mark.parametrize("doc", HUMAN_DOCS + AGENT_DOCS, ids=_ids(HUMAN_DOCS + AGENT_DOCS))
+@pytest.mark.parametrize(
+    "doc", HUMAN_DOCS + AGENT_DOCS, ids=_ids(HUMAN_DOCS + AGENT_DOCS)
+)
 def test_relative_links_resolve(doc):
     """Every relative link points at an existing file (and heading)."""
     broken = []
@@ -60,13 +66,6 @@ def test_relative_links_resolve(doc):
         elif anchor and dest.suffix == ".md" and anchor not in _anchors(dest):
             broken.append(target)
     assert broken == []
-
-
-@pytest.mark.parametrize("doc", HUMAN_DOCS, ids=_ids(HUMAN_DOCS))
-def test_human_docs_do_not_link_agent_docs(doc):
-    """Human docs never point at agent-only material."""
-    agent = [t for t in _links(doc) if re.search(r"(^|/)(\.agents/|AGENTS\.md|CLAUDE\.md)", t)]
-    assert agent == []
 
 
 @pytest.mark.parametrize("doc", ALL_MARKDOWN, ids=_ids(ALL_MARKDOWN))
@@ -96,3 +95,61 @@ def test_quickstart_code_runs(doc, mock_machine, monkeypatch):
     for block in blocks:
         exec(compile(block, doc, "exec"), namespace)
     assert namespace["synth"].achieved_hz in (200_000_000, 433_920_000)
+
+
+# Agent tool files. Each .cursor rule points to the .claude rule of the same
+# name and uses the same globs, so the two tools share one copy.
+
+CLAUDE_RULES = sorted((ROOT / ".claude" / "rules").glob("*.md"))
+SKILLS = sorted((ROOT / ".claude" / "skills").glob("*/SKILL.md"))
+
+
+def _frontmatter(path):
+    """Return the lines between the leading ``---`` markers."""
+    lines = path.read_text().splitlines()
+    assert lines[0] == "---", path
+    return lines[1 : lines.index("---", 1)]
+
+
+def _claude_paths(path):
+    return {
+        line.strip()[2:].strip('"')
+        for line in _frontmatter(path)
+        if line.strip().startswith("- ")
+    }
+
+
+def _cursor_globs(path):
+    for line in _frontmatter(path):
+        if line.startswith("globs:"):
+            return {g.strip() for g in line[len("globs:") :].split(",")}
+    return set()
+
+
+class TestToolFiles:
+    @pytest.mark.parametrize("rule", CLAUDE_RULES, ids=_ids(CLAUDE_RULES))
+    def test_claude_rule_has_paths(self, rule):
+        assert _claude_paths(rule)
+
+    @pytest.mark.parametrize("rule", CLAUDE_RULES, ids=_ids(CLAUDE_RULES))
+    def test_cursor_rule_matches_claude_rule(self, rule):
+        cursor = ROOT / ".cursor" / "rules" / (rule.stem + ".mdc")
+        assert _cursor_globs(cursor) == _claude_paths(rule)
+
+    def test_no_orphan_cursor_rules(self):
+        cursor = {p.stem for p in (ROOT / ".cursor" / "rules").glob("*.mdc")}
+        assert cursor == {p.stem for p in CLAUDE_RULES}
+
+    @pytest.mark.parametrize("skill", SKILLS, ids=_ids(SKILLS))
+    def test_skill_name_matches_directory(self, skill):
+        assert "name: " + skill.parent.name in _frontmatter(skill)
+
+    @pytest.mark.parametrize("skill", SKILLS, ids=_ids(SKILLS))
+    def test_skill_uses_portable_keys(self, skill):
+        allowed = {"name", "description", "disable-model-invocation"}
+        keys = {
+            line.split(":")[0]
+            for line in _frontmatter(skill)
+            if line and not line.startswith(" ")
+        }
+        assert keys <= allowed

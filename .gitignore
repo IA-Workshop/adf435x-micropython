@@ -16,10 +16,9 @@ build/
 # .micropico is tracked at repo root — see docs/hardware.md
 .vscode/
 *.vsix
-# Cursor: project rules and skills are committed; everything else is local.
+# Cursor: project rules are committed; everything else is local.
 .cursor/*
 !.cursor/rules/
-!.cursor/skills/
 .cursor/rules/personal.mdc
 
 # Thonny IDE
@@ -109,3 +108,6 @@ build-mpy/
 *.log
 .pypirc
 .pixi
+.claude/worktrees/
+.claude/settings.local.json
+CLAUDE.local.md

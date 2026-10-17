@@ -1,31 +1,20 @@
-"""
-Frequency-to-register solver for ADF435x PLLs.
+"""Work out the PLL register fields for a target output frequency.
 
-Given a target output frequency, reference frequency, and device profile,
-``solve()`` returns register field values for the PLL path. Validation runs
-in ``ADF435xRegisterMapper`` when fields are applied to a register file.
+``solve()`` returns field values, which ``ADF435xRegisterFile.configure()``
+then checks and encodes. All the arithmetic uses integers: fPFD is kept as
+the exact fraction ``pfd_num / pfd_den`` (MicroPython has no ``fractions``
+module), so the reported frequencies and errors match the chip. The
+relationships it uses, with symbols as in docs/symbols.md:
 
-All arithmetic is exact integer math: fPFD is carried as a fraction
-``pfd_num / pfd_den`` and never rounded, so reported frequencies and errors
-match the hardware. (MicroPython has no ``fractions`` module; plain integer
-pairs are used instead.)
-
-Glossary
---------
-PFD : Phase-frequency detector
-fPFD : PFD comparison frequency, REFIN * (1 + D) / (R * (1 + T))
-VCO : Voltage-controlled oscillator
-INT : Integer part of the feedback division factor N
-FRAC : Fractional numerator of N, with 0 <= FRAC < MOD
-MOD : Fractional modulus; the channel-step divisor
-N : Feedback divider, N = INT + FRAC / MOD, with f_VCO = N * fPFD
-RF divider : Output divider (1, 2, 4, ... 64) that divides f_VCO to RFout
+    fPFD = REFIN * (1 + D) / (R * (1 + T))   D: doubler, T: divide-by-2
+    fVCO = fPFD * N,  N = INT + FRAC / MOD
+    fOUT = fVCO / RF divider
 """
 
 from . import consts
-from .profiles import ADF435xDeviceProfile
+from .profiles import ADF435xProfile
 
-# Device-agnostic limits shared by ADF4350 and ADF4351 (integer Hz).
+# Limits shared by the ADF4350 and ADF4351, in hertz.
 VCO_MIN_HZ = 2_200_000_000
 VCO_MAX_HZ = 4_400_000_000
 BANDSEL_MAX_HZ_NORMAL = 125_000
@@ -38,42 +27,41 @@ LOW_SPUR_MOD_MIN = 50  # data sheet p.23
 
 
 class FrequencyOutOfRangeError(ValueError):
-    """Target frequency is outside the reachable output range."""
+    """The target frequency is outside the part's output range."""
 
 
 class NoSolutionError(ValueError):
-    """No valid PLL divider and MOD combination exists."""
+    """No legal combination of PLL settings reaches the target."""
 
 
 class ExactFrequencyError(ValueError):
-    """Exact frequency was requested but the target is not achievable."""
+    """``exact=True`` was asked for, but the target is not exactly reachable."""
 
 
 class SolveOptions:
     """
-    Optional policy overrides for ``solve()``.
+    Options for ``solve()``. See docs/frequency-planning.md.
 
     Parameters
     ----------
     r_counter : int
-        R-counter divide ratio (1..1023).
+        Reference divider R, 1 to 1023.
     doubler : bool
-        Enable the reference doubler.
+        Turn on the reference doubler.
     rdiv2 : bool
-        Enable the reference divide-by-two.
+        Turn on the reference divide-by-2.
     mod : int or None
-        Fixed MOD; skips the MOD search and is never reduced.
+        Use this MOD as given, with no search and no reduction.
     rf_divider : int or None
-        Fixed RF output divider; skips the divider choice.
+        Use this RF divider instead of choosing one.
     channel_step_hz : int or None
-        Fixed RF *output* channel step. MOD = fPFD / (step * RF divider),
-        which must be a whole number in the profile's MOD range.
+        Channel step at the RF output. MOD becomes
+        fPFD / (step * RF divider), which must be a whole number in range.
     exact : bool
-        Raise ``ExactFrequencyError`` when the output is not exactly the
-        target.
+        Raise ``ExactFrequencyError`` unless the output is exactly the target.
     mod_min : int or None
-        Smallest MOD to use (default: the profile minimum). The synthesizer
-        passes 50 in low-spur noise mode (data sheet p.23).
+        Smallest MOD to use. The synthesizer passes 50 in low-spur noise
+        mode (data sheet p.23).
     """
 
     def __init__(
@@ -87,7 +75,7 @@ class SolveOptions:
         exact=False,
         mod_min=None,
     ):
-        """Store reference-path and MOD policy overrides."""
+        """Store the options."""
         self.r_counter = r_counter
         self.doubler = doubler
         self.rdiv2 = rdiv2
@@ -98,17 +86,9 @@ class SolveOptions:
         self.mod_min = mod_min
 
     def copy(self, **overrides):
-        """
-        Return a copy with some options replaced.
+        """Return a copy with the options in *overrides* changed.
 
-        Parameters
-        ----------
-        **overrides
-            Option name/value pairs to change in the copy.
-
-        Returns
-        -------
-        SolveOptions
+        An unknown option name raises ``TypeError``.
         """
         values = {
             "r_counter": self.r_counter,
@@ -128,49 +108,47 @@ class SolveOptions:
 
 
 def _resolve_options(options):
-    """Return *options* or default ``SolveOptions()``."""
+    """Return *options*, or a default ``SolveOptions()`` if it is None."""
     return options if options is not None else SolveOptions()
 
 
 class SolveResult:
     """
-    Result of a frequency solve.
+    What ``solve()`` found.
 
     Parameters
     ----------
     fields : dict
-        Register fields the solver owns, for ``register_file.configure()``:
+        Register fields to pass to ``ADF435xRegisterFile.configure()``:
         ``int_n``, ``frac``, ``mod``, ``prescaler``, ``r_counter``,
         ``doubler``, ``rdiv2``, ``rf_divider``, ``band_clk_div``,
-        ``band_clk_mode``, ``feedback``, ``ldf``, ``ldp``, and (where the part
-        has them) ``abp`` and ``charge_cancel``. All other fields keep the
-        caller's settings.
+        ``band_clk_mode``, ``feedback``, ``ldf``, ``ldp``, and, on parts that
+        have them, ``abp`` and ``charge_cancel``.
     achieved_hz : int
-        Output frequency rounded to the nearest hertz.
+        Output frequency, rounded to the nearest hertz.
     error_hz : int
         ``target_hz - achieved_hz``.
-    f_pfd_hz : int
-        PFD frequency, rounded to the nearest hertz (display only).
+    pfd_hz : int
+        fPFD rounded to the nearest hertz, for display.
     vco_hz : int
         VCO frequency, rounded to the nearest hertz.
     exact : bool
-        True only when the output is exactly the target (no sub-hertz
-        residual).
-    f_pfd_fraction : tuple of (int, int)
-        Exact PFD frequency as ``(numerator, denominator)``.
+        True only when the output is exactly the target, to the sub-hertz.
+    pfd_fraction : tuple of (int, int)
+        Exact fPFD as ``(numerator, denominator)``.
     """
 
     def __init__(
-        self, fields, achieved_hz, error_hz, f_pfd_hz, vco_hz, exact, f_pfd_fraction
+        self, fields, achieved_hz, error_hz, pfd_hz, vco_hz, exact, pfd_fraction
     ):
-        """Store solver output fields and achieved frequencies."""
+        """Store the result."""
         self.fields = fields
         self.achieved_hz = achieved_hz
         self.error_hz = error_hz
-        self.f_pfd_hz = f_pfd_hz
+        self.pfd_hz = pfd_hz
         self.vco_hz = vco_hz
         self.exact = exact
-        self.f_pfd_fraction = f_pfd_fraction
+        self.pfd_fraction = pfd_fraction
 
 
 def _round_div(num: int, den: int) -> int:
@@ -184,31 +162,23 @@ def _ceil_div(num: int, den: int) -> int:
 
 
 def _require_int(name, value, minimum=None):
-    """Raise unless *value* is an int (and >= *minimum* when given)."""
+    """Raise unless *value* is an int, and at least *minimum* if given."""
     if not isinstance(value, int) or isinstance(value, bool):
         raise TypeError("%s must be an integer number of hertz, got %r" % (name, value))
     if minimum is not None and value < minimum:
         raise ValueError("%s=%d must be at least %d" % (name, value, minimum))
 
 
-def _output_min_hz(profile: ADF435xDeviceProfile) -> int:
-    """Lowest reachable output frequency for *profile*."""
+def _output_min_hz(profile: ADF435xProfile) -> int:
+    """Return the lowest output frequency *profile* can reach."""
     return _ceil_div(VCO_MIN_HZ, profile.rf_divider_max)
 
 
 def _compute_f_pfd(ref_hz, r_counter, doubler, rdiv2):
-    """
-    PFD frequency as an exact fraction.
+    """Return fPFD as ``(pfd_num, pfd_den)``, so fPFD = pfd_num / pfd_den.
 
-    Returns
-    -------
-    tuple of (int, int)
-        ``(pfd_num, pfd_den)`` with fPFD = pfd_num / pfd_den.
-
-    Raises
-    ------
-    ValueError
-        If *r_counter* is out of range or the doubler limit is exceeded.
+    Raises ``ValueError`` if *r_counter* is out of range, or the doubler is
+    on with a reference above its limit.
     """
     r_max = (1 << consts.REG2_R_COUNTER_WIDTH) - 1
     if not isinstance(r_counter, int) or not (
@@ -222,14 +192,10 @@ def _compute_f_pfd(ref_hz, r_counter, doubler, rdiv2):
     return ref_hz * (2 if doubler else 1), r_counter * (2 if rdiv2 else 1)
 
 
-def _pick_rf_divider(target_hz: int, profile: ADF435xDeviceProfile) -> int:
-    """
-    Pick the smallest RF divider that places VCO in the tuning band.
+def _pick_rf_divider(target_hz: int, profile: ADF435xProfile) -> int:
+    """Return the smallest RF divider that puts the VCO in its range.
 
-    Raises
-    ------
-    NoSolutionError
-        If no legal divider yields an in-band VCO frequency.
+    Raises ``NoSolutionError`` if no legal divider does.
     """
     for div in profile.legal_rf_dividers():
         if VCO_MIN_HZ <= target_hz * div <= VCO_MAX_HZ:
@@ -241,22 +207,12 @@ def _pick_rf_divider(target_hz: int, profile: ADF435xDeviceProfile) -> int:
 
 
 def _pick_band_clk(pfd_num, pfd_den, profile):
-    """
-    Band-select clock divider and mode for an exact fPFD.
+    """Return ``(band_clk_div, band_clk_mode)`` for the exact fPFD given.
 
     Normal mode keeps the band-select clock at or below 125 kHz. On the
-    ADF4351, fPFD above 125 kHz uses fast mode (<= 500 kHz, divider <= 254;
-    data sheet p.19).
-
-    Returns
-    -------
-    tuple of (int, int)
-        ``(band_clk_div, band_clk_mode)``.
-
-    Raises
-    ------
-    NoSolutionError
-        If the required divider exceeds the mode's maximum.
+    ADF4351 an fPFD above 125 kHz uses fast mode instead: at most 500 kHz,
+    with a divider of at most 254 (data sheet p.19). Raises
+    ``NoSolutionError`` if the divider would be too large.
     """
     fast = profile.has_fast_band_select and pfd_num > BANDSEL_MAX_HZ_NORMAL * pfd_den
     if fast:
@@ -271,36 +227,14 @@ def _pick_band_clk(pfd_num, pfd_den, profile):
 
 
 def reference_fields(ref_hz, profile, options=None):
-    """
-    Reference-path and band-select fields for a reference and options.
+    """Return the reference path and band-select fields as a dict.
 
-    These do not depend on the output frequency, so the synthesizer applies
-    them at construction.
-
-    Parameters
-    ----------
-    ref_hz : int
-        Reference input frequency in hertz.
-    profile : ADF435xDeviceProfile
-        Device profile.
-    options : SolveOptions or None
-        Supplies ``r_counter``, ``doubler`` and ``rdiv2``.
-
-    Returns
-    -------
-    dict
-        ``r_counter``, ``doubler``, ``rdiv2``, ``band_clk_div``,
-        ``band_clk_mode``.
-
-    Raises
-    ------
-    TypeError
-        If *ref_hz* is not an integer.
-    ValueError
-        If the reference path is invalid.
-    NoSolutionError
-        If fPFD is above the fractional-N maximum or too high for the
-        band-select clock.
+    The keys are ``r_counter``, ``doubler``, ``rdiv2`` (taken from
+    *options*), ``band_clk_div`` and ``band_clk_mode``. None depend on the
+    output frequency, so the synthesizer sets them once, when it is created.
+    Raises ``TypeError`` if *ref_hz* is not an integer, ``ValueError`` for
+    an illegal reference path, and ``NoSolutionError`` if fPFD is above
+    32 MHz or too high for the band-select clock.
     """
     opts = _resolve_options(options)
     _require_int("ref_hz", ref_hz, 1)
@@ -321,18 +255,12 @@ def reference_fields(ref_hz, profile, options=None):
 
 
 def _farey_neighbors(num, den, qmax):
-    """
-    Closest fractions to ``num/den`` with denominators up to *qmax*.
+    """Return the closest fractions ``(p, q)`` to num/den with q <= *qmax*.
 
-    Walks the continued fraction of ``num/den``. If it is itself such a
-    fraction, returns just that; otherwise returns the last convergent and the
-    best semiconvergent, which bracket ``num/den`` and are its neighbours in
-    the Farey sequence of order *qmax*.
-
-    Returns
-    -------
-    list of (int, int)
-        One or two ``(p, q)`` pairs.
+    Walks the continued fraction of num/den. If num/den itself has a small
+    enough denominator, the list holds just that fraction. Otherwise it holds
+    the two fractions either side of num/den: its neighbors in the Farey
+    sequence of order *qmax*.
     """
     p0, q0, p1, q1 = 0, 1, 1, 0
     n, d = num, den
@@ -348,17 +276,11 @@ def _farey_neighbors(num, den, qmax):
 
 
 def _simplest_between(lo_num, lo_den, hi_num, hi_den):
-    """
-    The fraction with the smallest denominator strictly between two bounds.
+    """Return the fraction ``(p, q)`` with the smallest q strictly between
+    lo_num/lo_den and hi_num/hi_den, in lowest terms.
 
-    Requires ``0 < lo_num/lo_den < hi_num/hi_den``. Uses the Stern-Brocot
-    recursion: take the integer part shared by both bounds, then recurse on
-    the reciprocals of the remainders.
-
-    Returns
-    -------
-    tuple of (int, int)
-        ``(p, q)`` in lowest terms.
+    Needs 0 < lo < hi. Works down the Stern-Brocot tree: take the integer
+    part both bounds share, then repeat on the reciprocals of what is left.
     """
     p0, q0, p1, q1 = 0, 1, 1, 0
     while True:
@@ -381,31 +303,32 @@ def _simplest_between(lo_num, lo_den, hi_num, hi_den):
 
 
 class _Plan:
-    """Evaluates candidate N = n_num / mod for one solve request."""
+    """Scores candidate values N = n_num / mod for one target."""
 
     def __init__(self, target_hz, pfd_num, pfd_den, rf_divider, profile):
         self.target_hz = target_hz
         self.pfd_num = pfd_num
         self.pfd_den = pfd_den
         self.profile = profile
-        # N = target * D / B, and output = N * B / D.
+
+        # N = target * big_d / big_b, and output = N * big_b / big_d.
         self.big_d = pfd_den * rf_divider
         self.big_b = pfd_num
         self.n_target = target_hz * self.big_d
 
     def error(self, n_num, mod):
-        """Exact |target - output| in hertz as ``(num, den)``."""
+        """Return the exact |target - output| in hertz as ``(num, den)``."""
         return abs(self.n_target * mod - n_num * self.big_b), mod * self.big_d
 
     def prescaler(self, n_num, mod):
-        """Prescaler for the exact VCO of this candidate."""
+        """Return the prescaler code this candidate's VCO frequency needs."""
         vco_num = n_num * self.pfd_num
         if vco_num <= self.profile.prescaler_4_5_max_hz * mod * self.pfd_den:
             return consts.REG1_PRESCALER_4_5
         return consts.REG1_PRESCALER_8_9
 
     def valid(self, n_num, mod):
-        """True if the VCO is in band and INT fits the prescaler's range."""
+        """True if the VCO is in range and INT is legal for the prescaler."""
         vco_num, vco_den = n_num * self.pfd_num, mod * self.pfd_den
         if not VCO_MIN_HZ * vco_den <= vco_num <= VCO_MAX_HZ * vco_den:
             return False
@@ -416,18 +339,15 @@ class _Plan:
         return int_min <= n_num // mod <= self.profile.int_max
 
     def fixed(self, mod):
-        """Nearest N for a fixed MOD, as ``(n_num, mod)``."""
+        """Return the nearest N for a fixed MOD, as ``(n_num, mod)``."""
         return _round_div(self.n_target * mod, self.big_b), mod
 
     def search(self, mod_max):
-        """
-        Best N with MOD <= *mod_max*, preferring the smallest MOD among
-        candidates whose error rounds to the same whole hertz.
+        """Return the best N with MOD <= *mod_max* as ``(n_num, mod)``.
 
-        Returns
-        -------
-        tuple of (int, int) or None
-            ``(n_num, mod)`` in lowest terms, or None if nothing is valid.
+        Among candidates whose errors round to the same whole hertz, the
+        smallest MOD wins. The result is in lowest terms, or None if no
+        candidate is legal.
         """
         best = None
         for p, q in _farey_neighbors(self.n_target, self.big_b, mod_max):
@@ -440,7 +360,8 @@ class _Plan:
         err_num, err_den = self.error(*best)
         if err_num == 0:
             return best
-        # Errors under (R + 1/2) Hz round to R Hz or better, R = round(best).
+        # Look for the smallest MOD whose error rounds to w Hz or better,
+        # where w = round(best error). That is any error below w + 1/2 Hz.
         whole = (2 * err_num + err_den) // (2 * err_den)
         slack = (2 * whole + 1) * self.big_d
         two_b = 2 * self.big_b
@@ -453,31 +374,20 @@ class _Plan:
 
 
 def _less(err_a, err_b, mod_a, mod_b):
-    """True if error *a* (then MOD) is smaller than error *b*."""
+    """True if error *a* is smaller than error *b*, or equal with a smaller MOD."""
     left = err_a[0] * err_b[1]
     right = err_b[0] * err_a[1]
     return left < right or (left == right and mod_a < mod_b)
 
 
 def pll_mode_fields(integer_n, profile):
-    """
-    Lock detect, ABP, and charge-cancel fields for integer-N or fractional-N.
+    """Return the lock-detect, ABP and charge-cancel fields for a PLL mode.
 
-    Data sheet p.19-20: fractional-N uses LDF/LDP = 00, ABP 6 ns, charge
-    cancel off; integer-N uses LDF/LDP = 11, ABP 3 ns, charge cancel on.
-    Fractional-N settings also work at FRAC = 0, so a table may keep them for
-    the integer channels of a fractional sweep.
-
-    Parameters
-    ----------
-    integer_n : bool
-        True for integer-N (FRAC = 0) settings.
-    profile : ADF435xDeviceProfile
-        Device profile; ABP and charge cancel are set only where present.
-
-    Returns
-    -------
-    dict
+    *integer_n* picks integer-N settings (LDF and LDP 1, ABP 3 ns, charge
+    cancel on) instead of fractional-N ones (LDF and LDP 0, ABP 6 ns, charge
+    cancel off), as data sheet pp.19 to 20 recommend. ABP and charge cancel
+    are left out on parts without them. Fractional-N settings also work at
+    FRAC = 0, so a table may keep them for its integer channels.
     """
     fields = {
         "ldf": consts.REG2_LDF_INT_N if integer_n else consts.REG2_LDF_FRAC_N,
@@ -491,7 +401,7 @@ def pll_mode_fields(integer_n, profile):
 
 
 def _fixed_mod(opts, pfd_num, pfd_den, rf_divider, profile):
-    """MOD from ``options.mod`` or ``options.channel_step_hz``, or None."""
+    """Return the MOD set by ``opts.mod`` or ``opts.channel_step_hz``, or None."""
     if opts.mod is not None:
         mod = opts.mod
     elif opts.channel_step_hz is not None:
@@ -500,8 +410,7 @@ def _fixed_mod(opts, pfd_num, pfd_den, rf_divider, profile):
         den = pfd_den * step * rf_divider
         if pfd_num % den:
             raise ValueError(
-                "channel_step_hz=%d does not divide fPFD / RF divider evenly"
-                % step
+                "channel_step_hz=%d does not divide fPFD / RF divider evenly" % step
             )
         mod = pfd_num // den
     else:
@@ -521,37 +430,32 @@ def solve(
     options=None,
 ):
     """
-    Solve register fields for a target output frequency.
+    Return a ``SolveResult`` for *target_hz* from a *ref_hz* reference.
+
+    Picks the smallest RF divider that keeps the VCO in range, then the N
+    nearest the target. See docs/frequency-planning.md.
 
     Parameters
     ----------
-    target_hz : int
-        Desired RF output frequency in hertz (integer only).
-    ref_hz : int
-        Reference input frequency in hertz.
-    profile : ADF435xDeviceProfile
-        Device profile (ADF4350 or ADF4351).
+    target_hz, ref_hz : int
+        Output and reference frequencies, in whole hertz.
+    profile : ADF435xProfile
+        ``ADF4350`` or ``ADF4351``.
     options : SolveOptions or None
-        Optional reference path and MOD policy overrides.
-
-    Returns
-    -------
-    SolveResult
-        Field dict, achieved frequency, signed error, fPFD, VCO frequency,
-        and whether the result is exact.
+        Reference path and MOD options.
 
     Raises
     ------
     TypeError
-        If *target_hz* or *ref_hz* is not an integer.
+        A frequency is not an integer.
     FrequencyOutOfRangeError
-        If *target_hz* is outside the reachable output range.
+        *target_hz* is outside the part's output range.
     NoSolutionError
-        If no valid PLL configuration exists.
+        No legal PLL settings reach the target.
     ExactFrequencyError
-        If ``options.exact`` is True and the output is not exactly the target.
+        ``options.exact`` is set and the target is not exactly reachable.
     ValueError
-        If reference-path parameters or options are invalid.
+        The reference path or an option is illegal.
     """
     opts = _resolve_options(options)
     _require_int("target_hz", target_hz)
@@ -566,7 +470,7 @@ def solve(
     pfd_num, pfd_den = _compute_f_pfd(ref_hz, opts.r_counter, opts.doubler, opts.rdiv2)
 
     if opts.rf_divider is not None:
-        profile.divider_code(opts.rf_divider)  # raises naming rf_divider
+        profile.divider_code(opts.rf_divider)  # raises if illegal
         rf_divider = opts.rf_divider
     else:
         rf_divider = _pick_rf_divider(target_hz, profile)
@@ -579,6 +483,7 @@ def solve(
             candidate = None
     else:
         candidate = plan.search(profile.mod_max)
+
     if candidate is None:
         raise NoSolutionError(
             "no MOD/INT/FRAC solution for target %d Hz with RF divider %d"
@@ -586,7 +491,7 @@ def solve(
         )
     n_num, mod = candidate
 
-    # Raise MOD to the requested minimum without changing N.
+    # Raise MOD to the minimum, scaling FRAC with it so N stays the same.
     mod_min = max(profile.mod_min, opts.mod_min or 0)
     if mod < mod_min:
         if opts.mod is not None or opts.channel_step_hz is not None:
@@ -618,48 +523,26 @@ def solve(
         fields=fields,
         achieved_hz=achieved_hz,
         error_hz=target_hz - achieved_hz,
-        f_pfd_hz=_round_div(pfd_num, pfd_den),
+        pfd_hz=_round_div(pfd_num, pfd_den),
         vco_hz=_round_div(n_num * pfd_num, mod * pfd_den),
         exact=err_num == 0,
-        f_pfd_fraction=(pfd_num, pfd_den),
+        pfd_fraction=(pfd_num, pfd_den),
     )
 
 
 def output_band_hz(rf_divider):
-    """
-    Return the RF output frequency band for an RF divider.
+    """Return ``(min_hz, max_hz)``, the output range of an RF divider.
 
-    Parameters
-    ----------
-    rf_divider : int
-        Power-of-two output divider (1, 2, 4, ...).
-
-    Returns
-    -------
-    tuple of (int, int)
-        ``(min_hz, max_hz)`` achievable at this divider with VCO in band.
+    That is the VCO range divided by *rf_divider*.
     """
     return (_ceil_div(VCO_MIN_HZ, rf_divider), VCO_MAX_HZ // rf_divider)
 
 
-def max_hz_for_rf_divider(rf_divider, profile):
-    """
-    Highest frequency where ``_pick_rf_divider`` still selects *rf_divider*.
+def divider_max_hz(rf_divider, profile):
+    """Return the highest output frequency at which the solver picks *rf_divider*.
 
-    ``_pick_rf_divider`` tries dividers in ascending order, so *rf_divider*
-    is only chosen while the next-smaller divider does not fit the VCO band.
-
-    Parameters
-    ----------
-    rf_divider : int
-        Power-of-two output divider.
-    profile : ADF435xDeviceProfile
-        Device profile.
-
-    Returns
-    -------
-    int
-        Maximum hertz for this divider selection.
+    The solver tries dividers from smallest up, so *rf_divider* is chosen
+    only where the next smaller divider cannot reach.
     """
     _, band_hi = output_band_hz(rf_divider)
     if rf_divider <= 1:
@@ -667,5 +550,5 @@ def max_hz_for_rf_divider(rf_divider, profile):
     smaller = rf_divider // 2
     if smaller not in profile.legal_rf_dividers():
         return band_hi
-    # Next-smaller divider wins at ceil(VCO_MIN / smaller) and above.
+    # The next smaller divider takes over at ceil(VCO_MIN / smaller).
     return min(band_hi, _ceil_div(VCO_MIN_HZ, smaller) - 1)

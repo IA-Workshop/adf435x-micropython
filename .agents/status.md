@@ -2,9 +2,9 @@
 
 Maintainer milestone tracker. Living summary of completed work and open items.
 
-**Host tests:** refresh with `pytest -q` (see [rules.md](rules.md) testing
-section for conventions). Baseline 2026-10-17 (after A9): 606 passed, no
-known-bug xfails (see `tests/test_regressions.py`).
+Host tests: refresh with `pytest -q` (conventions in [rules.md](rules.md)).
+Baseline 2026-10-17, after the writing review and API renames: 612 passed,
+no known-bug xfails.
 
 **Host benchmarks** (`bench/bench.py`, 2026-10-17; relative only, on-target
 numbers come from bench step B7):
@@ -46,7 +46,7 @@ numbers come from bench step B7):
   encode and validation; new datasheet rules (flags, phase < MOD, low-spur
   MOD >= 50, fast band-select divider <= 254, no N-divider on MUXOUT)
 - **Remediation A3: register file** — optimistic `commit()` removed;
-  `config_version` and `load_prevalidated()` for table playback
+  `config_version` and `load_words()` for table playback
 - **Remediation A4: solver** — exact rational fPFD, continued-fraction MOD
   search (~280x faster), locked MOD kept, data-sheet lock-detect settings
 - **Remediation A5: sweeps** — tables encoded from the synth's settings;
@@ -63,6 +63,12 @@ numbers come from bench step B7):
   development, examples, glossary), README and CONTRIBUTING rewritten,
   `.agents/datasheet.md` corrected against the data sheets, doc checks in
   `tests/test_docs.py`
+- **Writing review** (branch `docs-style-review`): American spelling,
+  short docstrings, terms defined on first use, `docs/symbols.md`, black
+  formatting; eight public names shortened (see the changelog)
+- **Agent docs alignment** (branch `agent-docs-alignment`): rules,
+  skills and Cursor pointers reorganized to match Claude Code's loading
+  model; writing rules in [writing_style.md](writing_style.md)
 
 ## Open work
 
@@ -77,7 +83,7 @@ numbers come from bench step B7):
 
 Exported from package root: synthesizer (and `LockTimeoutError`), solver and
 its errors, frequency tables (`FrequencyTable`, `FrequencyEntry`,
-`DividerOctaveCrossingError`), register stack, profiles.
+`DividerCrossingError`), register stack, profiles.
 
 Submodule-only (by design): `adf435x.device` (imports `machine`).
 
