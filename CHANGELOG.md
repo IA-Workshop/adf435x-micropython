@@ -102,6 +102,8 @@ All notable user-facing changes are documented here.
 
 - The MOD search is about 280x faster: 16 us per solve on the MicroPython
   Unix port, was 4.6 ms.
+- `ADF435xDevice.write_register()` reuses one 4-byte buffer instead of
+  allocating per word.
 - Table building no longer enumerates every grid point (a full-octave table
   at MOD 4095 needed ~5.6 MB on MicroPython), and playback no longer
   validates and re-encodes on every hop.

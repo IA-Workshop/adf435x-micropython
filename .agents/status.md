@@ -6,6 +6,16 @@ Maintainer milestone tracker. Living summary of completed work and open items.
 section for conventions). Baseline 2026-10-17 (after A6): 1154 passed,
 1 xfailed (known bugs pinned in `tests/test_regressions.py`).
 
+**Host benchmarks** (`bench/bench.py`, 2026-10-17; relative only, on-target
+numbers come from bench step B7):
+
+| Operation | CPython 3.13 | MicroPython 1.24.1 Unix |
+|-----------|--------------|-------------------------|
+| `solve()` arbitrary target | 8.5 us | 16.9 us |
+| `FrequencyTable.from_range`, 71 points | 1.5 ms | 4.8 ms |
+| `play_step()` in-band hop (no SPI) | 2.0 us | 7.9 us |
+| `set_frequency()` retune (no SPI) | 28.7 us | 69.5 us |
+
 ## Completed milestones
 
 - **Foundation stack** — `consts`, `profiles`, `config`, `register_mapper`,
@@ -44,6 +54,8 @@ section for conventions). Baseline 2026-10-17 (after A6): 1154 passed,
   the synthesizer; `ADF435xSweeper` removed
 - **Remediation A6: synthesizer** — reference path at construction, solve
   before CE, staged retunes while powered down, lock-detect settle time
+- **Remediation A7: host performance** — allocation-free SPI word writes;
+  `bench/bench.py` baselines above
 
 ## Open work
 

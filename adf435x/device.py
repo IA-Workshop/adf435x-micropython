@@ -41,6 +41,8 @@ class ADF435xDevice:
             self.muxout_pin = None
         else:
             self.muxout_pin = Pin(muxout_pin, Pin.IN)
+        # Reused for every word so writes do not allocate.
+        self._buf = bytearray(4)
 
     def chip_enable(self) -> None:
         """Drive CE high to power the synthesizer on."""
@@ -80,12 +82,18 @@ class ADF435xDevice:
         Sequence: LE low -> 4-byte SPI write (big-endian) -> LE high -> LE low.
         LE must be low while clocking data into the input shift register.
         """
+        buf = self._buf
+        buf[0] = (word >> 24) & 0xFF
+        buf[1] = (word >> 16) & 0xFF
+        buf[2] = (word >> 8) & 0xFF
+        buf[3] = word & 0xFF
+        le = self.load_enable_pin
         # LE low while shifting; one 32-bit word, MSB first (big-endian).
-        self.load_enable_pin.low()
-        self.spi.write(word.to_bytes(4, "big"))
+        le.low()
+        self.spi.write(buf)
         # Rising edge on LE latches the shift register into the active map.
-        self.load_enable_pin.high()
-        self.load_enable_pin.low()
+        le.high()
+        le.low()
 
     def write_registers(self, words) -> None:
         """Write register words in caller-supplied order.

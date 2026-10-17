@@ -45,6 +45,8 @@ One assertion per parametrized test; group with `Test*` classes. Centralized
   `test_encode_oracle.py` freeze v0.1.0 encoder output (never regenerate
   from the current encoder); `tests/reference_solver.py` +
   `test_solver_oracle.py` for solver accuracy.
+- **Benchmarks:** `python bench/bench.py` or `micropython bench/bench.py`;
+  record notable changes in `.agents/status.md`.
 - **MicroPython:** CI compiles `adf435x/` with `mpy-cross` and runs
   `micropython tests/micropython_smoke.py` on the Unix port. Run it locally
   before changing anything that might not be MicroPython-safe.
