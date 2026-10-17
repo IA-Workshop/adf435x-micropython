@@ -3,8 +3,8 @@
 Maintainer milestone tracker. Living summary of completed work and open items.
 
 **Host tests:** refresh with `pytest -q` (see [rules.md](rules.md) testing
-section for conventions). Baseline 2026-10-17 (after A5): 1145 passed,
-6 xfailed (known bugs pinned in `tests/test_regressions.py`).
+section for conventions). Baseline 2026-10-17 (after A6): 1154 passed,
+1 xfailed (known bugs pinned in `tests/test_regressions.py`).
 
 ## Completed milestones
 
@@ -42,14 +42,16 @@ section for conventions). Baseline 2026-10-17 (after A5): 1145 passed,
 - **Remediation A5: sweeps** — tables encoded from the synth's settings;
   exact shared MOD per band or per-point fallback; diff-based playback on
   the synthesizer; `ADF435xSweeper` removed
+- **Remediation A6: synthesizer** — reference path at construction, solve
+  before CE, staged retunes while powered down, lock-detect settle time
 
 ## Open work
 
 | Priority | Item | Notes |
 |----------|------|-------|
 | Low | Docs figure assets | Wiring diagram, probe photos, decision tree |
-| High | Remediation A6–A9 | Fix the 6 pinned xfails in `tests/test_regressions.py` (sweep rewrite, solver rewrite, validation, synthesizer, docs) |
-| Medium | Remediation B (bench) | Lock-detect policy, DLD settle time, sweep/SPI checks once the testbench is back |
+| High | Remediation A7–A9 | Fix the last pinned xfail (C19); perf, cleanup, docs in `tests/test_regressions.py` (sweep rewrite, solver rewrite, validation, synthesizer, docs) |
+| Medium | Remediation B (bench) | Lock-detect policy, DLD settle time (`LOCK_SETTLE_MARGIN_US` is provisional), sweep/SPI checks once the testbench is back |
 | Low | Cheat-sheet golden vectors | Catalog beyond datasheet golden; see [cheat sheet](https://ez.analog.com/rf/w/documents/14697/adf4350-and-adf4351-common-questions-cheat-sheet) |
 
 ## Package export notes

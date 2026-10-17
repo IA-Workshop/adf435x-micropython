@@ -30,7 +30,7 @@ class TestSetFrequency:
 
     def test_returns_solve_result(self, synth):
         """set_frequency returns achieved frequency metadata."""
-        synth.power_up()
+        synth.power_up(frequency_hz=200_000_000)
         result = synth.set_frequency(GOLDEN_HZ)
         assert result.achieved_hz == GOLDEN_HZ
         assert result.error_hz == 0
@@ -70,13 +70,13 @@ class TestPowerLifecycle:
 
     def test_power_up_enables_ce(self, synth, fake_device):
         """power_up drives chip enable high."""
-        synth.power_up()
+        synth.power_up(frequency_hz=200_000_000)
         assert fake_device.ce == 1
         assert synth.is_powered
 
     def test_power_down_disables_ce(self, synth, fake_device):
         """power_down drives chip enable low."""
-        synth.power_up()
+        synth.power_up(frequency_hz=200_000_000)
         synth.power_down()
         assert fake_device.ce == 0
         assert not synth.is_powered
@@ -107,25 +107,60 @@ class TestOutputControls:
 
     def test_mute_disables_rf(self, synth):
         """mute sets rf_enable False in config."""
-        synth.power_up()
+        synth.power_up(frequency_hz=200_000_000)
         synth.mute()
         assert synth.regfile.config.rf_enable is False
 
     def test_unmute_enables_rf(self, synth):
         """unmute restores rf_enable."""
-        synth.power_up()
+        synth.power_up(frequency_hz=200_000_000)
         synth.mute()
         synth.unmute()
         assert synth.regfile.config.rf_enable is True
 
     def test_set_output_power(self, synth):
         """set_output_power updates the config field."""
-        synth.power_up()
+        synth.power_up(frequency_hz=200_000_000)
         synth.set_output_power(consts.REG4_POWER_MINUS_4DBM)
         assert (
             synth.regfile.config.output_power
             == consts.REG4_POWER_MINUS_4DBM
         )
+
+
+class TestStagedRetune:
+    """Retunes while powered down are stored, then written at power-up."""
+
+    def test_power_up_uses_staged_frequency(self, synth, fake_device):
+        """set_frequency() then power_up() programs the staged frequency."""
+        synth.set_frequency(GOLDEN_HZ)
+        synth.power_up()
+        assert fake_device.writes == list(reversed(WORKED_WORDS))
+
+    def test_power_down_then_retune_stages(self, synth, fake_device):
+        """After power_down, set_frequency writes nothing."""
+        synth.power_up(frequency_hz=200_000_000)
+        synth.power_down()
+        n = len(fake_device.writes)
+        synth.set_frequency(GOLDEN_HZ)
+        assert len(fake_device.writes) == n
+
+
+class TestLockSettle:
+    """Settle time before the first lock-detect poll."""
+
+    def test_golden_settle_time(self, synth):
+        """10 MHz PFD, divide 20: 200 + 40 PFD cycles = 24 us, plus margin."""
+        from adf435x.synthesizer import LOCK_SETTLE_MARGIN_US
+
+        synth.set_frequency(GOLDEN_HZ)
+        assert synth.lock_settle_us() == 24 + LOCK_SETTLE_MARGIN_US
+
+    def test_is_locked_requires_digital_lock_muxout(self, synth):
+        """is_locked() refuses to read MUXOUT routed elsewhere."""
+        synth.regfile.configure(muxout=consts.REG2_MUX_DVDD)
+        with pytest.raises(RuntimeError, match="digital lock"):
+            synth.is_locked()
 
 
 class TestSolve:

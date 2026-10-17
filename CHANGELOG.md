@@ -48,6 +48,13 @@ All notable user-facing changes are documented here.
   plus `upper_hz`; each RF-divider band shares one MOD that hits every point
   exactly when one fits (<= 4095), else each point gets its own best MOD.
 
+- Synthesizer: `power_up()` needs `frequency_hz` unless a frequency was
+  already set, and solves before raising CE. `set_frequency()` while powered
+  down stores the settings without SPI writes; `power_up()` writes them.
+- Synthesizer: `is_locked()` raises `RuntimeError` when MUXOUT is not routed
+  to digital lock detect, and `wait_locked()` first waits out VCO band
+  select plus the lock-detect count after a write (`lock_settle_us()`).
+
 ### Added
 
 - `ADF435xRegisterFile.config_version` (counts successful `configure()`
@@ -59,6 +66,8 @@ All notable user-facing changes are documented here.
   `mod_min`, `has_lock_detect`, and `LockTimeoutError`
   (`play(..., require_lock=True)`); `play()` returns the number of lock
   timeouts.
+- `ADF435xSynthesizer.lock_settle_us()`, `synthesizer.LOCK_SETTLE_MARGIN_US`
+  (provisional), and `solver.reference_fields()`.
 - `FrequencyTable.max_error_hz`, the `max_error_hz=` limit when building,
   and `FrequencyEntry.target_hz`, `exact`, `rf_divider`. `FrequencyTable` is
   exported from the package root.
@@ -84,6 +93,10 @@ All notable user-facing changes are documented here.
   instead of waiting for lock), and the crossing error suggests ranges that
   really stay on one divider.
 - Table hops no longer force a 6 ns lock-detect window in fractional-N.
+- The synthesizer applies its reference path (R counter, doubler, divide-by-2)
+  and band-select clock at construction, so no write can carry placeholder
+  values (R=1, a band-select clock far above 500 kHz).
+- An invalid `power_up()` frequency leaves CE low.
 
 ### Performance
 

@@ -24,6 +24,26 @@ Append-only log of implementation decisions. Newest entries at the top.
 
 ---
 
+## 2026-10-17 — Synthesizer power-up, staging, and lock settle (docs-refactor, A6)
+
+**Context:** `power_up()` without a frequency wrote placeholder registers
+(R=1, band-select clock = fPFD), CE rose before the solve, `set_frequency()`
+wrote while CE was low, and `wait_locked()` polled immediately after R0.
+
+**Decision:** Apply `solver.reference_fields()` at construction; require a
+frequency for the first `power_up()` and solve before CE; stage retunes
+while powered down. Before the first poll after a write, wait 10 band-select
+clocks + 40/5 PFD cycles + `LOCK_SETTLE_MARGIN_US` (10 us, provisional).
+Clock functions are bound once at import (`ticks_add` for deadlines).
+
+**Alternatives rejected:** Writing while CE is low (undocumented in the data
+sheet); a fixed long settle delay (slows every hop).
+
+**Files affected:** `adf435x/synthesizer.py`, `adf435x/solver.py`,
+synthesizer/regression tests
+
+**Follow-ups:** Bench B3 sets the real margin; B8 documents CE-low writes.
+
 ## 2026-10-17 — Frequency tables store words; playback diffs (docs-refactor, A5)
 
 **Context:** Tables encoded default settings (C1), chose MOD from the lower

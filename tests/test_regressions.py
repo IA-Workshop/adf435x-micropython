@@ -329,13 +329,11 @@ class TestLockDetectSettings:
 class TestPowerUp:
     """Power-up must never program an unusable configuration (C10)."""
 
-    @known_bug("C10", "power_up() without a frequency writes placeholders")
     def test_power_up_requires_frequency(self, synth):
         """power_up() with no frequency ever set raises."""
         with pytest.raises(ValueError):
             synth.power_up()
 
-    @known_bug("C10", "reference path applied only by a solve", AssertionError)
     def test_constructor_applies_r_counter(self):
         """The R counter passed to the constructor is in the register file."""
         synth = ADF435xSynthesizer(
@@ -343,14 +341,12 @@ class TestPowerUp:
         )
         assert synth.regfile.config.r_counter == 5
 
-    @known_bug("C10", "CE raised before the solve", AssertionError)
     def test_failed_solve_leaves_chip_disabled(self, fake_device, synth):
         """An out-of-range power-up frequency leaves CE low."""
         with pytest.raises(ValueError):
             synth.power_up(frequency_hz=1)
         assert fake_device.ce == 0
 
-    @known_bug("C16", "set_frequency writes SPI while CE is low", AssertionError)
     def test_set_frequency_unpowered_does_not_write(self, fake_device, synth):
         """Before power-up, set_frequency stores settings without SPI."""
         synth.set_frequency(200_000_000)
@@ -383,7 +379,6 @@ class TestSweepWithoutMuxout:
 class TestLockSettle:
     """wait_locked must not sample MUXOUT during band select (C12)."""
 
-    @known_bug("C12", "first MUXOUT poll is immediate", AssertionError)
     def test_first_poll_after_band_select_time(self, synth, monkeypatch):
         """First read happens >= 10 band-select clocks after the call."""
         import adf435x.synthesizer as synth_mod

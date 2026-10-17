@@ -12,24 +12,46 @@ import time
 from . import consts
 from .profiles import ADF435xDeviceProfile
 from .register_file import ADF435xRegisterFile
-from .solver import LOW_SPUR_MOD_MIN, SolveOptions, SolveResult, solve
+from .solver import (
+    LOW_SPUR_MOD_MIN,
+    SolveOptions,
+    SolveResult,
+    reference_fields,
+    solve,
+)
 
+# Extra settle time before the first lock-detect poll, on top of band select
+# and the lock-detect cycle count. Provisional until bench step B3 measures
+# how long digital lock detect takes to reflect a retune.
+LOCK_SETTLE_MARGIN_US = 10
+
+# Microsecond clock: MicroPython's wrapping ticks, or monotonic time on CPython.
+if hasattr(time, "ticks_us"):
+    _ticks_us = time.ticks_us
+    _ticks_diff = time.ticks_diff
+    _ticks_add = time.ticks_add
+    _sleep_us = time.sleep_us
+else:
+
+    def _ticks_us():
+        """Microsecond timestamp (CPython)."""
+        return int(time.monotonic() * 1_000_000)
+
+    def _ticks_diff(a, b):
+        """``a - b`` for two ``_ticks_us`` values (CPython)."""
+        return a - b
+
+    def _ticks_add(a, b):
+        """``a + b`` microseconds (CPython)."""
+        return a + b
+
+    def _sleep_us(us):
+        """Sleep for *us* microseconds (CPython)."""
+        time.sleep(us / 1_000_000)
 
 
 class LockTimeoutError(RuntimeError):
     """Lock detect did not assert within the timeout during playback."""
-
-
-def _ticks_us():
-    """
-    Return a microsecond timestamp.
-
-    Uses ``time.ticks_us()`` on MicroPython; ``time.monotonic()`` under CPython.
-    """
-    try:
-        return time.ticks_us()
-    except AttributeError:
-        return int(time.monotonic() * 1_000_000)
 
 
 class ADF435xSynthesizer:
@@ -73,6 +95,9 @@ class ADF435xSynthesizer:
             rdiv2=rdiv2,
         )
         self._regfile = ADF435xRegisterFile(profile)
+        # The reference path does not depend on frequency: apply it now so
+        # the register file is never left with placeholder R/band-select values.
+        self._regfile.configure(**reference_fields(ref_hz, profile, self._solve_options))
         self._powered = False
         self._target_hz = None
         self._achieved_hz = None
@@ -142,18 +167,27 @@ class ADF435xSynthesizer:
 
     def power_up(self, *, frequency_hz=None):
         """
-        Enable the chip and write all registers.
+        Enable the chip and write all registers (R5..R0).
 
         Parameters
         ----------
         frequency_hz : int or None
-            Optional initial output frequency. When set, PLL fields are
-            solved before the full R5..R0 write.
+            Output frequency. Required unless a frequency was already set
+            (for example with ``set_frequency()`` while powered down). It is
+            solved before CE is raised, so an invalid frequency leaves the
+            chip off.
+
+        Raises
+        ------
+        ValueError
+            If no frequency has ever been set, or *frequency_hz* is invalid.
         """
-        self._device.chip_enable()
-        self._powered = True
         if frequency_hz is not None:
             self._apply_solve(frequency_hz)
+        elif self._target_hz is None:
+            raise ValueError("power_up() needs frequency_hz until a frequency is set")
+        self._device.chip_enable()
+        self._powered = True
         self._write_stale_registers(all_registers=True)
 
     def power_down(self):
@@ -163,7 +197,10 @@ class ADF435xSynthesizer:
 
     def set_frequency(self, hz):
         """
-        Solve and write a new output frequency.
+        Solve and apply a new output frequency.
+
+        When powered, the changed registers are written at once. When powered
+        down, the settings are only stored; ``power_up()`` writes them.
 
         Parameters
         ----------
@@ -176,7 +213,8 @@ class ADF435xSynthesizer:
             Achieved frequency, error, and field dict from the solver.
         """
         result = self._apply_solve(hz)
-        self._write_stale_registers()
+        if self._powered:
+            self._write_stale_registers()
         return result
 
     def is_locked(self):
@@ -191,30 +229,60 @@ class ADF435xSynthesizer:
         Raises
         ------
         RuntimeError
-            If the device has no MUXOUT pin configured.
+            If the device has no MUXOUT pin configured, or MUXOUT is not
+            routed to digital lock detect.
         """
+        if self._regfile.config.muxout != consts.REG2_MUX_DIGITALLOCK:
+            raise RuntimeError("MUXOUT is not routed to digital lock detect")
         return bool(self._device.read_muxout())
 
     def wait_locked(self, timeout_us=100_000):
         """
         Poll lock detect until locked or timeout.
 
+        Right after a write, polling starts only once VCO band select and the
+        lock-detect count can have finished (``lock_settle_us``), so a stale
+        "locked" from the previous frequency is not mistaken for lock.
+
         Parameters
         ----------
         timeout_us : int
-            Maximum wait in microseconds (default 100 ms).
+            Maximum wait in microseconds after settling (default 100 ms).
 
         Returns
         -------
         bool
             True if lock was detected before timeout.
         """
-        deadline = _ticks_us() + timeout_us
-        while _ticks_diff(_ticks_us(), deadline) < 0:
+        if self._last_write_us is not None:
+            settle = self.lock_settle_us()
+            remaining = settle - _ticks_diff(_ticks_us(), self._last_write_us)
+            if remaining > 0:
+                _sleep_us(remaining)
+        deadline = _ticks_add(_ticks_us(), timeout_us)
+        while _ticks_diff(deadline, _ticks_us()) > 0:
             if self.is_locked():
                 return True
             _sleep_us(100)
         return self.is_locked()
+
+    def lock_settle_us(self):
+        """
+        Microseconds from a write until lock detect can be trusted.
+
+        Band select takes 10 band-select clock cycles (data sheet p.12), then
+        lock detect needs 40 (fractional-N) or 5 (integer-N) PFD cycles
+        (p.19). ``LOCK_SETTLE_MARGIN_US`` is added on top.
+
+        Returns
+        -------
+        int
+        """
+        c = self._regfile.config
+        pfd_num = self._ref_hz * (2 if c.doubler else 1)
+        pfd_den = c.r_counter * (2 if c.rdiv2 else 1)
+        cycles = 10 * c.band_clk_div + (5 if c.ldf == consts.REG2_LDF_INT_N else 40)
+        return (cycles * pfd_den * 1_000_000 + pfd_num - 1) // pfd_num + LOCK_SETTLE_MARGIN_US
 
     def mute(self):
         """Disable RF output (``rf_enable=False``)."""
@@ -409,22 +477,3 @@ class ADF435xSynthesizer:
             self._regfile.mark_write_failed()
             raise
 
-
-def _ticks_diff(a, b):
-    """
-    Difference between two ``ticks_us`` values.
-
-    MicroPython-safe wrapper around ``time.ticks_diff``.
-    """
-    try:
-        return time.ticks_diff(a, b)
-    except AttributeError:
-        return a - b
-
-
-def _sleep_us(us):
-    """Sleep for microseconds; MicroPython and CPython compatible."""
-    try:
-        time.sleep_us(us)
-    except AttributeError:
-        time.sleep(us / 1_000_000.0)

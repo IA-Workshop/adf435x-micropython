@@ -274,6 +274,56 @@ def _pick_band_clk(pfd_num, pfd_den, profile):
     return div, mode
 
 
+def reference_fields(ref_hz, profile, options=None):
+    """
+    Reference-path and band-select fields for a reference and options.
+
+    These do not depend on the output frequency, so the synthesizer applies
+    them at construction.
+
+    Parameters
+    ----------
+    ref_hz : int
+        Reference input frequency in hertz.
+    profile : ADF435xDeviceProfile
+        Device profile.
+    options : SolveOptions or None
+        Supplies ``r_counter``, ``doubler`` and ``rdiv2``.
+
+    Returns
+    -------
+    dict
+        ``r_counter``, ``doubler``, ``rdiv2``, ``band_clk_div``,
+        ``band_clk_mode``.
+
+    Raises
+    ------
+    TypeError
+        If *ref_hz* is not an integer.
+    ValueError
+        If the reference path is invalid.
+    NoSolutionError
+        If fPFD is above the fractional-N maximum or too high for the
+        band-select clock.
+    """
+    opts = _resolve_options(options)
+    _require_int("ref_hz", ref_hz, 1)
+    pfd_num, pfd_den = _compute_f_pfd(ref_hz, opts.r_counter, opts.doubler, opts.rdiv2)
+    if pfd_num > PFD_MAX_FRAC_HZ * pfd_den:
+        raise NoSolutionError(
+            "f_pfd=%d exceeds fractional-N maximum %d"
+            % (_round_div(pfd_num, pfd_den), PFD_MAX_FRAC_HZ)
+        )
+    band_clk_div, band_clk_mode = _pick_band_clk(pfd_num, pfd_den, profile)
+    return {
+        "r_counter": opts.r_counter,
+        "doubler": opts.doubler,
+        "rdiv2": opts.rdiv2,
+        "band_clk_div": band_clk_div,
+        "band_clk_mode": band_clk_mode,
+    }
+
+
 def _farey_neighbors(num, den, qmax):
     """
     Closest fractions to ``num/den`` with denominators up to *qmax*.
@@ -509,7 +559,7 @@ def solve(
     """
     opts = _resolve_options(options)
     _require_int("target_hz", target_hz)
-    _require_int("ref_hz", ref_hz, 1)
+    reference = reference_fields(ref_hz, profile, opts)
 
     out_min = _output_min_hz(profile)
     if target_hz < out_min or target_hz > VCO_MAX_HZ:
@@ -518,11 +568,6 @@ def solve(
         )
 
     pfd_num, pfd_den = _compute_f_pfd(ref_hz, opts.r_counter, opts.doubler, opts.rdiv2)
-    if pfd_num > PFD_MAX_FRAC_HZ * pfd_den:
-        raise NoSolutionError(
-            "f_pfd=%d exceeds fractional-N maximum %d"
-            % (_round_div(pfd_num, pfd_den), PFD_MAX_FRAC_HZ)
-        )
 
     if opts.rf_divider is not None:
         profile.divider_code(opts.rf_divider)  # raises naming rf_divider
@@ -554,21 +599,15 @@ def solve(
         n_num, mod = n_num * scale, mod * scale
 
     int_n, frac = n_num // mod, n_num % mod
-    band_clk_div, band_clk_mode = _pick_band_clk(pfd_num, pfd_den, profile)
-
     fields = {
         "int_n": int_n,
         "frac": frac,
         "mod": mod,
         "prescaler": plan.prescaler(n_num, mod),
-        "r_counter": opts.r_counter,
-        "doubler": opts.doubler,
-        "rdiv2": opts.rdiv2,
         "rf_divider": rf_divider,
-        "band_clk_div": band_clk_div,
-        "band_clk_mode": band_clk_mode,
         "feedback": consts.REG4_FEEDBACK_FUNDAMENTAL,
     }
+    fields.update(reference)
     fields.update(pll_mode_fields(frac == 0, profile))
 
     err_num, _ = plan.error(n_num, mod)
