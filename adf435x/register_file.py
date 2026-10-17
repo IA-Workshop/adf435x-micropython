@@ -97,9 +97,7 @@ class ADF435xRegisterFile:
         """
         m = self._mapper
         c = self._config
-        indices = (
-            range(self.NUM_REGISTERS) if dirty is None else dirty
-        )
+        indices = range(self.NUM_REGISTERS) if dirty is None else dirty
         for index in indices:
             self._current[index] = m.encode_register(index, c)
 

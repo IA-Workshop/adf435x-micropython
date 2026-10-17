@@ -34,25 +34,19 @@ CASES = (
     ("scope_250mhz", {"kind": "lock", "hz": 250_000_000}),
     ("golden_2112p6mhz", {"kind": "lock", "hz": 2_112_600_000}),
     ("cross_part_scope_137p5mhz", {"kind": "lock", "hz": 137_500_000}),
-    ("adf4351_scope_equiv_132p0375mhz", {
-        "kind": "lock",
-        "hz": 132_037_500,
-    }),
-    ("adf4351_prescaler_edge_3600mhz", {
-        "kind": "lock",
-        "hz": 3_600_000_000,
-    }),
-    ("adf4351_prescaler_over_3700mhz", {
-        "kind": "lock",
-        "hz": 3_700_000_000,
-    }),
-    ("narrow_band_sweep", {
-        "kind": "sweep",
-        "lower_hz": 140_000_000,
-        "upper_hz": 145_000_000,
-        "step_hz": 1_000_000,
-        "dwell_us": 500_000,
-    }),
+    ("adf4351_scope_equiv_132p0375mhz", {"kind": "lock", "hz": 132_037_500}),
+    ("adf4351_prescaler_edge_3600mhz", {"kind": "lock", "hz": 3_600_000_000}),
+    ("adf4351_prescaler_over_3700mhz", {"kind": "lock", "hz": 3_700_000_000}),
+    (
+        "narrow_band_sweep",
+        {
+            "kind": "sweep",
+            "lower_hz": 140_000_000,
+            "upper_hz": 145_000_000,
+            "step_hz": 1_000_000,
+            "dwell_us": 500_000,
+        },
+    ),
 )
 
 CASE_NAMES = tuple(name for name, _ in CASES) + ("list",)
@@ -109,10 +103,8 @@ def _print_lock_point(slug, target_hz, synth):
     locked = synth.wait_locked(timeout_us=LOCK_TIMEOUT_US)
     print("--- %s ---" % slug)
     print("Target:    %d Hz (%.6f MHz)" % (target_hz, target_hz / 1e6))
-    print("Achieved:  %d Hz (%.6f MHz)" % (
-        synth.achieved_hz,
-        synth.achieved_hz / 1e6,
-    ))
+    achieved = synth.achieved_hz
+    print("Achieved:  %d Hz (%.6f MHz)" % (achieved, achieved / 1e6))
     print("MUXOUT:    %s" % ("high" if locked else "not high within timeout"))
     print("Probe RFOUTA with scope or counter.")
 
@@ -126,12 +118,7 @@ def _run_narrow_sweep(synth, spec):
     step = spec["step_hz"]
     dwell = spec["dwell_us"]
     print("--- narrow_band_sweep ---")
-    print("Range: %d–%d Hz, step %d Hz, dwell %d us" % (
-        lower,
-        upper,
-        step,
-        dwell,
-    ))
+    print("Range: %d–%d Hz, step %d Hz, dwell %d us" % (lower, upper, step, dwell))
     print("(Single /16 band; for wide scope sweeps use frequency_sweep.py.)")
     synth.power_up(frequency_hz=lower)
     synth.wait_locked(timeout_us=LOCK_TIMEOUT_US)
@@ -154,9 +141,7 @@ def run(selected):
         return
 
     if selected not in CASE_NAMES:
-        raise ValueError(
-            "Unknown case: %s (try 'list')" % selected
-        )
+        raise ValueError("Unknown case: %s (try 'list')" % selected)
 
     if selected == "narrow_band_sweep":
         spec = dict(CASES)[selected]

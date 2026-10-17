@@ -16,7 +16,6 @@ from adf435x.register_mapper import ADF435xRegisterMapper
 
 from conftest import WORKED_FIELDS, WORKED_WORDS, commit, make_config
 
-
 # The four PLL fields whose cross-check fires when any of them is validated.
 _PLL_ONLY = frozenset(("int_n", "frac", "mod", "prescaler"))
 

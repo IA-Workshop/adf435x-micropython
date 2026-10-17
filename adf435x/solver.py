@@ -410,8 +410,7 @@ def _fixed_mod(opts, pfd_num, pfd_den, rf_divider, profile):
         den = pfd_den * step * rf_divider
         if pfd_num % den:
             raise ValueError(
-                "channel_step_hz=%d does not divide fPFD / RF divider evenly"
-                % step
+                "channel_step_hz=%d does not divide fPFD / RF divider evenly" % step
             )
         mod = pfd_num // den
     else:
@@ -484,6 +483,7 @@ def solve(
             candidate = None
     else:
         candidate = plan.search(profile.mod_max)
+
     if candidate is None:
         raise NoSolutionError(
             "no MOD/INT/FRAC solution for target %d Hz with RF divider %d"

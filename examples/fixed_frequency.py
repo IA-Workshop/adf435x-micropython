@@ -51,9 +51,6 @@ synth.power_up(frequency_hz=TARGET_FREQ_HZ)
 
 locked = synth.wait_locked(timeout_us=500_000)
 print("Target:    %d Hz (%.6f MHz)" % (TARGET_FREQ_HZ, TARGET_FREQ_HZ / 1e6))
-print("Achieved:  %d Hz (%.6f MHz)" % (
-    synth.achieved_hz,
-    synth.achieved_hz / 1e6,
-))
+print("Achieved:  %d Hz (%.6f MHz)" % (synth.achieved_hz, synth.achieved_hz / 1e6))
 print("MUXOUT:    %s" % ("high" if locked else "not high within timeout"))
 print("Probe RFOUTA with scope or counter.")

@@ -65,10 +65,7 @@ print("Solving for %.6f MHz" % (TARGET_FREQ_HZ / 1e6))
 result = solve(TARGET_FREQ_HZ, REF_HZ, ADF4351)
 
 if result.error_hz != 0:
-    print(
-        "Note: achieved frequency differs by %d Hz from target"
-        % result.error_hz
-    )
+    print("Note: achieved frequency differs by %d Hz from target" % result.error_hz)
 
 print("Solver result:")
 print("  achieved_hz = %d (%.6f MHz)" % (result.achieved_hz, result.achieved_hz / 1e6))

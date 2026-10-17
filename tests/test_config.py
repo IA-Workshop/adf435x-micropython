@@ -329,9 +329,11 @@ class TestSelectivePllCheck:
         calls = []
         original = register_mapper._rule_pll
         rules = tuple(
-            (triggers, (lambda p, c: calls.append(1) or original(p, c)))
-            if rule is original
-            else (triggers, rule)
+            (
+                (triggers, (lambda p, c: calls.append(1) or original(p, c)))
+                if rule is original
+                else (triggers, rule)
+            )
             for triggers, rule in register_mapper._RULES
         )
         monkeypatch.setattr(register_mapper, "_RULES", rules)

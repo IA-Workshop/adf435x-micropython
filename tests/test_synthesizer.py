@@ -122,10 +122,7 @@ class TestOutputControls:
         """set_output_power updates the config field."""
         synth.power_up(frequency_hz=200_000_000)
         synth.set_output_power(consts.REG4_POWER_MINUS_4DBM)
-        assert (
-            synth.regfile.config.output_power
-            == consts.REG4_POWER_MINUS_4DBM
-        )
+        assert synth.regfile.config.output_power == consts.REG4_POWER_MINUS_4DBM
 
 
 class TestStagedRetune:

@@ -20,7 +20,9 @@ AGENT_DOCS = sorted(
     + list((ROOT / ".cursor").rglob("*.mdc"))
 )
 ALL_MARKDOWN = sorted(
-    p for p in ROOT.rglob("*.md") if ".git" not in p.parts and "node_modules" not in p.parts
+    p
+    for p in ROOT.rglob("*.md")
+    if ".git" not in p.parts and "node_modules" not in p.parts
 )
 _LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 _CODE_FENCE = re.compile(r"```.*?```", re.S)
@@ -48,7 +50,9 @@ def _anchors(path):
     return {_slug(h) for h in re.findall(r"^#+\s+(.*)$", text, re.M)}
 
 
-@pytest.mark.parametrize("doc", HUMAN_DOCS + AGENT_DOCS, ids=_ids(HUMAN_DOCS + AGENT_DOCS))
+@pytest.mark.parametrize(
+    "doc", HUMAN_DOCS + AGENT_DOCS, ids=_ids(HUMAN_DOCS + AGENT_DOCS)
+)
 def test_relative_links_resolve(doc):
     """Every relative link points at an existing file (and heading)."""
     broken = []
@@ -65,7 +69,11 @@ def test_relative_links_resolve(doc):
 @pytest.mark.parametrize("doc", HUMAN_DOCS, ids=_ids(HUMAN_DOCS))
 def test_human_docs_do_not_link_agent_docs(doc):
     """Human docs never point at agent-only material."""
-    agent = [t for t in _links(doc) if re.search(r"(^|/)(\.agents/|AGENTS\.md|CLAUDE\.md)", t)]
+    agent = [
+        t
+        for t in _links(doc)
+        if re.search(r"(^|/)(\.agents/|AGENTS\.md|CLAUDE\.md)", t)
+    ]
     assert agent == []
 
 

@@ -372,4 +372,3 @@ class ADF435xSynthesizer:
         except Exception:
             self._regfile.mark_write_failed()
             raise
-

@@ -152,7 +152,9 @@ class TestFromFrequencies:
         table = FrequencyTable.from_range(
             synth, 100_000_000, 300_000_000, 25_000_000, allow_divider_change=True
         )
-        starts = [table[i].target_hz for i in range(len(table)) if table[i].divider_boundary]
+        starts = [
+            table[i].target_hz for i in range(len(table)) if table[i].divider_boundary
+        ]
         assert starts == [150_000_000, 275_000_000]
 
 

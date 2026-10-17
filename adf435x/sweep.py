@@ -201,14 +201,19 @@ class FrequencyTable:
     def _build(cls, synth, targets, allow_divider_change, max_error_hz):
         """Solve every target, group by divider, apply the MOD rule, encode."""
         results = [synth.solve(hz) for hz in targets]
+
         if not allow_divider_change:
             first = results[0].fields["rf_divider"]
             for hz, result in zip(targets, results):
                 if result.fields["rf_divider"] != first:
-                    pair = sorted(((targets[0], first), (hz, result.fields["rf_divider"])))
+                    pair = sorted(
+                        ((targets[0], first), (hz, result.fields["rf_divider"]))
+                    )
                     raise DividerOctaveCrossingError(
                         pair[0][0], pair[1][0], pair[0][1], pair[1][1], synth.profile
                     )
+
+        # Apply the MOD rule to each run of targets that share an RF divider.
         entries = []
         start = 0
         while start < len(results):
@@ -221,6 +226,7 @@ class FrequencyTable:
                 boundary = bool(entries) and offset == 0
                 entries.append(FrequencyEntry(result, fields, boundary))
             start = end
+
         table = cls(entries, synth.profile, synth.regfile)
         if max_error_hz is not None and table.max_error_hz > max_error_hz:
             raise ValueError(
@@ -291,6 +297,9 @@ def _lock_segment(synth, targets, results):
     Returns a list of ``(SolveResult, fields)`` pairs, one per target.
     """
     profile = synth.profile
+
+    # A shared MOD is possible only if every point is exact. The smallest one
+    # is the least common multiple of their MODs, raised to the minimum MOD.
     locked = None
     if all(result.exact for result in results):
         lcm = 1
@@ -304,6 +313,7 @@ def _lock_segment(synth, targets, results):
             lcm *= (mod_min + lcm - 1) // lcm
         if lcm <= profile.mod_max:
             locked = lcm
+
     if locked is not None:
         divider = results[0].fields["rf_divider"]
         options = synth.solve_options.copy(mod=locked, rf_divider=divider)
@@ -312,6 +322,7 @@ def _lock_segment(synth, targets, results):
         # FRAC = 0 does not rewrite R2 and R3.
         integer_n = all(result.fields["frac"] == 0 for result in results)
         mode = pll_mode_fields(integer_n, profile)
+
     out = []
     for result in results:
         fields = dict(result.fields)

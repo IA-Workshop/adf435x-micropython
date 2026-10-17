@@ -81,8 +81,7 @@ def _rule_low_spur(profile, c):
     """Low-spur noise mode needs MOD >= 50 (data sheet p.23)."""
     if c.noise_mode == consts.REG2_LOW_SPUR and c.mod < _LOW_SPUR_MOD_MIN:
         raise ValueError(
-            "low-spur noise mode needs MOD >= %d (MOD=%d)"
-            % (_LOW_SPUR_MOD_MIN, c.mod)
+            "low-spur noise mode needs MOD >= %d (MOD=%d)" % (_LOW_SPUR_MOD_MIN, c.mod)
         )
 
 
@@ -168,6 +167,8 @@ class ADF435xRegisterMapper:
                 raise ValueError("%s=%d invalid" % (label, value))
         elif kind == DIVIDER:
             self._profile.divider_code(value)
+
+        # A feature the part lacks must be left off (zero).
         cap = spec[CAPABILITY]
         if cap is not None and value and not getattr(self._profile, cap):
             raise ValueError(
