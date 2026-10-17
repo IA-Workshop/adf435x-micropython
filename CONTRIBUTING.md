@@ -52,3 +52,16 @@ result noted in the pull request.
 
 Add user-visible changes to the "Unreleased" section of
 [CHANGELOG.md](CHANGELOG.md).
+
+## Releasing
+
+Between releases the version is a development version such as
+`0.2.0.dev0`, in both `pyproject.toml` and `package.json` (a test checks
+they agree). To release `X.Y.Z`:
+
+1. Set the version to `X.Y.Z` in both files.
+2. Rename the changelog's "Unreleased" heading to `X.Y.Z` and update the
+   README's install note if the API changed.
+3. Merge to `main` and push the tag `vX.Y.Z`. The release workflow runs CI,
+   checks the tag matches both files, and publishes the zip.
+4. Bump both files to the next `.dev0` version on `develop`.

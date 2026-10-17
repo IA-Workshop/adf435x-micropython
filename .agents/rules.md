@@ -27,6 +27,7 @@ pytest
 | Synthesizer | `test_synthesizer.py` |
 | Sweep | `test_sweep.py` |
 | Device SPI | `test_device.py` |
+| Version / `package.json` | `test_packaging.py` |
 
 Host CPython ≥ 3.10; fake `machine` in `tests/conftest.py`. Golden vector is
 `WORKED_FIELDS` / `WORKED_WORDS` in conftest — do not re-hardcode hex elsewhere.

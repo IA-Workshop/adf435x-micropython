@@ -22,8 +22,11 @@ unzip, and copy the `adf435x/` folder to the board's filesystem.
 
 ```python
 import mip
-mip.install("github:IA-Workshop/adf435x-micropython", version="v0.1.0")
+mip.install("github:IA-Workshop/adf435x-micropython", version="vX.Y.Z")
 ```
+
+Replace `vX.Y.Z` with a release tag. v0.1.0 has the older API; read the
+README at that tag if you install it.
 
 **From a clone:** copy or sync `adf435x/` to the board; see
 [docs/development.md](docs/development.md).

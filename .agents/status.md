@@ -70,6 +70,7 @@ numbers come from bench step B7):
 |----------|------|-------|
 | Low | Docs figure assets | Wiring diagram, probe photos, decision tree |
 | Medium | Remediation B (bench) | Lock-detect policy, DLD settle time (`LOCK_SETTLE_MARGIN_US` is provisional), sweep/SPI checks once the testbench is back |
+| Medium | Release v0.2.0 | After bench B0–B11: set `0.2.0` in `pyproject.toml` and `package.json`, follow CONTRIBUTING "Releasing" |
 | Low | Cheat-sheet golden vectors | Catalog beyond datasheet golden; see [cheat sheet](https://ez.analog.com/rf/w/documents/14697/adf4350-and-adf4351-common-questions-cheat-sheet) |
 
 ## Package export notes

@@ -29,6 +29,7 @@ Read only the row for your change type.
 | New public names | `.agents/engineering_guidelines.md` naming | matching layer tests |
 | Test harness / fixtures | `.agents/rules.md` testing section | touched `tests/` files |
 | Human docs | `.agents/rules.md` (Documentation boundary) | `test_docs.py` |
+| Version / release | `CONTRIBUTING.md` (Releasing) | `test_packaging.py` |
 | Milestones only | `.agents/status.md` | — |
 
 ## Definition of done

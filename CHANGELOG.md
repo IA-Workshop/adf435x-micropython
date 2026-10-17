@@ -74,6 +74,9 @@ All notable user-facing changes are documented here.
   exported from the package root.
 - `FrequencyOutOfRangeError`, `NoSolutionError` and `ExactFrequencyError`
   are exported from the package root.
+- The release workflow fails unless the tag matches the version in both
+  `pyproject.toml` and `package.json`. The in-development version is
+  `0.2.0.dev0`.
 
 ### Documentation
 
