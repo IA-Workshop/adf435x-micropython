@@ -8,7 +8,8 @@ from adf435x.profiles import ADF4351
 from adf435x.register_file import ADF435xRegisterFile
 from adf435x.register_mapper import ADF435xRegisterMapper
 
-# Data sheet worked example (ADF4351, 2112.6 MHz, RF divide-by-2).
+# The data sheet worked example (ADF4351, 2112.6 MHz, RF divide-by-2).
+# WORKED_WORDS[n] is register Rn.
 WORKED_FIELDS = {
     "int_n": 422,
     "frac": 13,
@@ -48,9 +49,9 @@ def worked_regfile():
 
 
 def commit(regfile):
-    """Plan a minimal write and mark it written, as a successful SPI write would.
+    """Plan a write and mark it written, as a successful SPI write would.
 
-    Returns the plan (R5..R0 order); an empty plan marks nothing.
+    Returns the plan (R5 first). An empty plan marks nothing.
     """
     plan = regfile.commit_plan()
     if plan:
@@ -66,7 +67,7 @@ def commit_all(regfile):
 
 
 def make_config(**fields):
-    """Build a config with optional field overrides."""
+    """Build a config with *fields* set directly, without validation."""
     c = ADF435xConfig()
     for name, value in fields.items():
         setattr(c, name, value)
@@ -74,10 +75,10 @@ def make_config(**fields):
 
 
 class FakeDevice:
-    """Record SPI writes and simulate CE / MUXOUT for synthesizer tests.
+    """Record SPI writes and fake CE and MUXOUT, for synthesizer tests.
 
-    Pass ``muxout=None`` to model a board with no MUXOUT pin wired;
-    ``read_muxout`` then raises like ``ADF435xDevice`` does.
+    ``muxout=None`` models a board without MUXOUT wired: ``read_muxout()``
+    then raises, as ``ADF435xDevice`` does.
     """
 
     def __init__(self, *, muxout=0):
@@ -87,7 +88,7 @@ class FakeDevice:
         self.fail_next = False
 
     def write_registers(self, words):
-        """Append *words* to the write log or raise if configured to fail."""
+        """Log *words*, or raise once if ``fail_next`` is set."""
         if self.fail_next:
             self.fail_next = False
             raise OSError("SPI write failed")
@@ -108,28 +109,25 @@ class FakeDevice:
         return self.muxout
 
 
-# Double-buffered bit masks per ADF4351 data sheet p.12 and Figure 23.
-# R1: phase DB26:DB15, MOD DB14:DB3. R2: doubler DB25, RDIV2 DB24,
-# R counter DB23:DB14, CP current DB12:DB9. These latch on the next R0 write;
-# all other bits take effect immediately.
+# Bits that wait for the next R0 write (data sheet p.12 and Figure 23).
+# R1: phase DB26:DB15, MOD DB14:DB3. R2: doubler DB25, divide-by-2 DB24,
+# R counter DB23:DB14, CP current DB12:DB9. All other bits act at once.
 _DBR_MASKS = {
     consts.REG1_ADDR: (0xFFF << 15) | (0xFFF << 3),
     consts.REG2_ADDR: (1 << 25) | (1 << 24) | (0x3FF << 14) | (0xF << 9),
 }
-# R4 RF divider select DB22:DB20 latches on R0 only while R2 DB13 is set.
+# The R4 RF divider, DB22:DB20, waits for R0 only while R2 DB13 is set.
 _DBB_MASK = 0x7 << 20
 
 
 class FakeChip(FakeDevice):
-    """FakeDevice that also models the chip's register latching.
+    """FakeDevice that also models how the chip latches register words.
 
-    ``input_words[n]`` is the last word shifted into register Rn.
-    ``active_words[n]`` is what the device is actually using: immediate bits
-    update on write, double-buffered bits (``_DBR_MASKS``, and the R4
-    divider while R2 DB13 is set) update only on a subsequent R0 write.
-    Entries are ``None`` until written.
-
-    The model follows the data sheet text only; bench tests confirm it.
+    ``input_words[n]`` is the last word shifted into Rn, and
+    ``active_words[n]`` is what the chip is using: double-buffered bits
+    change only on a later R0 write, the rest at once. Both are None until
+    written. The model follows the data sheet text; only bench tests on real
+    hardware confirm it.
     """
 
     def __init__(self, *, muxout=0):
@@ -168,9 +166,10 @@ class FakeChip(FakeDevice):
                     self.active_words[r] = self.input_words[r]
 
     def output_hz(self, ref_hz):
-        """Exact RF output frequency from the active words, as a Fraction.
+        """Return the exact output frequency of the active words, as a Fraction.
 
-        Assumes fundamental feedback (the only mode this library uses).
+        Assumes the feedback comes from the VCO itself, the only mode the
+        library uses.
         """
         from fractions import Fraction
 

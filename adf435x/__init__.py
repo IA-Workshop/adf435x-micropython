@@ -1,10 +1,8 @@
-"""
-adf435x: a library for the ADF4350/ADF4351 wideband PLL synthesizers.
+"""Driver for the ADF4350 and ADF4351 wideband PLL synthesizers.
 
-Importing this package is host-safe. The pure modules below run on both CPython
-and MicroPython. The device handler imports ``machine`` and is reached by its
-submodule path (``adf435x.device``), so the package root stays importable for
-host-side testing.
+Everything here runs on CPython and MicroPython. The SPI/GPIO driver,
+``adf435x.device``, is the only module that imports ``machine``, so it is not
+imported here and the package also loads on a PC. See docs/api-guide.md.
 """
 
 from . import consts, config, profiles, register_mapper, register_file

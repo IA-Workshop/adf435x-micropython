@@ -1,10 +1,8 @@
 """
-ADF435x frequency-sweep example using FrequencyTable and play().
+Sweep a range of frequencies with ``FrequencyTable`` and ``play()``.
 
-Builds a linear table between lower and upper bounds, then plays it. Probe
-RFOUTA to see stepped frequencies.
-
-Hardware assumptions match ``fixed_frequency.py``.
+Probe RFOUTA to see the output step. See docs/sweeps.md. Pins and reference
+are as in ``fixed_frequency.py``.
 """
 
 from machine import Pin, SPI
@@ -14,7 +12,7 @@ from adf435x.profiles import ADF4351
 from adf435x.sweep import FrequencyTable
 from adf435x.synthesizer import ADF435xSynthesizer
 
-# --- User settings -----------------------------------------------------------
+# --- Settings to change ------------------------------------------------------
 LOWER_HZ = 190_000_000
 UPPER_HZ = 210_000_000
 STEP_HZ = 2_000_000
@@ -57,7 +55,7 @@ print(
 timeouts = synth.play(table, dwell_us=DWELL_US, wait_for_lock=True)
 print("Sweep complete (%d lock timeouts)." % timeouts)
 
-# Manual stepping, for example to measure at each point:
+# To step by hand instead, for example to take a measurement at each point:
 # for i in range(len(table)):
 #     entry = synth.play_step(table, i)
 #     print(entry.achieved_hz)

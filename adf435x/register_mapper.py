@@ -1,22 +1,10 @@
-"""
-Profile-aware register encoder and validator for the ADF435x family.
+"""Check field values and encode them into the six 32-bit register words.
 
-An ADF435xRegisterMapper turns field values into the six 32-bit register words
-of the ADF4350/ADF4351. Both the encoder and the validator are driven by the
-field table ``config.FIELDS``; the ``ADF435xDeviceProfile`` supplies what
-differs between the two parts.
-
-Validation and encode are split on purpose. Call ``validate_config`` at setup
-boundaries (register-file init, ``configure()``, REPL debugging). The encode
-path trusts its input: it masks each field to its width and does no range or
-capability checks. The one structural step left in encode is the
-``rf_divider -> code`` mapping, which has no bit pattern to mask.
-
-Notes
------
-Register field positions and encodings are defined in the register maps that
-begin at Figure 23 (p. 14) of both the ADF4350 and ADF4351 data sheets
-(R0..R5 in Figures 24..29).
+Both jobs are driven by the field table, ``config.FIELDS``, plus the
+cross-field rules below. Checking and encoding are separate steps:
+``validate_config()`` runs when values are set, and ``encode_register()``
+assumes they are legal and only masks each field to its width. Register
+maps: data sheet Figures 23 to 29 (pp.14 to 17).
 """
 
 from . import consts
@@ -40,14 +28,15 @@ from .config import (
 )
 from .profiles import ADF435xDeviceProfile
 
-# Error-message wording for each profile capability.
+# How each profile feature is named in error messages.
 _CAPABILITY_TEXT = {
     "has_phase_adjust": "phase adjust",
     "has_fast_band_select": "fast band select",
     "has_charge_cancel": "charge cancellation",
 }
 
-# Fixed bits per register: the address in DB2:DB0, plus R5's reserved ones.
+# Bits every word of each register carries: its address in DB2:DB0, and
+# for R5 the reserved ones.
 _FIXED_BITS = (
     consts.REG0_ADDR,
     consts.REG1_ADDR,
@@ -57,13 +46,13 @@ _FIXED_BITS = (
     consts.REG5_RESERVED_ONES | consts.REG5_ADDR,
 )
 
-# Data sheet limits used by the cross-field rules.
+# Data sheet limits used by the rules below.
 _LOW_SPUR_MOD_MIN = 50  # p.23
 _FAST_BAND_CLK_DIV_MAX = 254  # p.19
 
 
 def _rule_pll(profile, c):
-    """MOD range, FRAC < MOD, and INT range for the selected prescaler."""
+    """Check the MOD range, FRAC < MOD, and the INT range for the prescaler."""
     if c.mod < profile.mod_min:
         raise ValueError("MOD=%d below minimum %d" % (c.mod, profile.mod_min))
     if c.mod > profile.mod_max:
@@ -117,8 +106,8 @@ def _rule_muxout(profile, c):
         )
 
 
-# (fields that trigger the rule, rule). A rule runs when any trigger field is
-# being validated, so changing one field re-checks its partners.
+# (trigger fields, rule). A rule runs when any of its trigger fields is
+# checked, so changing one field re-checks the fields it depends on.
 _RULES = (
     (("int_n", "frac", "mod", "prescaler"), _rule_pll),
     (("phase", "mod"), _rule_phase),
@@ -130,25 +119,18 @@ _RULES = (
 
 class ADF435xRegisterMapper:
     """
-    Encode and validate ADF435x register words for a specific device profile.
+    Check and encode register words for one part (an ``ADF435xDeviceProfile``).
 
-    Parameters
-    ----------
-    profile : ADF435xDeviceProfile
-        The target device. Supplies capability flags, PLL bounds, and the
-        RF-divider code mapping.
-
-    Notes
-    -----
-    Call ``validate_config`` before encoding a configuration that did not come
-    through ``ADF435xRegisterFile``. ``encode_register`` assumes valid input.
+    ``encode_register()`` assumes valid input. Call ``validate_config()``
+    first on any config that did not come through ``ADF435xRegisterFile``.
     """
 
     def __init__(self, profile: ADF435xDeviceProfile):
-        """Bind the mapper to a profile and precompute the encode layout."""
+        """Store *profile* and build the per-register encode layout."""
         self._profile = profile
-        # Per register: (name, pos, mask, kind) for every field it encodes.
-        # Without programmable ABP, DB22 is reserved and left at 0.
+
+        # For each register, (name, pos, mask, kind) of every field in it.
+        # Without a settable ABP, DB22 is reserved and stays 0.
         layout = [[] for _ in range(consts.NUM_REGISTERS)]
         for spec in FIELDS:
             if spec[NAME] == "abp" and not profile.has_programmable_abp:
@@ -159,13 +141,13 @@ class ADF435xRegisterMapper:
 
     @property
     def profile(self) -> ADF435xDeviceProfile:
-        """The device profile this mapper encodes for."""
+        """The part this mapper encodes for."""
         return self._profile
 
     # -- validation ----------------------------------------------------------
 
     def _check_field(self, spec, value) -> None:
-        """Validate one field value against its spec and the profile."""
+        """Check one value against its field spec and the profile."""
         name, kind, label = spec[NAME], spec[KIND], spec[LABEL]
         if kind == BOOL:
             if value not in (0, 1):
@@ -193,23 +175,12 @@ class ADF435xRegisterMapper:
             )
 
     def validate_config(self, config: ADF435xConfig, *, only=None) -> None:
-        """Raise ValueError on any configuration violation. Never encodes.
+        """Raise ``ValueError`` if any value in *config* is illegal.
 
-        Parameters
-        ----------
-        config : ADF435xConfig
-            Configuration to validate.
-        only : set or frozenset of str, optional
-            When ``None``, every field and every cross-field rule is checked.
-            Otherwise only the named fields are checked, plus each cross-field
-            rule that involves one of them (for example, changing only
-            ``prescaler`` re-checks INT against the new minimum).
-
-        Raises
-        ------
-        ValueError
-            On any kind, width, range, membership, capability, divider, or
-            cross-field violation, or an unknown field name in *only*.
+        With *only* set to a set of field names, check just those fields and
+        every rule that involves one of them. Changing only ``prescaler``,
+        for example, re-checks INT against the new minimum. An unknown name
+        in *only* also raises ``ValueError``.
         """
         names = FIELD_NAMES if only is None else only
         for name in names:
@@ -224,24 +195,10 @@ class ADF435xRegisterMapper:
     # -- encoding ------------------------------------------------------------
 
     def encode_register(self, index: int, config: ADF435xConfig) -> int:
-        """Encode one register word from *config*.
+        """Return the 32-bit word for register *index* (0 to 5).
 
-        Parameters
-        ----------
-        index : int
-            Register index (0..5).
-        config : ADF435xConfig
-            Configuration supplying field values; assumed validated.
-
-        Returns
-        -------
-        int
-            The 32-bit register word, address in DB2:DB0.
-
-        Raises
-        ------
-        ValueError
-            If *index* is invalid, or ``rf_divider`` has no divider code.
+        *config* is assumed valid. Raises ``ValueError`` for a bad *index*
+        or an ``rf_divider`` that has no R4 code.
         """
         if not 0 <= index < consts.NUM_REGISTERS:
             raise ValueError("invalid register index: %d" % index)
@@ -256,11 +213,5 @@ class ADF435xRegisterMapper:
         return word
 
     def encode_config(self, config: ADF435xConfig) -> list:
-        """Encode all six registers from *config*.
-
-        Returns
-        -------
-        list of int
-            Register words R0 through R5.
-        """
+        """Return all six words, R0 first."""
         return [self.encode_register(i, config) for i in range(consts.NUM_REGISTERS)]

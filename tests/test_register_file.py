@@ -112,7 +112,7 @@ class TestIncrementalCommit:
 
     def test_r1_and_r4_change_gives_fast_retune_order(self, rf):
         """A combined R1+R4 change emits R4, R1, then the R0 latch."""
-        # [R4], [R1], R0 -- the cheat-sheet fast-retune, falling out of the diff.
+        # The fast-retune order the ADF435x cheat sheet gives: [R4], [R1], R0.
         commit(rf)
         rf.load_prevalidated({}, [0xA0, 0xBB, 0xC2, 0xD3, 0xEE, 0xF5])
         assert commit(rf) == [0xEE, 0xBB, 0xA0]
@@ -156,10 +156,9 @@ class TestDoubleBuffer:
         assert _plan_indices(commit(f)) == [consts.REG2_ADDR, consts.REG0_ADDR]
 
     def test_non_divider_r4_field_forces_r0_when_dbb_enabled(self):
-        """With DBB set, any R4 change conservatively appends an R0 write."""
-        # output_power is not double-buffered, but with DB13 set we
-        # conservatively latch any R4 change with an R0 write. The redundant
-        # R0 re-latches the unchanged divider, which is harmless.
+        """With DBB set, any R4 change appends an R0 write."""
+        # Output power is not double-buffered, so this R0 write is not
+        # strictly needed. It only re-latches the unchanged divider.
         f = ADF435xRegisterFile(ADF4351)
         f.configure(double_buffer=True)
         commit(f)
@@ -168,7 +167,6 @@ class TestDoubleBuffer:
 
     def test_non_divider_r4_field_alone_when_dbb_disabled(self):
         """Without DBB, a non-divider R4 change writes R4 alone."""
-        # Without DB13, the same non-divider R4 change writes R4 on its own.
         f = ADF435xRegisterFile(ADF4351)
         commit(f)
         f.configure(output_power=consts.REG4_POWER_MINUS_4DBM)

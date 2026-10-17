@@ -1,26 +1,11 @@
-"""
-Register file for the ADF435x family. Tracks the desired configuration and the
-words last written to the device, and computes the minimal ordered set of writes
-needed to bring the device up to date.
+"""The register file: the six register words wanted, and those last written.
 
-Staleness is derived by diffing the freshly encoded words against the
-last-written words, so it can't disagree with a hand-kept flag.
-
-``commit_plan()`` returns the register words to write (R5 down to R0) without
-updating the last-written cache. After a successful device write, call
-``mark_written()``; if the write fails, call ``mark_write_failed()`` and
-reprogram with ``commit_all_plan()``. The register file never performs I/O.
-
-Double-buffer latching (data sheet p.12, Figure 23):
-- R1 (phase, modulus) and R2 (R counter, ref doubler/div-by-2, CP current)
-  latch on a write to R0 (DBR). Their other bits take effect immediately; the
-  register file adds the R0 write whenever R1 or R2 changes, which is always
-  safe.
-- R4 RF divider select latches on R0 only when R2 DB13 (``double_buffer``)
-  is set (DBB). That DB13 state is read from the encoded R2 word, not a
-  separate flag, so it stays consistent with the diffed words.
-When any of these registers change, commit adds an R0 write even if R0 itself
-is unchanged, so the new values take effect.
+A register is stale when its encoded word differs from the word last
+written. ``commit_plan()`` lists the stale words in write order, R5 first,
+and adds an R0 write when a double-buffered field needs it to take effect
+(data sheet p.12). The register file does no I/O: after writing the plan,
+call ``mark_written()``, or ``mark_write_failed()`` if the write raised.
+See docs/api-guide.md.
 """
 
 from . import consts
@@ -31,29 +16,28 @@ from .register_mapper import ADF435xRegisterMapper
 
 class ADF435xRegisterFile:
     """
-    Track register state and emit ordered write transactions.
+    Register state for one chip, and the writes needed to update it.
 
     Parameters
     ----------
     profile : ADF435xDeviceProfile
-        Target device; selects the mapper used to encode the configuration.
+        The part to encode for.
     config : ADF435xConfig, optional
-        Initial configuration. A default ``ADF435xConfig`` is used if omitted.
-        Do not share one config instance across multiple register files.
+        Starting configuration (default: a new ``ADF435xConfig``). Do not
+        share one config object between register files.
     """
 
     NUM_REGISTERS = consts.NUM_REGISTERS
 
-    # R1 and R2 are fully double-buffered (DBR); R4 divider is DBB when
-    # config.double_buffer is set. See module docstring.
+    # Registers whose double-buffered fields always wait for R0.
     _DBR_REGISTERS = frozenset(consts.DBR_REGISTER_INDICES)
 
     def __init__(self, profile: ADF435xDeviceProfile, config=None) -> None:
-        """Build the mapper, validate the config, and encode initial words."""
+        """Check the starting config and encode all six words."""
         self._mapper = ADF435xRegisterMapper(profile)
         self._config = config if config is not None else ADF435xConfig()
         self._current = [0] * self.NUM_REGISTERS
-        # None means never written, so every register starts stale.
+        # None means never written, so every register starts out stale.
         self._last_written = [None] * self.NUM_REGISTERS
         self._commit_count = 0
         self._config_version = 0
@@ -64,63 +48,42 @@ class ADF435xRegisterFile:
 
     @property
     def config(self) -> ADF435xConfig:
-        """The current configuration.
+        """The live ``ADF435xConfig``.
 
-        Returns
-        -------
-        ADF435xConfig
-            The live configuration object. Mutating it directly bypasses
-            validation; prefer ``configure()``.
+        Setting its attributes directly skips all checks; use ``configure()``.
         """
         return self._config
 
     @property
     def config_version(self) -> int:
-        """Count of successful ``configure()`` calls.
+        """Number of successful ``configure()`` calls.
 
-        Lets callers holding words encoded from an earlier configuration (for
-        example a precomputed frequency table) detect that settings changed.
-        ``load_prevalidated()`` does not advance it.
+        A frequency table compares it with the value it last saw to tell
+        whether its stored words are out of date. ``load_prevalidated()``
+        does not change it.
         """
         return self._config_version
 
     def configure(self, **fields) -> None:
-        """Update configuration fields and re-encode.
+        """Set the given fields, check them, and re-encode.
 
-        The update is transactional: if validation fails (for example,
-        requesting a capability the device lacks), every field is restored and
-        the error re-raised, leaving the file unchanged.
-
-        Parameters
-        ----------
-        **fields
-            Field name/value pairs, each matching an ADF435xConfig attribute.
-
-        Raises
-        ------
-        AttributeError
-            If a field name is not a known configuration field.
-        Exception
-            If the new configuration fails validation. The most common cause is
-            a ValueError (out-of-range or unsupported value), but any failure
-            during validation is treated the same way: every field is restored
-            and the original error re-raised, leaving the file unchanged.
+        All or nothing: if any check fails (usually with ``ValueError``),
+        every field is put back and the error is raised again. An unknown
+        field name raises ``AttributeError``.
         """
         for name in fields:
             if name not in FIELD_REGISTER:
                 raise AttributeError("unknown configuration field: %s" % name)
         previous = {name: getattr(self._config, name) for name in fields}
         dirty = {FIELD_REGISTER[name] for name in fields}
-        # Apply all new values before validating so cross-field rules (PLL,
-        # prescaler vs INT) see the final state.
+        # Set every value before checking, so rules that span fields (such as
+        # INT against the prescaler minimum) see the final values.
         for name, value in fields.items():
             setattr(self._config, name, value)
         try:
             self._mapper.validate_config(self._config, only=frozenset(fields))
-            # Encode only; bitfield ranges were checked above.
             self._recompute(dirty)
         except Exception:
-            # Roll back every touched field and re-encode the restored config.
             for name, value in previous.items():
                 setattr(self._config, name, value)
             self._recompute()
@@ -128,18 +91,9 @@ class ADF435xRegisterFile:
         self._config_version += 1
 
     def _recompute(self, dirty=None) -> None:
-        """Encode configuration into ``_current``.
+        """Re-encode the registers in *dirty*, or all six if it is None.
 
-        Parameters
-        ----------
-        dirty : set of int or None
-            Register indices to re-encode. ``None`` encodes all six (initial
-            load and rollback recovery).
-
-        Notes
-        -----
-        Encode only. Bitfield validation runs at init and ``configure()``;
-        this path does not call ``validate_config``.
+        Does not check values; callers have already done so.
         """
         m = self._mapper
         c = self._config
@@ -150,28 +104,14 @@ class ADF435xRegisterFile:
             self._current[index] = m.encode_register(index, c)
 
     def load_prevalidated(self, fields, words) -> None:
-        """Set fields and their encoded words without validating or encoding.
+        """Store *fields* and their six encoded *words* without checking.
 
-        For configurations validated and encoded earlier, such as frequency
-        table entries built at setup, so playback skips both steps.
-
-        Parameters
-        ----------
-        fields : dict
-            Field name/value pairs to store on the config. Must already be
-            valid for this profile.
-        words : sequence of int
-            Exactly ``NUM_REGISTERS`` words, R0..R5, that encode the config
-            *after* *fields* are applied. The caller guarantees this; a
-            mismatch makes later ``configure()`` calls re-encode from a
-            config that disagrees with what was written.
-
-        Raises
-        ------
-        AttributeError
-            If a field name is unknown.
-        ValueError
-            If the wrong number of words is supplied.
+        For values checked and encoded earlier, such as frequency table
+        entries, so playback can skip both steps. *words* (R0 first) must be
+        the encoding of the config after *fields* are set; if not, later
+        ``configure()`` calls start from a config that does not match the
+        chip. Raises ``AttributeError`` for an unknown field and
+        ``ValueError`` unless there are exactly six words.
         """
         if len(words) != self.NUM_REGISTERS:
             raise ValueError(
@@ -185,26 +125,15 @@ class ADF435xRegisterFile:
         self._current = list(words)
 
     def current_words(self) -> list:
-        """Return a copy of the six current (desired) register words.
-
-        Returns
-        -------
-        list of int
-            The current words in index order R0..R5. A copy, so callers may
-            mutate it freely.
-        """
+        """Return a copy of the six wanted register words, R0 first."""
         return list(self._current)
 
     # -- staleness -----------------------------------------------------------
 
     def stale_indices(self) -> list:
-        """Return register indices that differ from the last-written words.
+        """Return the indices of stale registers, in ascending order.
 
-        Returns
-        -------
-        list of int
-            Indices whose current word differs from the last-written one, in
-            ascending order. Registers never written count as stale.
+        A register never written counts as stale.
         """
         return [
             i
@@ -213,23 +142,14 @@ class ADF435xRegisterFile:
         ]
 
     def is_stale(self) -> bool:
-        """Report whether any register needs writing.
-
-        Returns
-        -------
-        bool
-            True if at least one register is stale.
-        """
+        """True if any register needs writing."""
         return bool(self.stale_indices())
 
     def dump(self) -> dict:
-        """A snapshot of register state for inspection.
+        """Return a dict of the register state, for printing while debugging.
 
-        Returns
-        -------
-        dict
-            ``commit_count``, ``is_stale``, and a ``registers`` list giving each
-            register's current word, last-written word, and stale flag.
+        It holds ``commit_count``, ``is_stale``, and a ``registers`` list with
+        each register's wanted word, last-written word and stale flag.
         """
         return {
             "commit_count": self._commit_count,
@@ -248,39 +168,20 @@ class ADF435xRegisterFile:
     # -- transactions --------------------------------------------------------
 
     def _r4_divider_double_buffered(self) -> bool:
-        """Whether the R4 RF-divider field is double-buffered.
+        """True if DB13 is set in the wanted R2 word.
 
-        The state is read from R2 DB13 in the current R2 word rather than a
-        separate flag, so the latch decision is derived from the same encoded
-        words as staleness and cannot disagree with them (see module
-        docstring). When only R4 is stale, the current and last-written R2
-        words share the same DB13, so this matches the bit in effect on the
-        device when R4 is written.
-
-        Returns
-        -------
-        bool
-            True if R2 DB13 (``double_buffer``) is set in the current R2 word.
+        When only R4 is stale, the wanted and last-written R2 words have the
+        same DB13, so this is also the setting the chip is using.
         """
         r2_word = self._current[consts.REG2_ADDR]
         return bool((r2_word >> consts.REG2_DOUBLE_BUFFER_POS) & 1)
 
     def _commit_stale_set(self, stale: set) -> set:
-        """Expand *stale* so R0 is included when a latch write is required.
+        """Return *stale*, plus R0 if a double-buffered change needs it.
 
-        Parameters
-        ----------
-        stale : set
-            Register indices that differ from the last-written cache.
-
-        Returns
-        -------
-        set
-            The stale set, with R0 added when R1 or R2 changed, or when R4
-            changed while the R4 divider is double-buffered (R2 DB13 set).
+        R0 is added when R1 or R2 changed, or when R4 changed while R2 DB13
+        is set.
         """
-        # R1 and R2 latch on any R0 write (DBR). R4 divider latches on R0 only
-        # when R2 DB13 (double_buffer) is set (DBB).
         if stale & self._DBR_REGISTERS:
             stale = set(stale)
             stale.add(consts.REG0_ADDR)
@@ -290,13 +191,10 @@ class ADF435xRegisterFile:
         return stale
 
     def commit_plan(self) -> list[int]:
-        """Register words to write, ordered R5 down to R0, without updating cache.
+        """Return the words to write, R5 first, or [] if nothing is stale.
 
-        Returns
-        -------
-        list of int
-            32-bit register words in SPI write order. Empty if nothing is stale.
-            Register address is in DB2:DB0 of each word.
+        Only stale registers are included, plus R0 when a double-buffered
+        change needs it. Call ``mark_written()`` once they are written.
         """
         stale = set(self.stale_indices())
         if not stale:
@@ -305,24 +203,18 @@ class ADF435xRegisterFile:
         return [self._current[i] for i in sorted(stale, reverse=True)]
 
     def commit_all_plan(self) -> list[int]:
-        """All six register words, R5 down to R0, without updating cache.
-
-        Returns
-        -------
-        list of int
-            Full power-up / recovery transaction.
-        """
+        """Return all six words, R5 first, for power-up or a full rewrite."""
         return [self._current[i] for i in range(self.NUM_REGISTERS - 1, -1, -1)]
 
     def mark_written(self) -> None:
-        """Record that the planned words were successfully written to the device."""
+        """Record that the wanted words are now on the chip."""
         self._last_written = list(self._current)
         self._commit_count += 1
 
     def mark_write_failed(self) -> None:
-        """Discard the last-written cache after a failed device write.
+        """Forget what was last written, after a failed write.
 
-        Every register then counts as stale, so the next ``commit_plan()`` is
-        a full reprogram.
+        Every register is then stale, so the next ``commit_plan()`` rewrites
+        all six.
         """
         self._last_written = [None] * self.NUM_REGISTERS

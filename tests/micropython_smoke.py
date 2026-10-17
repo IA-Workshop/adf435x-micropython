@@ -1,11 +1,8 @@
-"""MicroPython smoke test for adf435x (not collected by pytest).
+"""Check that the library runs under MicroPython (not collected by pytest).
 
-Runs the library under the MicroPython Unix port to enforce invariant 12
-(MicroPython-safe ``adf435x/``). From the repository root::
-
-    micropython tests/micropython_smoke.py
-
-Prints ``SMOKE OK`` and exits 0 on success; any failure raises.
+Run from the repository root on the MicroPython Unix port with
+``micropython tests/micropython_smoke.py``. It prints ``SMOKE OK`` on
+success; any failure raises. See docs/development.md.
 """
 
 import sys

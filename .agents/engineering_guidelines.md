@@ -52,6 +52,11 @@ snake_case: `int_n`, `frac`, `mod`, `rf_divider`, `double_buffer`. Do not alias
 `REG{n}_{FIELD}_{SUFFIX}` with `_POS`, `_WIDTH`, `_MIN`. Legal-value sets,
 defaults and labels live in the `config.FIELDS` table, not in `consts`.
 
+`consts` wraps values in `micropython.const()` (an identity stand-in on
+CPython). Other modules read them as attributes (`consts.X`), so MicroPython
+does not fold them across modules; do not rely on cross-module folding for
+speed.
+
 ### Golden vector indexing
 - `WORKED_WORDS[i]` is register **Ri**.
 - SPI / `commit_plan()` order is **R5→R0** — reverse when comparing to

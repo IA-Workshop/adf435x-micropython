@@ -110,7 +110,8 @@ class TestTrustedEncode:
 
     def test_flag_value_stays_in_its_bit(self, mapper):
         """A non-bool flag encodes as 1 and never spills into a neighbor."""
-        # mtld=2 used to set DB11 (VCO power-down) instead of DB10.
+        # If flags were not reduced to 0 or 1, mtld=2 would set DB11 (VCO
+        # power-down) instead of DB10.
         spilled = mapper.encode_register(consts.REG4_ADDR, make_config(mtld=2))
         assert spilled == mapper.encode_register(
             consts.REG4_ADDR, make_config(mtld=True)

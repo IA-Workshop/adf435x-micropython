@@ -1,24 +1,11 @@
 """
-ADF435x fixed-frequency example using ADF435xSynthesizer.
+Program one output frequency and check for lock.
 
-Set ``TARGET_FREQ_HZ`` to the desired RF output, run on the board, and probe
-RFOUTA with an oscilloscope.
-
-Example pin map (ADF4351 eval board — adjust for your MicroPython board)
-------------------------------------------------------------------------
-- 10 MHz reference on REFIN (R counter = 1, no doubler).
-- SPI1: SCK=GP10, MOSI=GP11, LE=GP13, CE=GP14, MUXOUT=GP9.
-- 1 MHz SPI, mode 0. See docs/hardware.md for generic wiring requirements.
-
-Scope notes
------------
-- Default target is 200 MHz (scope-friendly). Catalog slug: ``scope_200mhz``.
-  For all bench cases use ``examples/validate.py`` (``list``
-  prints slugs; default ``SELECT`` is ``scope_200mhz``).
-- For 137.5 MHz cross-part scope verification use ``TARGET_FREQ_HZ = 137_500_000``
-  (ADF4350 floor, integer-N). Catalog: ``cross_part_scope_137p5mhz``.
-- For the data sheet golden example, use ``TARGET_FREQ_HZ = 2_112_600_000``
-  (needs sufficient BW). Catalog: ``golden_2112p6mhz``.
+Set ``TARGET_FREQ_HZ``, run the script on the board, and probe RFOUTA. The
+default, 200 MHz, is low enough for a 200 MHz oscilloscope. The pins and the
+10 MHz reference match the reference setup in docs/hardware.md; change
+``PINS`` and ``REF_HZ`` for your board. Walkthrough and other targets to
+try: docs/examples/fixed-frequency.md.
 """
 
 from machine import Pin, SPI
@@ -27,7 +14,7 @@ from adf435x.device import ADF435xDevice
 from adf435x.profiles import ADF4351
 from adf435x.synthesizer import ADF435xSynthesizer
 
-# --- User settings -----------------------------------------------------------
+# --- Settings to change ------------------------------------------------------
 TARGET_FREQ_HZ = 200_000_000
 REF_HZ = 10_000_000
 

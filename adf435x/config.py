@@ -1,50 +1,32 @@
-"""ADF435x configuration fields: the single field table and the config object.
+"""The register field table and the configuration object.
 
-``FIELDS`` describes every register field once: register, bit position and
-width, default, kind, legal values, error-message label, and the device
-capability it needs. The mapper derives both its encoder and its validator
-from this table, so there is no second copy of the layout or the defaults.
-
-``ADF435xConfig`` holds field values only. It does not know the target device
-and cannot validate; ``ADF435xRegisterMapper.validate_config`` does that, and
-``ADF435xRegisterFile`` calls it at init and on every ``configure()``.
+``FIELDS`` lists every register field once: its register, bit position,
+width, default, kind, legal values, the label used in error messages, and
+the device capability it needs. ``ADF435xRegisterMapper`` builds both its
+encoder and its validator from this table. ``ADF435xConfig`` only holds
+field values; checking them is the mapper's job.
 """
 
 from . import consts
 
 # Field kinds.
-BOOL = 0  # 1-bit on/off flag; must be True/False (or 1/0)
-UINT = 1  # unsigned integer; must fit the width and be >= its minimum
-ENUM = 2  # one of an explicit tuple of codes from ``consts``
-DIVIDER = 3  # RF output divider; encoded as log2 via the device profile
+BOOL = 0  # on/off flag: True/False or 1/0
+UINT = 1  # unsigned integer that fits the width, at or above its minimum
+ENUM = 2  # one of a tuple of codes from ``consts``
+DIVIDER = 3  # RF divider, stored in the register as log2(divider)
 
 # Column indices into a field spec tuple.
 NAME, REG, POS, WIDTH, DEFAULT, KIND, ALLOWED, LABEL, CAPABILITY = range(9)
 
 
 def _field(name, reg, pos, width, default, kind, allowed=None, label=None, cap=None):
-    """Build one field spec.
+    """Build one field spec tuple.
 
-    Parameters
-    ----------
-    name : str
-        Config attribute name.
-    reg : int
-        Register index (0..5).
-    pos, width : int
-        Bit position of the least-significant bit, and field width.
-    default
-        Value a fresh ``ADF435xConfig`` holds. Defaults are PLL-valid
-        placeholders, not a tuned frequency plan.
-    kind : int
-        ``BOOL``, ``UINT``, ``ENUM`` or ``DIVIDER``.
-    allowed : int or tuple, optional
-        ``UINT``: minimum legal value (default 0). ``ENUM``: legal codes.
-    label : str, optional
-        Name used in error messages (defaults to *name*).
-    cap : str, optional
-        ``ADF435xDeviceProfile`` attribute that must be true for a nonzero
-        value (for example ``"has_phase_adjust"``).
+    *pos* is the bit position of the field's lowest bit. *allowed* is the
+    minimum for a ``UINT`` (default 0) or the tuple of legal codes for an
+    ``ENUM``. *label* names the field in error messages. *cap* names an
+    ``ADF435xDeviceProfile`` attribute that must be true before the field
+    may be nonzero, such as ``"has_phase_adjust"``.
     """
     if kind == UINT and allowed is None:
         allowed = 0
@@ -63,7 +45,7 @@ _POWER_LEVELS = (
 # fmt: off
 FIELDS = (
     # --- R0: N = INT + FRAC/MOD (Figure 24) ---
-    # INT at the 8/9-prescaler minimum (NMIN = 75) so the default validates.
+    # The default INT is the 8/9 prescaler's minimum, 75, so it is legal.
     _field("int_n", _R0, _c.REG0_INT_POS, _c.REG0_INT_WIDTH, 75, UINT, label="INT"),
     _field("frac", _R0, _c.REG0_FRAC_POS, _c.REG0_FRAC_WIDTH, 0, UINT, label="FRAC"),
     # --- R1: prescaler, phase, MOD (Figure 25) ---
@@ -77,7 +59,7 @@ FIELDS = (
     ),
     # Phase word 1 is recommended when phase resync is unused (p.18).
     _field("phase", _R1, _c.REG1_PHASE_POS, _c.REG1_PHASE_WIDTH, 1, UINT),
-    # MOD range comes from the profile (checked with the PLL rule).
+    # The MOD range depends on the part; the mapper's PLL rule checks it.
     _field("mod", _R1, _c.REG1_MOD_POS, _c.REG1_MOD_WIDTH, 2, UINT, label="MOD"),
     # --- R2: reference path, charge pump, lock detect, MUXOUT (Figure 26) ---
     _field(
@@ -102,7 +84,7 @@ FIELDS = (
         _c.REG2_R_COUNTER_MIN, label="R",
     ),
     _field("double_buffer", _R2, _c.REG2_DOUBLE_BUFFER_POS, 1, False, BOOL),
-    # Must match the loop filter; 7 is the eval-board value, not universal.
+    # Must suit the loop filter. 7 suits the evaluation board only.
     _field(
         "cp_current_code", _R2, _c.REG2_CP_CURRENT_POS, _c.REG2_CP_CURRENT_WIDTH,
         7, UINT, label="CP current",
@@ -129,7 +111,7 @@ FIELDS = (
         ENUM, (_c.REG3_BAND_CLK_LOW, _c.REG3_BAND_CLK_HIGH),
         cap="has_fast_band_select",
     ),
-    # Reserved (always 0) on parts without programmable ABP; see the mapper.
+    # Reserved, and always written as 0, on the ADF4350 (see the mapper).
     _field(
         "abp", _R3, _c.REG3_ABP_POS, 1, _c.REG3_ABP_6NS, ENUM,
         (_c.REG3_ABP_6NS, _c.REG3_ABP_3NS),
@@ -157,7 +139,7 @@ FIELDS = (
         "rf_divider", _R4, _c.REG4_RF_DIVIDER_POS, _c.REG4_RF_DIVIDER_WIDTH, 1,
         DIVIDER,
     ),
-    # Legal 1..255 (<= 254 in fast band-select mode; checked as a rule).
+    # 1 to 255, or at most 254 in fast band-select mode (a mapper rule).
     _field(
         "band_clk_div", _R4, _c.REG4_BAND_CLK_DIV_POS, _c.REG4_BAND_CLK_DIV_WIDTH,
         1, UINT, _c.REG4_BAND_CLK_DIV_MIN, label="band select clock divider",
@@ -194,31 +176,14 @@ FIELD_REGISTER = {spec[NAME]: spec[REG] for spec in FIELDS}
 
 
 class ADF435xConfig:
-    """Device configuration, with one instance attribute per register field.
+    """Register field values, one attribute per field in ``FIELDS``.
 
-    Defaults are PLL-valid placeholders so a freshly constructed register file
-    always encodes six well-formed words. They are not a tuned frequency plan;
-    ``adf435x.solver.solve()`` sets the frequency-determining fields.
-
-    Constructing ``ADF435xConfig(**kw)`` checks field names only. To validate
-    values, use ``ADF435xRegisterMapper(profile).validate_config(cfg)`` or build
-    the config through ``ADF435xRegisterFile.configure()``.
-
-    Parameters
-    ----------
-    **overrides
-        Field name/value pairs; names are those in ``FIELD_NAMES``. Names not
-        given keep their default value.
-
-    Raises
-    ------
-    AttributeError
-        If an override names an unknown field.
-
-    Notes
-    -----
-    Use one ``ADF435xConfig`` instance per ``ADF435xRegisterFile``; do not
-    share a config object across multiple register files.
+    The defaults are legal placeholders, not a frequency plan; ``solve()``
+    supplies the frequency fields. The constructor checks field names only
+    (``AttributeError`` for an unknown name). Values are checked by
+    ``ADF435xRegisterMapper.validate_config()`` or, more usually, by
+    ``ADF435xRegisterFile.configure()``. Give each register file its own
+    config object.
 
     Examples
     --------
@@ -230,7 +195,7 @@ class ADF435xConfig:
     """
 
     def __init__(self, **overrides) -> None:
-        """Initialize from defaults, applying any field overrides."""
+        """Start from the defaults, then apply *overrides*."""
         for spec in FIELDS:
             setattr(self, spec[NAME], spec[DEFAULT])
         for name, value in overrides.items():
@@ -239,12 +204,5 @@ class ADF435xConfig:
             setattr(self, name, value)
 
     def copy(self) -> "ADF435xConfig":
-        """Return an independent copy of this configuration.
-
-        Returns
-        -------
-        ADF435xConfig
-            A new instance with the same field values. Mutating the copy does
-            not affect the original.
-        """
+        """Return an independent copy with the same field values."""
         return ADF435xConfig(**{name: getattr(self, name) for name in FIELD_NAMES})

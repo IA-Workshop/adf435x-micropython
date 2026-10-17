@@ -1,13 +1,9 @@
-"""Host benchmarks for adf435x (CPython or the MicroPython Unix port).
+"""Time the solver, table building and playback on a PC.
 
-From the repository root::
-
-    python bench/bench.py
-    micropython bench/bench.py
-
-Times the solver, table building, and table playback against a do-nothing
-device. Results are relative only: the Unix port is not an MCU. On-target
-numbers come from the bench (remediation step B7).
+Run from the repository root with ``python bench/bench.py`` or, on the
+MicroPython Unix port, ``micropython bench/bench.py``. The device does
+nothing, so only library time is measured. Compare runs with each other,
+not with a microcontroller, which is several times slower.
 """
 
 import sys
@@ -21,7 +17,7 @@ REF_HZ = 10_000_000
 
 
 class NullDevice:
-    """Accepts every call; MUXOUT reads locked."""
+    """Device that ignores every write; MUXOUT always reads locked."""
 
     def write_registers(self, words):
         pass

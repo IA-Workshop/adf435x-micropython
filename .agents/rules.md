@@ -40,6 +40,32 @@ One assertion per parametrized test; group with `Test*` classes. Centralized
   a review ID. A fix makes the test XPASS, which fails the run: remove the
   `known_bug` marker in the same change. Never add a normal test that asserts
   current buggy behaviour.
+- **Review finding IDs** (code review of 2026-10-15, fixed in remediation
+  A2–A8) are kept here, not in the test file. Map to
+  `tests/test_regressions.py` classes:
+
+  | ID | Defect | Test class |
+  |----|--------|------------|
+  | C1 | Sweep plans encoded from defaults, not the synth config | `TestSweepUsesSynthConfig` |
+  | C2 | Range tables far coarser than requested | `TestRangeTableCoverage` |
+  | C3 | Explicit frequency lists silently lose accuracy | `TestFrequencyListAccuracy` |
+  | C4 | "Locked" MOD not locked | `TestLockedMod` |
+  | C5, C6 | PFD truncation; floored achieved frequency | `TestExactArithmetic` |
+  | C7, C17, C21, C8 | Validation gaps (C8: fast-mode divider limit) | `TestValidationGaps` |
+  | C21 (solver side) | Low-spur MOD minimum ignored by the solver | `TestLowSpurSolve` |
+  | C8 | Valid ADF4351 PFD range rejected | `TestBandSelectRange` |
+  | C9 | Lock-detect settings | `TestLockDetectSettings` |
+  | C10, C16 | Power-up and unpowered writes | `TestPowerUp` |
+  | C11 | Divider-boundary sweeps without MUXOUT | `TestSweepWithoutMuxout` |
+  | C12 | Lock polling before band select can finish | `TestLockSettle` |
+  | C13 | Divider-crossing error suggestions | `TestCrossingSuggestions` |
+  | C14 | Solver input validation | `TestSolverInputs` |
+  | C15 | Playback after interleaved writes | `TestInterleavedPlayback` |
+  | C19 | Example arithmetic | `TestExampleConstants` |
+  | Q6 | Public error classes | `TestPublicErrors` |
+
+  Use these IDs as the first argument of `known_bug(...)` for a reopened
+  finding; keep step and finding IDs out of test docstrings and comments.
 - **`FakeChip`** (conftest) models register latching (DBR/DBB, data sheet p.12);
   use it to assert `last_written` matches what the chip holds.
 - **Refactor oracles** (frozen v0.1.0 encoder output and solver) proved the
