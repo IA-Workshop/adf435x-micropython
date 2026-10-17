@@ -15,7 +15,7 @@ Hardware assumptions
 
       fPFD = REFIN / R = 10 MHz
       fVCO = fPFD * (INT + FRAC/MOD) = 10 * 422.52 = 4225.2 MHz
-      fOUT = fVCO / RF_divider = 4225.2 / 32 ~= 131.9 MHz
+      fOUT = fVCO / RF_divider = 4225.2 / 32 = 132.0375 MHz
 
   The data-sheet example uses RF divide-by-2 for 2112.6 MHz; divide-by-32
   keeps the same PLL numbers but brings the output into scope range.
@@ -25,7 +25,7 @@ Hardware assumptions
 Modify pin numbers to match your specific setup.
 """
 
-from machine import SPI
+from machine import Pin, SPI
 
 from adf435x import consts
 from adf435x.device import ADF435xDevice
@@ -41,7 +41,7 @@ ADF435X_CE_PIN = 14
 SPI_CHANNEL = 1
 
 # Expected RF output with 10 MHz REFIN and the configuration below.
-EXPECTED_RFOUT_HZ = 131_912_500
+EXPECTED_RFOUT_HZ = 132_037_500
 
 
 def write_plan(device, regfile, plan):
@@ -65,8 +65,8 @@ spi = SPI(
     polarity=0,
     phase=0,
     bits=8,
-    sck=SPI_SCK_PIN,
-    mosi=SPI_MOSI_PIN,
+    sck=Pin(SPI_SCK_PIN),
+    mosi=Pin(SPI_MOSI_PIN),
 )
 
 adf = ADF435xDevice(
@@ -97,7 +97,7 @@ write_plan(adf, regfile, plan)
 print("Wrote %d register words" % len(plan))
 
 print(
-    "RF output should be about %.3f MHz -- probe RFOUTA with your scope"
+    "RF output should be %.4f MHz -- probe RFOUTA with your scope"
     % (EXPECTED_RFOUT_HZ / 1e6)
 )
 

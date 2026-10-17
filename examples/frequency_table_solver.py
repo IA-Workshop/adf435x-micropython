@@ -39,7 +39,7 @@ ADF435X_MUXOUT_PIN = 9
 
 def make_device():
     """Open SPI and build the device handler (hardware only)."""
-    from machine import SPI
+    from machine import Pin, SPI
 
     from adf435x.device import ADF435xDevice
 
@@ -49,8 +49,8 @@ def make_device():
         polarity=0,
         phase=0,
         bits=8,
-        sck=SPI_SCK_PIN,
-        mosi=SPI_MOSI_PIN,
+        sck=Pin(SPI_SCK_PIN),
+        mosi=Pin(SPI_MOSI_PIN),
     )
     return ADF435xDevice(
         spi,

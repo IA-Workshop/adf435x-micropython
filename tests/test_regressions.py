@@ -1,10 +1,12 @@
-"""Regression tests for confirmed defects (code review, 2026-10-15).
+"""Regression tests for defects found in the code review (2026-10-15).
 
-Each test asserts the *correct* behaviour and is marked ``known_bug``: a
-strict xfail. When a fix lands the test starts passing, strict mode turns
-that into a failure, and the marker must be removed in the same change.
-The finding ID in each reason (C1, C2, ...) refers to the review findings
-and the remediation plan.
+Each test asserts the correct behaviour; the finding ID in its class or
+reason (C1, C2, ...) refers to the review and remediation plan. All were
+fixed in remediation steps A2-A8.
+
+To pin a new known bug, mark its test ``@known_bug(ID, why)``: a strict
+xfail, so the fix makes it XPASS and fails the run until the marker is
+removed in the same change.
 
 Fixed tests keep running as ordinary regression tests. When an API
 changes, port the test's intent to the new API rather than deleting it.
@@ -485,7 +487,6 @@ class TestInterleavedPlayback:
 class TestExampleConstants:
     """Example scripts state correct expected values (C19)."""
 
-    @known_bug("C19", "registers.py expects 131.9125 MHz", AssertionError)
     def test_registers_example_expected_output(self):
         """4225.2 MHz / 32 = 132,037,500 Hz."""
         tree = ast.parse((EXAMPLES / "registers.py").read_text())

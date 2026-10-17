@@ -41,10 +41,9 @@ One assertion per parametrized test; group with `Test*` classes. Centralized
   current buggy behaviour.
 - **`FakeChip`** (conftest) models register latching (DBR/DBB, data sheet p.12);
   use it to assert `last_written` matches what the chip holds.
-- **Refactor oracles** (temporary): `tests/data/encode_golden.json` +
-  `test_encode_oracle.py` freeze v0.1.0 encoder output (never regenerate
-  from the current encoder); `tests/reference_solver.py` +
-  `test_solver_oracle.py` for solver accuracy.
+- **Refactor oracles** (frozen v0.1.0 encoder output and solver) proved the
+  A2 and A4 rewrites and were removed in A8; recover them from git history
+  (commit ecf5a78) if a future rewrite needs them.
 - **Benchmarks:** `python bench/bench.py` or `micropython bench/bench.py`;
   record notable changes in `.agents/status.md`.
 - **MicroPython:** CI compiles `adf435x/` with `mpy-cross` and runs

@@ -126,10 +126,6 @@ class SolveOptions:
         values.update(overrides)
         return SolveOptions(**values)
 
-    def with_locked_pll(self, mod, rf_divider=None):
-        """Copy with MOD (and optionally the RF divider) fixed."""
-        return self.copy(mod=mod, rf_divider=rf_divider)
-
 
 def _resolve_options(options):
     """Return *options* or default ``SolveOptions()``."""

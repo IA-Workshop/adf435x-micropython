@@ -5,7 +5,7 @@ handler, perform a register transaction, and read the value of the MUXOUT pin.
 Modify the pin values to correspond to your specific setup.
 """
 
-from machine import SPI
+from machine import Pin, SPI
 
 from adf435x.device import ADF435xDevice
 
@@ -32,8 +32,8 @@ spi_handle = SPI(
     polarity=0,
     phase=0,
     bits=8,
-    sck=SPI_SCK_PIN,
-    mosi=SPI_MOSI_PIN,
+    sck=Pin(SPI_SCK_PIN),
+    mosi=Pin(SPI_MOSI_PIN),
 )
 
 # 2. Instantiate an ADF435xDevice

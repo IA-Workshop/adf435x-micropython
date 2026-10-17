@@ -9,7 +9,7 @@ longer boundary dwell for cleaner scope traces.
 Hardware assumptions match ``fixed_frequency.py``.
 """
 
-from machine import SPI
+from machine import Pin, SPI
 
 from adf435x.device import ADF435xDevice
 from adf435x.profiles import ADF4351
@@ -43,8 +43,8 @@ spi = SPI(
     polarity=0,
     phase=0,
     bits=8,
-    sck=PINS["sck"],
-    mosi=PINS["mosi"],
+    sck=Pin(PINS["sck"]),
+    mosi=Pin(PINS["mosi"]),
 )
 
 device = ADF435xDevice(

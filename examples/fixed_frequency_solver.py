@@ -24,7 +24,7 @@ Scope notes
 Modify pin numbers and ``TARGET_FREQ_HZ`` for your setup.
 """
 
-from machine import SPI
+from machine import Pin, SPI
 
 from adf435x.device import ADF435xDevice
 from adf435x.profiles import ADF4351
@@ -63,8 +63,8 @@ spi = SPI(
     polarity=0,
     phase=0,
     bits=8,
-    sck=SPI_SCK_PIN,
-    mosi=SPI_MOSI_PIN,
+    sck=Pin(SPI_SCK_PIN),
+    mosi=Pin(SPI_MOSI_PIN),
 )
 
 device = ADF435xDevice(
