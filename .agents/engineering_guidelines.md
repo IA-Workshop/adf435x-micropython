@@ -17,6 +17,9 @@ actionable and reference form.
 | `import machine` at package root | `adf435x.device` submodule only |
 | Hard-code board pins in `adf435x/` | Pass SPI/GPIO from caller or examples |
 | Add `SynthPolicy`, `DeviceLimits`, or a second options bag | `SolveOptions` + `ADF435xDeviceProfile` bounds |
+| Precompute delta write plans for a sweep | Store all six words per entry; `play_step()` diffs against `last_written` |
+| Write SPI while CE is low | Stage in the register file; `power_up()` writes |
+| Round fPFD or use float math in the solver | Integer fractions (`pfd_num / pfd_den`); `exact` only when the residual is zero |
 
 ## Invariant notes (beyond the one-liners in AGENTS.md)
 
@@ -27,8 +30,9 @@ actionable and reference form.
   performs I/O. The synthesizer owns the device write and the post-I/O state
   transition (`mark_written` / `mark_write_failed`).
 - **Freshness signals** — `commit_count` (monotonic, on the register file) marks
-  plan freshness; wall-clock `_last_write_us` belongs on the synthesizer to keep
-  the register file portable and clock-free.
+  write freshness and `config_version` counts successful `configure()` calls
+  (frequency tables re-encode when it changes); wall-clock `_last_write_us`
+  belongs on the synthesizer to keep the register file portable and clock-free.
 - **Solver bounds** — come from `ADF435xDeviceProfile` plus module constants. Do
   not reintroduce a `DeviceLimits` / `limits_for_profile` layer.
 

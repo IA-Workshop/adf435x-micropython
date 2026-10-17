@@ -13,4 +13,5 @@ paths:
 - Double-buffer state is read from the encoded R2 word — no separate flag.
 - `WORKED_WORDS[n]` is register **Rn**. Never duplicate hex in markdown.
 
-Full rationale: `.agents/engineering_guidelines.md` (§1–3), `.agents/datasheet.md`.
+Full rationale: `.agents/engineering_guidelines.md` (Don't→Do, Invariant notes),
+`.agents/datasheet.md`.

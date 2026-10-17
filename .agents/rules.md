@@ -62,7 +62,8 @@ After each implementation step:
 | Tests / HIL conventions | this file, testing section |
 | Milestone | `.agents/status.md` |
 | Permanent invariant | `AGENTS.md` + `.agents/engineering_guidelines.md` |
-| Human layer overview | `docs/architecture.md` |
+| Human API / behaviour | `docs/api-guide.md` (plus `docs/sweeps.md`, `docs/frequency-planning.md` as relevant) |
+| User-visible change | `CHANGELOG.md` "Unreleased" |
 | Non-obvious merge rationale | `.agents/journal.md` (append only) |
 
 ## Wrapper policy

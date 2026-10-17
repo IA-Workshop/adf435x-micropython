@@ -24,6 +24,29 @@ Append-only log of implementation decisions. Newest entries at the top.
 
 ---
 
+## 2026-10-17 — Human docs written; datasheet facts corrected (docs-refactor, A7–A9)
+
+**Context:** The branch's README linked to `docs/` pages that were never
+committed anywhere (checked all branches, stashes, dangling objects), and
+`.agents/datasheet.md` had wrong or missing facts (LDP, double-buffer list,
+fast band-select limit, PFD conditions).
+
+**Decision:** Write the human docs from the removed `agent/*.md` material and
+the current API; correct `.agents/datasheet.md` against the local PDFs with
+page citations, labelling repo policy separately. Add `tests/test_docs.py`
+(links and anchors in human and agent docs, no agent links from human docs,
+no hex register words in markdown, README/quickstart code runs). A7 added
+allocation-free SPI writes and `bench/bench.py`; A8 removed the refactor
+oracles and `with_locked_pll`.
+
+**Alternatives rejected:** Restoring `agent/*.md` as human docs (agent/human
+boundary); a separate link-checker tool in CI (pytest already runs there).
+
+**Files affected:** `README.md`, `CONTRIBUTING.md`, `docs/**`, `.agents/**`,
+`AGENTS.md`, `.claude/rules/*`, `.cursor/**`, `tests/test_docs.py`
+
+**Follow-ups:** Part B bench steps; figure assets (wiring diagram).
+
 ## 2026-10-17 — Synthesizer power-up, staging, and lock settle (docs-refactor, A6)
 
 **Context:** `power_up()` without a frequency wrote placeholder registers

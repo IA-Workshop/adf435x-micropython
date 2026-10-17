@@ -75,6 +75,12 @@ All notable user-facing changes are documented here.
 - `FrequencyOutOfRangeError`, `NoSolutionError` and `ExactFrequencyError`
   are exported from the package root.
 
+### Documentation
+
+- New user guides in `docs/`: quickstart, hardware, API guide, frequency
+  planning, sweeps, troubleshooting, development, examples, glossary; new
+  `CONTRIBUTING.md`. The README has a quickstart again, and its links work.
+
 ### Fixed
 
 - Solver: fPFD is kept as an exact fraction, so a non-integer fPFD (for

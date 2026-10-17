@@ -21,13 +21,14 @@ Read only the row for your change type.
 
 | Changing… | Read | Run |
 |-----------|------|-----|
-| Bit layout / encode | `.agents/datasheet.md`, `.agents/engineering_guidelines.md` §1–3 + naming | `test_register_mapper.py`, `test_register_file.py`, `test_validation.py` |
+| Bit layout / encode | `.agents/datasheet.md`, `.agents/engineering_guidelines.md` (Don't→Do, Invariant notes, Naming) | `test_register_mapper.py`, `test_register_file.py`, `test_validation.py` |
 | Frequency / MOD | `.agents/datasheet.md`, naming in `.agents/engineering_guidelines.md` | `test_solver.py` |
-| Synthesizer / SPI writes | `.agents/engineering_guidelines.md` §4–5, §11–13; `adf435x/synthesizer.py` | `test_synthesizer.py` |
-| Sweep / tables | `.agents/datasheet.md`, `.agents/engineering_guidelines.md`; `adf435x/sweep.py` | `test_sweep.py` |
+| Synthesizer / SPI writes | `.agents/engineering_guidelines.md` (Invariant notes); AGENTS.md invariants 4–5, 11, 14–15; `adf435x/synthesizer.py` | `test_synthesizer.py` |
+| Sweep / tables | `.agents/datasheet.md`, AGENTS.md invariant 14; `adf435x/sweep.py` | `test_sweep.py`, `test_regressions.py` |
 | Board pins / SPI wiring | `docs/hardware.md` | `test_device.py`; `examples/validate.py` on board |
 | New public names | `.agents/engineering_guidelines.md` naming | matching layer tests |
 | Test harness / fixtures | `.agents/rules.md` testing section | touched `tests/` files |
+| Human docs | `.agents/rules.md` (Documentation boundary) | `test_docs.py` |
 | Milestones only | `.agents/status.md` | — |
 
 ## Definition of done

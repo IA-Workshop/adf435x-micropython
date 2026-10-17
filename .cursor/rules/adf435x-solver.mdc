@@ -16,4 +16,4 @@ alwaysApply: false
 - A fixed MOD (`SolveOptions.mod`, `channel_step_hz`) is never reduced.
 
 Full rationale: [.agents/engineering_guidelines.md](../../.agents/engineering_guidelines.md)
-(§6, §8), [.agents/datasheet.md](../../.agents/datasheet.md).
+(Don't→Do), [.agents/datasheet.md](../../.agents/datasheet.md).

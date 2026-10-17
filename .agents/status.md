@@ -3,8 +3,8 @@
 Maintainer milestone tracker. Living summary of completed work and open items.
 
 **Host tests:** refresh with `pytest -q` (see [rules.md](rules.md) testing
-section for conventions). Baseline 2026-10-17 (after A8): 533 passed, no
-known-bug xfails (refactor oracles removed; see `tests/test_regressions.py`).
+section for conventions). Baseline 2026-10-17 (after A9): 606 passed, no
+known-bug xfails (see `tests/test_regressions.py`).
 
 **Host benchmarks** (`bench/bench.py`, 2026-10-17; relative only, on-target
 numbers come from bench step B7):
@@ -31,8 +31,8 @@ numbers come from bench step B7):
   sweep, frequency table builder, raw device/register demos
 - **Agent documentation** — consolidated under `.agents/`; human docs in
   `docs/`; path-scoped rules in `.claude/rules/` and `.cursor/rules/`
-- **Docs refactor** — content in `docs/`; README slimmed; legacy dotless docs
-  tree removed
+- **Docs refactor** — legacy `agent/` tree removed; human docs written in
+  remediation step A9
 - **Bench validation example** — [`examples/validate.py`](../examples/validate.py)
   (host-run catalog cases; not part of pytest)
 - **Hardware bring-up** — eval-board validation via `validate.py` catalog
@@ -58,13 +58,17 @@ numbers come from bench step B7):
   `bench/bench.py` baselines above
 - **Remediation A8: cleanup** — oracles and `with_locked_pll` removed;
   examples use `Pin` objects for SPI; `registers.py` expected output fixed
+- **Remediation A9: documentation** — human docs in `docs/` (quickstart,
+  hardware, API guide, frequency planning, sweeps, troubleshooting,
+  development, examples, glossary), README and CONTRIBUTING rewritten,
+  `.agents/datasheet.md` corrected against the data sheets, doc checks in
+  `tests/test_docs.py`
 
 ## Open work
 
 | Priority | Item | Notes |
 |----------|------|-------|
 | Low | Docs figure assets | Wiring diagram, probe photos, decision tree |
-| High | Remediation A9 | Human docs (`docs/`), agent-doc consolidation, `.agents/datasheet.md` corrections |
 | Medium | Remediation B (bench) | Lock-detect policy, DLD settle time (`LOCK_SETTLE_MARGIN_US` is provisional), sweep/SPI checks once the testbench is back |
 | Low | Cheat-sheet golden vectors | Catalog beyond datasheet golden; see [cheat sheet](https://ez.analog.com/rf/w/documents/14697/adf4350-and-adf4351-common-questions-cheat-sheet) |
 

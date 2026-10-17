@@ -232,7 +232,7 @@ def mock_machine(monkeypatch):
         OUT = 1
         IN = 0
 
-        def __init__(self, pin, mode, value=0):
+        def __init__(self, pin, mode=None, value=0):
             self.pin = pin
             self.mode = mode
             self._value = value
@@ -247,7 +247,7 @@ def mock_machine(monkeypatch):
             return self._value
 
     class FakeSPI:
-        def __init__(self):
+        def __init__(self, *args, **kwargs):
             self.writes = []
 
         def write(self, data):

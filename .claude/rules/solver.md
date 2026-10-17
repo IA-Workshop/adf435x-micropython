@@ -15,4 +15,4 @@ paths:
   hertz, the smallest MOD wins (results are already in lowest terms).
 - A fixed MOD (`SolveOptions.mod`, `channel_step_hz`) is never reduced.
 
-Full rationale: `.agents/engineering_guidelines.md` (§6, §8), `.agents/datasheet.md`.
+Full rationale: `.agents/engineering_guidelines.md` (Don't→Do), `.agents/datasheet.md`.
