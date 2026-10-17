@@ -23,16 +23,43 @@ All notable user-facing changes are documented here.
 - `ADF435xRegisterFile`: removed `commit()`, `commit_all()` and the
   `invalidate` alias. Use `commit_plan()` / `commit_all_plan()`, write the
   words, then `mark_written()` or `mark_write_failed()`.
+- Solver: `achieved_hz` and `vco_hz` are rounded to the nearest hertz (were
+  floored) and `error_hz` is `target_hz - achieved_hz`.
+- Solver: `SolveOptions.channel_spacing_hz` is replaced by `channel_step_hz`,
+  the step at the **RF output** (MOD = fPFD / (step × RF divider), which must
+  be a whole number).
+- Solver: an explicit MOD (`SolveOptions.mod`) is used as given, no longer
+  reduced by a common factor.
+- Solver: among MOD values whose error rounds to the same hertz, the smallest
+  wins (fewer spurs); the choice can differ from v0.1.0 by under a hertz.
+- Solver: sets the lock-detect window (`ldp`) as the data sheet recommends,
+  10 ns for fractional-N and 6 ns for integer-N.
+- Solver: non-integer frequencies raise `TypeError`; `ref_hz <= 0`, an
+  out-of-range MOD, and an illegal `rf_divider` raise `ValueError` up front.
 
 ### Added
 
 - `ADF435xRegisterFile.config_version` (counts successful `configure()`
   calls) and `load_prevalidated(fields, words)` for precomputed state.
+- `SolveResult.exact`: true only when the output is exactly the target;
+  `SolveOptions(exact=True)` uses it.
+- `SolveOptions.mod_min` and `SolveOptions.copy(**overrides)`.
+- `FrequencyOutOfRangeError`, `NoSolutionError` and `ExactFrequencyError`
+  are exported from the package root.
 
-### Known issue
+### Fixed
 
-- In low-spur noise mode, `set_frequency()` raises when the solver picks a
-  MOD below 50. The solver fix is pending.
+- Solver: fPFD is kept as an exact fraction, so a non-integer fPFD (for
+  example 25 MHz / R=3) no longer reports phantom errors, and `exact=True`
+  no longer accepts outputs that are off by a fraction of a hertz.
+- ADF4351: PFD frequencies between 31.875 and 32 MHz are accepted (fast
+  band-select mode).
+- Low-spur noise mode: the synthesizer asks the solver for MOD >= 50.
+
+### Performance
+
+- The MOD search is about 280x faster: 16 us per solve on the MicroPython
+  Unix port, was 4.6 ms.
 
 ## 0.1.0
 

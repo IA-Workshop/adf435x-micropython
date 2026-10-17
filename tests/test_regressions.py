@@ -147,7 +147,6 @@ class TestRangeTableCoverage:
         """A step finer than the grid keeps every grid point."""
         assert _pick_step_grid([0, 10, 20, 30, 40], 3) == [0, 10, 20, 30, 40]
 
-    @known_bug("C2", "n_high mixes locked and gcd-reduced MOD", AssertionError)
     def test_reaches_upper_bound(self, synth):
         """190.01-190.1 MHz ends at 190.1 MHz, not 190.02 MHz."""
         table = FrequencyTable.from_range(
@@ -185,7 +184,6 @@ class TestFrequencyListAccuracy:
 class TestLockedMod:
     """A locked MOD must stay locked (C4)."""
 
-    @known_bug("C4", "gcd reduction changes MOD inside a segment", AssertionError)
     def test_mod_constant_across_table(self, synth):
         """Every entry of a single-divider table shares one MOD."""
         table = FrequencyTable.from_range(
@@ -203,7 +201,6 @@ class TestLockedMod:
         lengths = {len(table[i].plan) for i in range(1, len(table))}
         assert lengths == {1}
 
-    @known_bug("C4", "explicit MOD is gcd-reduced", AssertionError)
     def test_explicit_mod_is_kept(self):
         """SolveOptions(mod=50) returns MOD 50 (inverts test_explicit_mod_gcd_reduces)."""
         result = solve(
@@ -218,7 +215,6 @@ class TestLockedMod:
 class TestExactArithmetic:
     """Solver reporting must use exact arithmetic (C5, C6)."""
 
-    @known_bug("C5", "fPFD truncated to whole hertz", AssertionError)
     def test_non_integer_pfd_reports_true_error(self):
         """25 MHz / R=3 reaches 1 GHz exactly; no phantom 40 Hz error."""
         result = solve(
@@ -229,7 +225,6 @@ class TestExactArithmetic:
         )
         assert result.error_hz == 0
 
-    @known_bug("C5", "exact=True rejects an exactly reachable target")
     def test_non_integer_pfd_exact_accepted(self):
         """exact=True accepts 1 GHz from 25 MHz / R=3."""
         result = solve(
@@ -240,7 +235,6 @@ class TestExactArithmetic:
         )
         assert _exact_output_hz(result.fields, 25_000_000, r_counter=3) == 1_000_000_000
 
-    @known_bug("C6", "floored achieved_hz hides a 0.62 Hz residual")
     def test_exact_rejects_sub_hertz_residual(self):
         """100,000,399 Hz is not exactly reachable; exact=True must raise."""
         with pytest.raises(ExactFrequencyError):
@@ -297,7 +291,6 @@ class TestValidationGaps:
 class TestLowSpurSolve:
     """The solver must honour the low-spur MOD minimum (C21, solver side)."""
 
-    @known_bug("C21", "solver picks MOD < 50 in low-spur mode", ValueError)
     def test_set_frequency_in_low_spur_mode(self, synth):
         """A low-spur retune picks a MOD of at least 50."""
         synth.regfile.configure(noise_mode=consts.REG2_LOW_SPUR, mod=50)
@@ -311,7 +304,6 @@ class TestLowSpurSolve:
 class TestBandSelectRange:
     """ADF4351 fast band select covers fPFD up to 32 MHz (C8)."""
 
-    @known_bug("C8", "normal-mode cap applied before fast mode")
     def test_32_mhz_pfd_solves(self):
         """A 32 MHz PFD solves on the ADF4351 in fast mode."""
         result = solve(1_000_000_000, 32_000_000, ADF4351)
@@ -324,13 +316,11 @@ class TestBandSelectRange:
 class TestLockDetectSettings:
     """LDF/LDP follow data sheet p.19: frac-N 00, int-N 11 (C9)."""
 
-    @known_bug("C9", "solver never sets LDP", AssertionError)
     def test_fractional_n_uses_10ns_window(self):
         """Fractional-N solve sets LDP to 10 ns."""
         result = solve(2_112_600_000, REF_HZ, ADF4351)
         assert result.fields.get("ldp") == consts.REG2_LDP_10NS
 
-    @known_bug("C9", "solver never sets LDP", AssertionError)
     def test_integer_n_uses_6ns_window(self):
         """Integer-N solve sets LDP to 6 ns."""
         result = solve(200_000_000, REF_HZ, ADF4351)
@@ -470,25 +460,21 @@ class TestCrossingSuggestions:
 class TestSolverInputs:
     """solve() rejects invalid inputs with clear errors (C14)."""
 
-    @known_bug("C14", "zero reference divides by zero", ZeroDivisionError)
     def test_zero_reference_raises_value_error(self):
         """ref_hz=0 raises ValueError, not ZeroDivisionError."""
         with pytest.raises(ValueError):
             solve(200_000_000, 0, ADF4351)
 
-    @known_bug("C14", "float frequencies are accepted")
     def test_float_target_rejected(self):
         """A float target raises TypeError or ValueError."""
         with pytest.raises((TypeError, ValueError)):
             solve(200e6, REF_HZ, ADF4351)
 
-    @known_bug("C14", "out-of-range MOD returned as a field")
     def test_mod_out_of_range_rejected(self):
         """SolveOptions(mod=5000) raises at solve time."""
         with pytest.raises(ValueError):
             solve(200_000_000, REF_HZ, ADF4351, options=SolveOptions(mod=5000))
 
-    @known_bug("C14", "illegal divider gives a misleading error", AssertionError)
     def test_illegal_divider_message(self):
         """SolveOptions(rf_divider=3) names the divider in the error."""
         with pytest.raises(ValueError, match="rf_divider"):
@@ -542,7 +528,6 @@ class TestExampleConstants:
 class TestPublicErrors:
     """Solver error classes are importable from the package root (Q6)."""
 
-    @known_bug("Q6", "only DividerOctaveCrossingError is exported", AssertionError)
     @pytest.mark.parametrize(
         "name",
         ["FrequencyOutOfRangeError", "NoSolutionError", "ExactFrequencyError"],

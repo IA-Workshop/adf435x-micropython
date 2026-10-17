@@ -11,7 +11,7 @@ import time
 from . import consts
 from .profiles import ADF435xDeviceProfile
 from .register_file import ADF435xRegisterFile
-from .solver import SolveOptions, SolveResult, solve
+from .solver import LOW_SPUR_MOD_MIN, SolveOptions, SolveResult, solve
 
 _TICKS_US_STUB = 0
 
@@ -225,13 +225,16 @@ class ADF435xSynthesizer:
         Returns
         -------
         SolveResult
+
+        Notes
+        -----
+        In low-spur noise mode the solver is asked for MOD >= 50, the data
+        sheet minimum for that mode (p.23).
         """
-        return solve(
-            hz,
-            self._ref_hz,
-            self._profile,
-            options=options or self._solve_options,
-        )
+        opts = options or self._solve_options
+        if self._regfile.config.noise_mode == consts.REG2_LOW_SPUR:
+            opts = opts.copy(mod_min=max(opts.mod_min or 0, LOW_SPUR_MOD_MIN))
+        return solve(hz, self._ref_hz, self._profile, options=opts)
 
     def _apply_solve(self, hz):
         """

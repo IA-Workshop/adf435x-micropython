@@ -24,6 +24,33 @@ Append-only log of implementation decisions. Newest entries at the top.
 
 ---
 
+## 2026-10-17 — Exact solver with continued-fraction MOD search (docs-refactor, A3–A4)
+
+**Context:** The solver truncated fPFD and floored outputs (phantom errors,
+false `exact`), gcd-reduced an explicitly locked MOD (breaking sweep MOD
+lock), and brute-forced up to 4094 MOD values per solve (~4.6 ms on the
+MicroPython Unix port).
+
+**Decision:** Carry fPFD as an integer fraction. Find the closest N with
+MOD <= 4095 from the Farey neighbours of the continued fraction, then take
+the simplest fraction (Stern-Brocot) whose error rounds to the same whole
+hertz, so ties keep favouring the smallest MOD. A fixed MOD is rounded to,
+never reduced; `mod_min` scales MOD up without changing N (low-spur MOD
+>= 50 via the synthesizer). Lock-detect LDF/LDP follow p.19 (00 / 11). The
+solver oracle compares rounded-hertz error, the API's resolution.
+Also A3: removed optimistic `commit()`; added `config_version` and
+`load_prevalidated()` for table playback.
+
+**Alternatives rejected:** Minimising exact error regardless of MOD (picks
+MOD near 4095 for sub-hertz gains, against spur guidance); `fractions`
+module (not in MicroPython).
+
+**Files affected:** `adf435x/solver.py`, `adf435x/synthesizer.py`,
+`adf435x/register_file.py`, `adf435x/__init__.py`, solver/register tests
+
+**Follow-ups:** Table-building code still in `solver.py` moves to
+`sweep.py` in A5.
+
 ## 2026-10-15 — Register layer driven by one field table (docs-refactor, step A2)
 
 **Context:** Field layout, defaults, legal values and labels were spread over

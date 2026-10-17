@@ -3,8 +3,8 @@
 Maintainer milestone tracker. Living summary of completed work and open items.
 
 **Host tests:** refresh with `pytest -q` (see [rules.md](rules.md) testing
-section for conventions). Baseline 2026-10-15 (after A2): 1049 passed,
-38 xfailed (known bugs pinned in `tests/test_regressions.py`).
+section for conventions). Baseline 2026-10-17 (after A4): 1116 passed,
+21 xfailed (known bugs pinned in `tests/test_regressions.py`).
 
 ## Completed milestones
 
@@ -34,16 +34,19 @@ section for conventions). Baseline 2026-10-15 (after A2): 1049 passed,
 - **Remediation A2: register layer** — single `config.FIELDS` table drives
   encode and validation; new datasheet rules (flags, phase < MOD, low-spur
   MOD >= 50, fast band-select divider <= 254, no N-divider on MUXOUT)
+- **Remediation A3: register file** — optimistic `commit()` removed;
+  `config_version` and `load_prevalidated()` for table playback
+- **Remediation A4: solver** — exact rational fPFD, continued-fraction MOD
+  search (~280x faster), locked MOD kept, data-sheet lock-detect settings
 
 ## Open work
 
 | Priority | Item | Notes |
 |----------|------|-------|
 | Low | Docs figure assets | Wiring diagram, probe photos, decision tree |
-| High | Remediation A3–A9 | Fix the 38 pinned xfails in `tests/test_regressions.py` (sweep rewrite, solver rewrite, validation, synthesizer, docs) |
+| High | Remediation A5–A9 | Fix the 21 pinned xfails in `tests/test_regressions.py` (sweep rewrite, solver rewrite, validation, synthesizer, docs) |
 | Medium | Remediation B (bench) | Lock-detect policy, DLD settle time, sweep/SPI checks once the testbench is back |
 | Low | Cheat-sheet golden vectors | Catalog beyond datasheet golden; see [cheat sheet](https://ez.analog.com/rf/w/documents/14697/adf4350-and-adf4351-common-questions-cheat-sheet) |
-| Low | MOD search profiling | Exhaustive search fine for single retunes; profile on target MCU if hopping latency matters |
 | Low | Export sweep from `__init__.py` | Deferred until sweep API fully stable |
 
 ## Package export notes

@@ -59,17 +59,22 @@ Implemented in `_pick_band_clk` in [`solver.py`](../adf435x/solver.py).
 
 - Prescaler 4/5 below profile threshold (3.0 GHz ADF4350 / 3.6 GHz ADF4351),
   else 8/9
-- **Spur guidance (cheat sheet):** prefer **smaller MOD** when frequency error
-  ties — solver MOD search scores `(abs(error_hz), mod)`
-- Gcd-reduce (FRAC, MOD) when FRAC > 0; skip for integer-N (keep MOD ≥ mod_min)
+- **Spur guidance (cheat sheet):** reduce FRAC/MOD where possible — the solver
+  prefers the **smallest MOD** among candidates whose error rounds to the same
+  whole hertz (repo policy), so results are already in lowest terms
+- A fixed MOD (`SolveOptions.mod`, or `channel_step_hz` = RF-output step, giving
+  MOD = fPFD / (step × RF divider); data sheet p.21 example) is never reduced
+- Low-spur noise mode needs **MOD ≥ 50** (p.23); the synthesizer passes
+  `mod_min=50` to the solver in that mode
 
 ## Integer-N vs fractional-N settings
 
-When FRAC = 0, the solver sets:
+The solver sets these from FRAC (data sheet p.19–20):
 
-| Setting | frac-N default | int-N value | Notes |
-|---------|----------------|-------------|-------|
-| LDF | FRAC_N | INT_N | Lock-detect mode |
+| Setting | frac-N (FRAC > 0) | int-N (FRAC = 0) | Notes |
+|---------|-------------------|------------------|-------|
+| LDF | FRAC_N (40 cycles) | INT_N (5 cycles) | Lock-detect cycle count |
+| LDP | 10 ns | 6 ns | Lock-detect comparison window; p.19 recommends DB8:DB7 = 00 / 11 |
 | ABP | 6 ns (4351) / fixed 3 ns (4350) | 3 ns | ADF4350 ABP not programmable |
 | charge_cancel | off | on | ADF4351 only |
 

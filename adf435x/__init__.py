@@ -14,6 +14,9 @@ from .register_mapper import ADF435xRegisterMapper
 from .register_file import ADF435xRegisterFile
 from .solver import (
     DividerOctaveCrossingError,
+    ExactFrequencyError,
+    FrequencyOutOfRangeError,
+    NoSolutionError,
     SolveOptions,
     SolveResult,
     max_hz_for_rf_divider,
@@ -39,6 +42,9 @@ __all__ = [
     "SolveOptions",
     "SolveResult",
     "DividerOctaveCrossingError",
+    "ExactFrequencyError",
+    "FrequencyOutOfRangeError",
+    "NoSolutionError",
     "output_band_hz",
     "max_hz_for_rf_divider",
 ]
