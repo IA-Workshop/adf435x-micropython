@@ -7,14 +7,15 @@ Staleness is derived by diffing the freshly encoded words against the
 last-written words, so it can't disagree with a hand-kept flag.
 
 ``commit_plan()`` returns the register words to write (R5 down to R0) without
-updating the last-written cache. ``commit()`` is the optimistic shortcut:
-``commit_plan()`` followed by ``mark_written()``. After a successful device
-write, call ``mark_written()``; if the write fails, call ``mark_write_failed()``
-and reprogram with ``commit_all()``.
+updating the last-written cache. After a successful device write, call
+``mark_written()``; if the write fails, call ``mark_write_failed()`` and
+reprogram with ``commit_all_plan()``. The register file never performs I/O.
 
-Double-buffer latching (datasheet Figure 23):
+Double-buffer latching (data sheet p.12, Figure 23):
 - R1 (phase, modulus) and R2 (R counter, ref doubler/div-by-2, CP current)
-  latch on a write to R0 (DBR).
+  latch on a write to R0 (DBR). Their other bits take effect immediately; the
+  register file adds the R0 write whenever R1 or R2 changes, which is always
+  safe.
 - R4 RF divider select latches on R0 only when R2 DB13 (``double_buffer``)
   is set (DBB). That DB13 state is read from the encoded R2 word, not a
   separate flag, so it stays consistent with the diffed words.
@@ -55,6 +56,7 @@ class ADF435xRegisterFile:
         # None means never written, so every register starts stale.
         self._last_written = [None] * self.NUM_REGISTERS
         self._commit_count = 0
+        self._config_version = 0
         self._mapper.validate_config(self._config)
         self._recompute()
 
@@ -71,6 +73,16 @@ class ADF435xRegisterFile:
             validation; prefer ``configure()``.
         """
         return self._config
+
+    @property
+    def config_version(self) -> int:
+        """Count of successful ``configure()`` calls.
+
+        Lets callers holding words encoded from an earlier configuration (for
+        example a precomputed frequency table) detect that settings changed.
+        ``load_prevalidated()`` does not advance it.
+        """
+        return self._config_version
 
     def configure(self, **fields) -> None:
         """Update configuration fields and re-encode.
@@ -113,6 +125,7 @@ class ADF435xRegisterFile:
                 setattr(self._config, name, value)
             self._recompute()
             raise
+        self._config_version += 1
 
     def _recompute(self, dirty=None) -> None:
         """Encode configuration into ``_current``.
@@ -136,28 +149,39 @@ class ADF435xRegisterFile:
         for index in indices:
             self._current[index] = m.encode_register(index, c)
 
-    def _update_current(self, words) -> None:
-        """Replace the current (desired) words.
+    def load_prevalidated(self, fields, words) -> None:
+        """Set fields and their encoded words without validating or encoding.
+
+        For configurations validated and encoded earlier, such as frequency
+        table entries built at setup, so playback skips both steps.
 
         Parameters
         ----------
+        fields : dict
+            Field name/value pairs to store on the config. Must already be
+            valid for this profile.
         words : sequence of int
-            Exactly ``NUM_REGISTERS`` register words, in index order R0..R5.
+            Exactly ``NUM_REGISTERS`` words, R0..R5, that encode the config
+            *after* *fields* are applied. The caller guarantees this; a
+            mismatch makes later ``configure()`` calls re-encode from a
+            config that disagrees with what was written.
 
         Raises
         ------
+        AttributeError
+            If a field name is unknown.
         ValueError
             If the wrong number of words is supplied.
-
-        Notes
-        -----
-        Test and recovery seam that sets words without re-encoding from a
-        config. Normal updates go through ``configure()``.
         """
         if len(words) != self.NUM_REGISTERS:
             raise ValueError(
                 "expected %d words, got %d" % (self.NUM_REGISTERS, len(words))
             )
+        for name in fields:
+            if name not in FIELD_REGISTER:
+                raise AttributeError("unknown configuration field: %s" % name)
+        for name, value in fields.items():
+            setattr(self._config, name, value)
         self._current = list(words)
 
     def current_words(self) -> list:
@@ -298,36 +322,7 @@ class ADF435xRegisterFile:
     def mark_write_failed(self) -> None:
         """Discard the last-written cache after a failed device write.
 
-        Call before ``commit_all()`` to force a full reprogram.
+        Every register then counts as stale, so the next ``commit_plan()`` is
+        a full reprogram.
         """
         self._last_written = [None] * self.NUM_REGISTERS
-
-    invalidate = mark_write_failed
-
-    def commit(self) -> list[int]:
-        """Minimal write transaction, advancing the last-written cache.
-
-        Equivalent to ``commit_plan()`` followed by ``mark_written()`` when
-        the plan is non-empty.
-
-        Returns
-        -------
-        list of int
-            Register words in SPI write order (R5 down to R0).
-        """
-        plan = self.commit_plan()
-        if plan:
-            self.mark_written()
-        return plan
-
-    def commit_all(self) -> list[int]:
-        """Full six-word transaction, advancing the last-written cache.
-
-        Returns
-        -------
-        list of int
-            All register words in SPI write order (R5 down to R0).
-        """
-        plan = self.commit_all_plan()
-        self.mark_written()
-        return plan

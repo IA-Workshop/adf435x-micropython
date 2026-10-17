@@ -12,7 +12,7 @@ actionable and reference form.
 | Add per-register encode code, defaults, or value sets | Add one row to `config.FIELDS`; cross-field checks go in `register_mapper._RULES` |
 | Return `(index, word)` or reorder writes in `device` | `commit_plan()` → bare 32-bit words, **R5→R0** |
 | Track DBB with a flag separate from encoded R2 | Read `double_buffer` from encoded R2; DBR/DBB logic in `register_file` only |
-| Call optimistic `commit()` from the synthesizer | `commit_plan()` → device write → `mark_written()` or `mark_write_failed()` |
+| Mark registers written before the device write succeeds | `commit_plan()` → device write → `mark_written()` or `mark_write_failed()` (no optimistic `commit()`; removed in A3) |
 | Use float Hz or emit register words from `solve()` | Integer Hz; `solve()` → `configure(**result.fields)` |
 | `import machine` at package root | `adf435x.device` submodule only |
 | Hard-code board pins in `adf435x/` | Pass SPI/GPIO from caller or examples |

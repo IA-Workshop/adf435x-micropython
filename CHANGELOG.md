@@ -20,6 +20,14 @@ All notable user-facing changes are documented here.
 - The encoder no longer raises for capability errors (validation already
   rejects them) and masks every field to its width, so a bad flag value can
   no longer spill into a neighbouring bit.
+- `ADF435xRegisterFile`: removed `commit()`, `commit_all()` and the
+  `invalidate` alias. Use `commit_plan()` / `commit_all_plan()`, write the
+  words, then `mark_written()` or `mark_write_failed()`.
+
+### Added
+
+- `ADF435xRegisterFile.config_version` (counts successful `configure()`
+  calls) and `load_prevalidated(fields, words)` for precomputed state.
 
 ### Known issue
 

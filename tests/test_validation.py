@@ -14,7 +14,7 @@ from adf435x.profiles import ADF4350, ADF4351, ADF435xDeviceProfile
 from adf435x.register_file import ADF435xRegisterFile
 from adf435x.register_mapper import ADF435xRegisterMapper
 
-from conftest import WORKED_FIELDS, WORKED_WORDS, make_config
+from conftest import WORKED_FIELDS, WORKED_WORDS, commit, make_config
 
 
 # The four PLL fields whose cross-check fires when any of them is validated.
@@ -318,7 +318,7 @@ class TestRegisterFileValidation:
 
     def test_configure_frac_valid_reencodes(self, worked_regfile):
         """A valid FRAC change validates then re-encodes the R0 word."""
-        worked_regfile.commit()
+        commit(worked_regfile)
         before = worked_regfile.current_words()
         worked_regfile.configure(frac=14)
         after = worked_regfile.current_words()

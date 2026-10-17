@@ -25,7 +25,7 @@ from adf435x.config import (
 from adf435x.profiles import ADF4350, ADF4351
 from adf435x.register_file import ADF435xRegisterFile
 
-from conftest import WORKED_WORDS
+from conftest import WORKED_WORDS, commit
 
 
 def _plan_indices(plan: list) -> list:
@@ -215,27 +215,27 @@ class TestRetune:
 
     def test_frac_writes_only_r0(self, worked_regfile):
         """Changing FRAC (an R0 field) writes R0 alone."""
-        worked_regfile.commit()
+        commit(worked_regfile)
         worked_regfile.configure(frac=14)
-        assert _plan_indices(worked_regfile.commit()) == [0]
+        assert _plan_indices(commit(worked_regfile)) == [0]
 
     def test_mod_forces_r0(self, worked_regfile):
         """Changing MOD (an R1 field) writes R1 then R0 to latch it (DBR)."""
-        worked_regfile.commit()
+        commit(worked_regfile)
         worked_regfile.configure(mod=50)
-        assert _plan_indices(worked_regfile.commit()) == [1, 0]
+        assert _plan_indices(commit(worked_regfile)) == [1, 0]
 
     def test_divider_writes_r4_and_r0(self, worked_regfile):
         """An R4 divider change plus an R0 change emits R4 then R0."""
-        worked_regfile.commit()
+        commit(worked_regfile)
         worked_regfile.configure(rf_divider=4, int_n=211)
-        assert _plan_indices(worked_regfile.commit()) == [4, 0]
+        assert _plan_indices(commit(worked_regfile)) == [4, 0]
 
     def test_power_writes_only_r4(self, worked_regfile):
         """Output power (non-buffered R4 field) writes R4 alone."""
-        worked_regfile.commit()
+        commit(worked_regfile)
         worked_regfile.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
-        assert _plan_indices(worked_regfile.commit()) == [4]
+        assert _plan_indices(commit(worked_regfile)) == [4]
 
 
 class TestSelectiveReencode:
@@ -243,7 +243,7 @@ class TestSelectiveReencode:
 
     def test_frac_only_changes_r0_word(self, worked_regfile):
         """FRAC touches only the R0 word."""
-        worked_regfile.commit()
+        commit(worked_regfile)
         before = worked_regfile.current_words()
         worked_regfile.configure(frac=14)
         after = worked_regfile.current_words()
@@ -255,7 +255,7 @@ class TestSelectiveReencode:
         """Phase touches only the R1 word, not the PLL-paired R0."""
         # phase is an R1 field that shares no encoding with the PLL-paired R0,
         # so changing it must leave every other word byte-identical.
-        worked_regfile.commit()
+        commit(worked_regfile)
         before = worked_regfile.current_words()
         worked_regfile.configure(phase=2)
         after = worked_regfile.current_words()
@@ -265,7 +265,7 @@ class TestSelectiveReencode:
 
     def test_muxout_only_changes_r2_word(self, worked_regfile):
         """MUXOUT touches only the R2 word."""
-        worked_regfile.commit()
+        commit(worked_regfile)
         before = worked_regfile.current_words()
         worked_regfile.configure(muxout=consts.REG2_MUX_DVDD)
         after = worked_regfile.current_words()
@@ -275,7 +275,7 @@ class TestSelectiveReencode:
 
     def test_clockdiv_only_changes_r3_word(self, worked_regfile):
         """Clock-divider value touches only the R3 word."""
-        worked_regfile.commit()
+        commit(worked_regfile)
         before = worked_regfile.current_words()
         worked_regfile.configure(clockdiv_value=100)
         after = worked_regfile.current_words()
@@ -285,7 +285,7 @@ class TestSelectiveReencode:
 
     def test_output_power_only_changes_r4_word(self, worked_regfile):
         """Output power touches only the R4 word."""
-        worked_regfile.commit()
+        commit(worked_regfile)
         before = worked_regfile.current_words()
         worked_regfile.configure(output_power=consts.REG4_POWER_MINUS_4DBM)
         after = worked_regfile.current_words()
@@ -295,7 +295,7 @@ class TestSelectiveReencode:
 
     def test_lock_pin_only_changes_r5_word(self, worked_regfile):
         """Lock-pin mode touches only the R5 word."""
-        worked_regfile.commit()
+        commit(worked_regfile)
         before = worked_regfile.current_words()
         worked_regfile.configure(lock_pin=consts.REG5_LOCK_LOW)
         after = worked_regfile.current_words()
@@ -312,14 +312,14 @@ class TestSelectivePllCheck:
         """FRAC >= MOD is caught even when only R0 is in the dirty set."""
         # frac (R0) vs mod (R1): the relation is validated even though only R0
         # is in the dirty set.
-        worked_regfile.commit()
+        commit(worked_regfile)
         with pytest.raises(ValueError, match="must be less than MOD"):
             worked_regfile.configure(frac=worked_regfile.config.mod)
 
     def test_configure_mod_below_frac_rejected(self, worked_regfile):
         """FRAC >= MOD is caught even when only R1 is in the dirty set."""
         # mod (R1) vs frac (R0): validated when only R1 is dirty.
-        worked_regfile.commit()
+        commit(worked_regfile)
         with pytest.raises(ValueError, match="must be less than MOD"):
             worked_regfile.configure(mod=worked_regfile.config.frac)
 
@@ -355,7 +355,7 @@ class TestDump:
 
     def test_clean_after_commit(self, worked_regfile):
         """After a commit the snapshot reports no staleness and a commit."""
-        worked_regfile.commit()
+        commit(worked_regfile)
         snap = worked_regfile.dump()
         assert snap["is_stale"] is False
         assert snap["commit_count"] == 1
@@ -363,7 +363,7 @@ class TestDump:
 
     def test_reports_stale_register_after_change(self, worked_regfile):
         """A post-commit change marks the affected register stale."""
-        worked_regfile.commit()
+        commit(worked_regfile)
         worked_regfile.configure(frac=14)
         snap = worked_regfile.dump()
         assert snap["is_stale"] is True

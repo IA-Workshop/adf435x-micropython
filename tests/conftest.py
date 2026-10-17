@@ -47,6 +47,24 @@ def worked_regfile():
     return f
 
 
+def commit(regfile):
+    """Plan a minimal write and mark it written, as a successful SPI write would.
+
+    Returns the plan (R5..R0 order); an empty plan marks nothing.
+    """
+    plan = regfile.commit_plan()
+    if plan:
+        regfile.mark_written()
+    return plan
+
+
+def commit_all(regfile):
+    """Plan a full six-word write and mark it written."""
+    plan = regfile.commit_all_plan()
+    regfile.mark_written()
+    return plan
+
+
 def make_config(**fields):
     """Build a config with optional field overrides."""
     c = ADF435xConfig()
