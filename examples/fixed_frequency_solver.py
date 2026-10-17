@@ -69,7 +69,7 @@ if result.error_hz != 0:
 
 print("Solver result:")
 print("  achieved_hz = %d (%.6f MHz)" % (result.achieved_hz, result.achieved_hz / 1e6))
-print("  f_pfd_hz    = %d" % result.f_pfd_hz)
+print("  pfd_hz    = %d" % result.pfd_hz)
 print("  vco_hz      = %d" % result.vco_hz)
 print("  int_n       = %d" % result.fields["int_n"])
 print("  frac        = %d" % result.fields["frac"])

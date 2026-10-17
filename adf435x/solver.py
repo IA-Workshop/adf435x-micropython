@@ -128,7 +128,7 @@ class SolveResult:
         Output frequency, rounded to the nearest hertz.
     error_hz : int
         ``target_hz - achieved_hz``.
-    f_pfd_hz : int
+    pfd_hz : int
         fPFD rounded to the nearest hertz, for display.
     vco_hz : int
         VCO frequency, rounded to the nearest hertz.
@@ -139,13 +139,13 @@ class SolveResult:
     """
 
     def __init__(
-        self, fields, achieved_hz, error_hz, f_pfd_hz, vco_hz, exact, pfd_fraction
+        self, fields, achieved_hz, error_hz, pfd_hz, vco_hz, exact, pfd_fraction
     ):
         """Store the result."""
         self.fields = fields
         self.achieved_hz = achieved_hz
         self.error_hz = error_hz
-        self.f_pfd_hz = f_pfd_hz
+        self.pfd_hz = pfd_hz
         self.vco_hz = vco_hz
         self.exact = exact
         self.pfd_fraction = pfd_fraction
@@ -523,7 +523,7 @@ def solve(
         fields=fields,
         achieved_hz=achieved_hz,
         error_hz=target_hz - achieved_hz,
-        f_pfd_hz=_round_div(pfd_num, pfd_den),
+        pfd_hz=_round_div(pfd_num, pfd_den),
         vco_hz=_round_div(n_num * pfd_num, mod * pfd_den),
         exact=err_num == 0,
         pfd_fraction=(pfd_num, pfd_den),

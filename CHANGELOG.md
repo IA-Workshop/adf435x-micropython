@@ -11,6 +11,7 @@ fPFD are explained in the [glossary](docs/glossary.md) and on the
 - Renamed for brevity (old name, then new): `ADF435xDeviceProfile` to
   `ADF435xProfile`; `DividerOctaveCrossingError` to `DividerCrossingError`;
   `max_hz_for_rf_divider()` to `divider_max_hz()`;
+  `SolveResult.f_pfd_hz` to `pfd_hz`;
   `ADF435xRegisterFile.commit_all_plan()` to `full_plan()`; and the
   `ADF435xDevice` arguments and attributes `load_enable_pin` and
   `chip_enable_pin` to `le_pin` and `ce_pin`.

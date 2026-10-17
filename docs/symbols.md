@@ -39,7 +39,7 @@ leaves it alone. In the library it is `rdiv2`.
 The phase frequency detector frequency: how many times per second the chip
 compares its divided-down VCO with the reference. fPFD = REFIN × (1 + D) ÷
 (R × (1 + T)). The library keeps it at or below 32 MHz, the limit for
-fractional-N mode. In the library it is `f_pfd_hz`.
+fractional-N mode. In the library it is `pfd_hz`.
 
 ## N
 
