@@ -9,7 +9,7 @@ alwaysApply: false
 - Integer Hz only — no float frequency arguments.
 - `solve()` returns **fields, not register words**; encode via
   `register_file.configure(**result.fields)`.
-- Bounds from `ADF435xDeviceProfile` + module constants — no `DeviceLimits`.
+- Bounds from `ADF435xProfile` + module constants — no `DeviceLimits`.
 - Exact integer math: fPFD is a fraction (`pfd_num / pfd_den`), never rounded.
 - MOD search: continued fractions; among errors that round to the same
   hertz, the smallest MOD wins (results are already in lowest terms).

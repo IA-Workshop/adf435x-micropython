@@ -39,8 +39,8 @@ spi = SPI(
 
 device = ADF435xDevice(
     spi,
-    load_enable_pin=PINS["le"],
-    chip_enable_pin=PINS["ce"],
+    le_pin=PINS["le"],
+    ce_pin=PINS["ce"],
     muxout_pin=PINS["muxout"],
 )
 

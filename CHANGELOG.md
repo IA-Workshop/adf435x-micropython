@@ -8,6 +8,12 @@ fPFD are explained in the [glossary](docs/glossary.md) and on the
 
 ### Changed (breaking)
 
+- Renamed for brevity (old name, then new): `ADF435xDeviceProfile` to
+  `ADF435xProfile`; `DividerOctaveCrossingError` to `DividerCrossingError`;
+  `max_hz_for_rf_divider()` to `divider_max_hz()`;
+  `ADF435xRegisterFile.commit_all_plan()` to `full_plan()`; and the
+  `ADF435xDevice` arguments and attributes `load_enable_pin` and
+  `chip_enable_pin` to `le_pin` and `ce_pin`.
 - Register fields are described once in `adf435x.config.FIELDS`. Removed:
   `ADF435xRegisterMapper.register_0` to `register_5` (use
   `encode_register(index, config)`), `config.FIELD_WIDTH`,
@@ -23,7 +29,7 @@ fPFD are explained in the [glossary](docs/glossary.md) and on the
   rejects them) and masks every field to its width, so a bad flag value can
   no longer spill into a neighboring bit.
 - `ADF435xRegisterFile`: removed `commit()`, `commit_all()` and the
-  `invalidate` alias. Use `commit_plan()` / `commit_all_plan()`, write the
+  `invalidate` alias. Use `commit_plan()` / `full_plan()`, write the
   words, then `mark_written()` or `mark_write_failed()`.
 - Solver: `achieved_hz` and `vco_hz` are rounded to the nearest hertz (were
   floored) and `error_hz` is `target_hz - achieved_hz`.
@@ -44,7 +50,7 @@ fPFD are explained in the [glossary](docs/glossary.md) and on the
   `FrequencyEntry.plan` is replaced by `words` (all six registers); playback
   writes only what differs from the last write. `build_frequency_table()`
   and its helpers are removed from `adf435x.solver`, and
-  `DividerOctaveCrossingError` moved to `adf435x.sweep` (still exported from
+  `DividerCrossingError` moved to `adf435x.sweep` (still exported from
   the package root).
 - Tables: `from_range` targets exactly `lower_hz, lower_hz + step_hz, ...`
   plus `upper_hz`; each RF-divider band shares one MOD that hits every point
@@ -60,7 +66,7 @@ fPFD are explained in the [glossary](docs/glossary.md) and on the
 ### Added
 
 - `ADF435xRegisterFile.config_version` (counts successful `configure()`
-  calls) and `load_prevalidated(fields, words)` for precomputed state.
+  calls) and `load_words(fields, words)` for precomputed state.
 - `SolveResult.exact`: true only when the output is exactly the target;
   `SolveOptions(exact=True)` uses it.
 - `SolveOptions.mod_min` and `SolveOptions.copy(**overrides)` (replaces

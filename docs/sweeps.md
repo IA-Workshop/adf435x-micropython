@@ -24,7 +24,7 @@ Both accept:
 - `allow_divider_change=True`, to allow frequencies that need different [RF
   dividers](glossary.md#rf-divider). Without it, a table that crosses a
   [divider boundary](glossary.md#divider-boundary) raises
-  `DividerOctaveCrossingError`, and its message suggests ranges that stay on
+  `DividerCrossingError`, and its message suggests ranges that stay on
   one divider.
 - `max_error_hz=`, to raise `ValueError` if any entry would be further than
   this from its target.

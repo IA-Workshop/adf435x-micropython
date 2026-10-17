@@ -83,7 +83,7 @@ def main():
     check("register file encodes golden words", regfile.current_words() == WORKED_WORDS)
     check(
         "commit plan is R5..R0",
-        regfile.commit_all_plan() == list(reversed(WORKED_WORDS)),
+        regfile.full_plan() == list(reversed(WORKED_WORDS)),
     )
 
     result = solve(GOLDEN_HZ, REF_HZ, ADF4351)
@@ -117,7 +117,7 @@ def main():
     from adf435x.device import ADF435xDevice
 
     spi = _FakeSPI()
-    dev = ADF435xDevice(spi, load_enable_pin=13, chip_enable_pin=14)
+    dev = ADF435xDevice(spi, le_pin=13, ce_pin=14)
     dev.write_registers(list(reversed(WORKED_WORDS)))
     check(
         "device shifts 4-byte big-endian words",

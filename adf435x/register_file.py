@@ -10,7 +10,7 @@ See docs/api-guide.md.
 
 from . import consts
 from .config import ADF435xConfig, FIELD_REGISTER
-from .profiles import ADF435xDeviceProfile
+from .profiles import ADF435xProfile
 from .register_mapper import ADF435xRegisterMapper
 
 
@@ -20,7 +20,7 @@ class ADF435xRegisterFile:
 
     Parameters
     ----------
-    profile : ADF435xDeviceProfile
+    profile : ADF435xProfile
         The part to encode for.
     config : ADF435xConfig, optional
         Starting configuration (default: a new ``ADF435xConfig``). Do not
@@ -32,7 +32,7 @@ class ADF435xRegisterFile:
     # Registers whose double-buffered fields always wait for R0.
     _DBR_REGISTERS = frozenset(consts.DBR_REGISTER_INDICES)
 
-    def __init__(self, profile: ADF435xDeviceProfile, config=None) -> None:
+    def __init__(self, profile: ADF435xProfile, config=None) -> None:
         """Check the starting config and encode all six words."""
         self._mapper = ADF435xRegisterMapper(profile)
         self._config = config if config is not None else ADF435xConfig()
@@ -59,7 +59,7 @@ class ADF435xRegisterFile:
         """Number of successful ``configure()`` calls.
 
         A frequency table compares it with the value it last saw to tell
-        whether its stored words are out of date. ``load_prevalidated()``
+        whether its stored words are out of date. ``load_words()``
         does not change it.
         """
         return self._config_version
@@ -101,7 +101,7 @@ class ADF435xRegisterFile:
         for index in indices:
             self._current[index] = m.encode_register(index, c)
 
-    def load_prevalidated(self, fields, words) -> None:
+    def load_words(self, fields, words) -> None:
         """Store *fields* and their six encoded *words* without checking.
 
         For values checked and encoded earlier, such as frequency table
@@ -200,7 +200,7 @@ class ADF435xRegisterFile:
         stale = self._commit_stale_set(stale)
         return [self._current[i] for i in sorted(stale, reverse=True)]
 
-    def commit_all_plan(self) -> list[int]:
+    def full_plan(self) -> list[int]:
         """Return all six words, R5 first, for power-up or a full rewrite."""
         return [self._current[i] for i in range(self.NUM_REGISTERS - 1, -1, -1)]
 

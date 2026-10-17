@@ -25,7 +25,7 @@ def _field(name, reg, pos, width, default, kind, allowed=None, label=None, cap=N
     *pos* is the bit position of the field's lowest bit. *allowed* is the
     minimum for a ``UINT`` (default 0) or the tuple of legal codes for an
     ``ENUM``. *label* names the field in error messages. *cap* names an
-    ``ADF435xDeviceProfile`` attribute that must be true before the field
+    ``ADF435xProfile`` attribute that must be true before the field
     may be nonzero, such as ``"has_phase_adjust"``.
     """
     if kind == UINT and allowed is None:

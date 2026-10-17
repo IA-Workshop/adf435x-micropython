@@ -1,6 +1,6 @@
 """Host tests for the register-file staleness and ordering engine.
 
-These drive the engine with plain integer words via ``load_prevalidated``,
+These drive the engine with plain integer words via ``load_words``,
 so no mapper encoding or device is needed for most cases.
 """
 
@@ -32,7 +32,7 @@ def _plan_indices(plan: list) -> list:
 def rf(request):
     """Register file preloaded with the sentinel words on each profile."""
     f = ADF435xRegisterFile(profile=request.param)
-    f.load_prevalidated({}, WORDS)
+    f.load_words({}, WORDS)
     return f
 
 
@@ -46,7 +46,7 @@ def rf_dbb(request):
     f = ADF435xRegisterFile(profile=request.param)
     words = list(WORDS)
     words[consts.REG2_ADDR] |= DBB_BIT
-    f.load_prevalidated({}, words)
+    f.load_words({}, words)
     return f
 
 
@@ -87,34 +87,34 @@ class TestIncrementalCommit:
     def test_r0_only_change_writes_only_r0(self, rf):
         """An R0-only change writes R0 alone (no latch needed)."""
         commit(rf)
-        rf.load_prevalidated({}, [0xAA, 0xB1, 0xC2, 0xD3, 0xE4, 0xF5])
+        rf.load_words({}, [0xAA, 0xB1, 0xC2, 0xD3, 0xE4, 0xF5])
         assert commit(rf) == [0xAA]
 
     def test_r4_only_change_does_not_force_r0(self, rf):
         """An R4-only change writes R4 alone when DBB is off."""
         # R4 is not double-buffered (R2 DB13 disabled), so it writes alone.
         commit(rf)
-        rf.load_prevalidated({}, [0xA0, 0xB1, 0xC2, 0xD3, 0xEE, 0xF5])
+        rf.load_words({}, [0xA0, 0xB1, 0xC2, 0xD3, 0xEE, 0xF5])
         assert commit(rf) == [0xEE]
 
     def test_r1_change_forces_r0_last(self, rf):
         """A double-buffered R1 change appends an R0 latch write."""
         # R1 is double-buffered: changing it forces an R0 write to latch.
         commit(rf)
-        rf.load_prevalidated({}, [0xA0, 0xBB, 0xC2, 0xD3, 0xE4, 0xF5])
+        rf.load_words({}, [0xA0, 0xBB, 0xC2, 0xD3, 0xE4, 0xF5])
         assert commit(rf) == [0xBB, 0xA0]
 
     def test_r2_change_forces_r0_last(self, rf):
         """A double-buffered R2 change appends an R0 latch write."""
         commit(rf)
-        rf.load_prevalidated({}, [0xA0, 0xB1, 0xCC, 0xD3, 0xE4, 0xF5])
+        rf.load_words({}, [0xA0, 0xB1, 0xCC, 0xD3, 0xE4, 0xF5])
         assert commit(rf) == [0xCC, 0xA0]
 
     def test_r1_and_r4_change_gives_fast_retune_order(self, rf):
         """A combined R1+R4 change emits R4, R1, then the R0 latch."""
         # The fast-retune order the ADF435x cheat sheet gives: [R4], [R1], R0.
         commit(rf)
-        rf.load_prevalidated({}, [0xA0, 0xBB, 0xC2, 0xD3, 0xEE, 0xF5])
+        rf.load_words({}, [0xA0, 0xBB, 0xC2, 0xD3, 0xEE, 0xF5])
         assert commit(rf) == [0xEE, 0xBB, 0xA0]
 
 
@@ -128,13 +128,13 @@ class TestDoubleBuffer:
         words = list(WORDS)
         words[consts.REG2_ADDR] |= DBB_BIT
         words[consts.REG4_ADDR] = 0xEE
-        rf_dbb.load_prevalidated({}, words)
+        rf_dbb.load_words({}, words)
         assert commit(rf_dbb) == [0xEE, 0xA0]
 
     def test_r2_still_forces_r0_when_dbb_enabled(self, rf_dbb):
         """R2 still latches via R0 regardless of the DBB bit."""
         commit(rf_dbb)
-        rf_dbb.load_prevalidated({}, [0xA0, 0xB1, 0xCC, 0xD3, 0xE4, 0xF5])
+        rf_dbb.load_words({}, [0xA0, 0xB1, 0xCC, 0xD3, 0xE4, 0xF5])
         assert commit(rf_dbb) == [0xCC, 0xA0]
 
     @pytest.mark.parametrize("profile", [ADF4350, ADF4351], ids=lambda p: p.name)
@@ -202,7 +202,7 @@ class TestCommitPlan:
     def test_plan_leaves_stale_until_mark_written(self, rf):
         """Planning alone keeps the file stale until mark_written is called."""
         commit(rf)
-        rf.load_prevalidated({}, [0xAA, 0xB1, 0xC2, 0xD3, 0xE4, 0xF5])
+        rf.load_words({}, [0xAA, 0xB1, 0xC2, 0xD3, 0xE4, 0xF5])
         plan = rf.commit_plan()
         assert plan == [0xAA]
         # Cache is untouched by planning, so the file is still stale.
@@ -223,18 +223,18 @@ class TestCommitPlan:
         # Without mark_written the cache is untouched, so repeated planning
         # must return the identical plan and leave staleness unchanged.
         commit(rf)
-        rf.load_prevalidated({}, [0xAA, 0xBB, 0xC2, 0xD3, 0xE4, 0xF5])
+        rf.load_words({}, [0xAA, 0xBB, 0xC2, 0xD3, 0xE4, 0xF5])
         first = rf.commit_plan()
         second = rf.commit_plan()
         assert first == second == [0xBB, 0xAA]
         assert rf.is_stale()
 
-    def test_commit_all_plan_without_mark_written(self, rf):
-        """commit_all_plan previews all six words without writing cache."""
+    def test_full_plan_without_mark_written(self, rf):
+        """full_plan previews all six words without writing cache."""
         commit(rf)
         count_before = rf.dump()["commit_count"]
-        rf.load_prevalidated({}, [0xA8, 0xB1, 0xC2, 0xD3, 0xE4, 0xF5])
-        plan = rf.commit_all_plan()
+        rf.load_words({}, [0xA8, 0xB1, 0xC2, 0xD3, 0xE4, 0xF5])
+        plan = rf.full_plan()
         assert plan == [0xF5, 0xE4, 0xD3, 0xC2, 0xB1, 0xA8]
         # Planning does not write, so staleness and commit count are unchanged.
         assert rf.is_stale()
@@ -253,7 +253,7 @@ class TestOrdering:
         """When R0 is in the plan it is the final write (latch ordering)."""
         commit(rf)
         # Low 3 bits of each word must match register address (see WORDS).
-        rf.load_prevalidated({}, [0xA8, 0xB9, 0xC2, 0xD3, 0xE4, 0xF5])
+        rf.load_words({}, [0xA8, 0xB9, 0xC2, 0xD3, 0xE4, 0xF5])
         plan = commit(rf)
         assert _plan_indices(plan)[-1] == 0
 
@@ -274,27 +274,27 @@ class TestCommitAll:
 
 
 class TestLoadPrevalidated:
-    """``load_prevalidated`` stores fields and words without re-encoding."""
+    """``load_words`` stores fields and words without re-encoding."""
 
     def test_rejects_wrong_length(self, rf):
         """A word list of the wrong length is rejected."""
         with pytest.raises(ValueError):
-            rf.load_prevalidated({}, [0, 1, 2])
+            rf.load_words({}, [0, 1, 2])
 
     def test_rejects_unknown_field(self, rf):
         """An unknown field name is rejected before anything changes."""
         with pytest.raises(AttributeError):
-            rf.load_prevalidated({"bogus": 1}, WORDS)
+            rf.load_words({"bogus": 1}, WORDS)
 
     def test_stores_fields(self, rf):
         """Fields land on the config as given (no validation)."""
-        rf.load_prevalidated({"int_n": 422, "frac": 13}, WORDS)
+        rf.load_words({"int_n": 422, "frac": 13}, WORDS)
         assert (rf.config.int_n, rf.config.frac) == (422, 13)
 
     def test_does_not_advance_config_version(self, rf):
         """Loading precomputed state is not a settings change."""
         before = rf.config_version
-        rf.load_prevalidated({"int_n": 422}, WORDS)
+        rf.load_words({"int_n": 422}, WORDS)
         assert rf.config_version == before
 
 

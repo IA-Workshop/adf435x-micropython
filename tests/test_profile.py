@@ -1,10 +1,10 @@
-"""Host tests for ADF435xDeviceProfile: divider range, capability flags,
+"""Host tests for ADF435xProfile: divider range, capability flags,
 PLL/prescaler limits, and the divider-to-code mapping.
 """
 
 import pytest
 
-from adf435x.profiles import ADF4350, ADF4351, ADF435xDeviceProfile
+from adf435x.profiles import ADF4350, ADF4351, ADF435xProfile
 
 # Capability flags the ADF4351 implements and the ADF4350 does not.
 CAPABILITY_FLAGS = [
@@ -112,7 +112,7 @@ class TestCustomProfile:
     @pytest.fixture
     def profile(self):
         """A small custom profile with a /8 divider ceiling."""
-        return ADF435xDeviceProfile(
+        return ADF435xProfile(
             "X",
             rf_divider_max=8,
             has_phase_adjust=True,
@@ -124,7 +124,7 @@ class TestCustomProfile:
 
     def test_repr(self):
         """repr names the device for readable debug output."""
-        assert repr(ADF4351) == "ADF435xDeviceProfile(ADF4351)"
+        assert repr(ADF4351) == "ADF435xProfile(ADF4351)"
 
     def test_divider_code_within_range(self, profile):
         """A custom profile maps its maximum divider to the right code."""

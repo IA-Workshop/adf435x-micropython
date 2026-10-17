@@ -39,8 +39,8 @@ spi_handle = SPI(
 
 adf_device = ADF435xDevice(
     spi_handle,
-    load_enable_pin=ADF435X_LE_PIN,
-    chip_enable_pin=ADF435X_CE_PIN,
+    le_pin=ADF435X_LE_PIN,
+    ce_pin=ADF435X_CE_PIN,
     muxout_pin=ADF435X_MUXOUT_PIN,
 )
 

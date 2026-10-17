@@ -46,7 +46,7 @@ numbers come from bench step B7):
   encode and validation; new datasheet rules (flags, phase < MOD, low-spur
   MOD >= 50, fast band-select divider <= 254, no N-divider on MUXOUT)
 - **Remediation A3: register file** — optimistic `commit()` removed;
-  `config_version` and `load_prevalidated()` for table playback
+  `config_version` and `load_words()` for table playback
 - **Remediation A4: solver** — exact rational fPFD, continued-fraction MOD
   search (~280x faster), locked MOD kept, data-sheet lock-detect settings
 - **Remediation A5: sweeps** — tables encoded from the synth's settings;
@@ -77,7 +77,7 @@ numbers come from bench step B7):
 
 Exported from package root: synthesizer (and `LockTimeoutError`), solver and
 its errors, frequency tables (`FrequencyTable`, `FrequencyEntry`,
-`DividerOctaveCrossingError`), register stack, profiles.
+`DividerCrossingError`), register stack, profiles.
 
 Submodule-only (by design): `adf435x.device` (imports `machine`).
 

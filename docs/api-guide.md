@@ -104,7 +104,7 @@ from adf435x import ADF4351, ADF435xRegisterFile, consts
 regfile = ADF435xRegisterFile(ADF4351)
 regfile.configure(int_n=422, frac=13, mod=25, rf_divider=2, band_clk_div=20,
                   band_clk_mode=consts.REG3_BAND_CLK_HIGH)
-words = regfile.commit_all_plan()   # R5..R0, ready to send
+words = regfile.full_plan()   # R5..R0, ready to send
 device.write_registers(words)
 regfile.mark_written()              # or regfile.mark_write_failed() on error
 ```
@@ -122,7 +122,7 @@ take effect. Words are always in R5-to-R0 order, as the chip requires.
 | `FrequencyOutOfRangeError` | The target is outside the part's output range |
 | `NoSolutionError` | No legal PLL settings exist (for example, [fPFD](symbols.md#fpfd) is too high) |
 | `ExactFrequencyError` | `SolveOptions(exact=True)` is set and the target is not exactly reachable |
-| `DividerOctaveCrossingError` | A table needs more than one RF divider and `allow_divider_change` is False |
+| `DividerCrossingError` | A table needs more than one RF divider and `allow_divider_change` is False |
 | `LockTimeoutError` | `play(..., require_lock=True)` is used and lock did not happen in time |
 | `ValueError` | A field value or option is illegal |
 | `TypeError` | A frequency is not a whole number of hertz (floats are rejected) |

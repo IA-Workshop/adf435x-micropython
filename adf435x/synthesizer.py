@@ -9,7 +9,7 @@ it any device object with ``write_registers()``, ``chip_enable()``,
 import time
 
 from . import consts
-from .profiles import ADF435xDeviceProfile
+from .profiles import ADF435xProfile
 from .register_file import ADF435xRegisterFile
 from .solver import (
     LOW_SPUR_MOD_MIN,
@@ -61,7 +61,7 @@ class ADF435xSynthesizer:
     device
         Usually an ``ADF435xDevice``. Its ``read_muxout()`` may raise
         ``RuntimeError`` if MUXOUT is not wired; lock detect is then off.
-    profile : ADF435xDeviceProfile
+    profile : ADF435xProfile
         ``ADF4350`` or ``ADF4351``.
     ref_hz : int
         Reference frequency (REFIN), in whole hertz.
@@ -298,7 +298,7 @@ class ADF435xSynthesizer:
         if not self._powered:
             self._device.chip_enable()
             self._powered = True
-        self._regfile.load_prevalidated(entry.fields, entry.words)
+        self._regfile.load_words(entry.fields, entry.words)
         self._target_hz = entry.target_hz
         self._achieved_hz = entry.achieved_hz
         self._write_stale_registers()
@@ -357,7 +357,7 @@ class ADF435xSynthesizer:
     def _write_stale_registers(self, *, all_registers=False):
         """Write the stale registers, or all six if *all_registers* is True."""
         if all_registers:
-            plan = self._regfile.commit_all_plan()
+            plan = self._regfile.full_plan()
         else:
             plan = self._regfile.commit_plan()
         if plan:

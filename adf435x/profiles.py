@@ -23,7 +23,7 @@ def _log2_power_of_two(value: int) -> int:
     return code
 
 
-class ADF435xDeviceProfile:
+class ADF435xProfile:
     """
     Features and limits of one ADF435x part.
 
@@ -105,11 +105,11 @@ class ADF435xDeviceProfile:
         return tuple(1 << i for i in range(count))
 
     def __repr__(self) -> str:
-        """Return ``ADF435xDeviceProfile(<name>)``."""
-        return "ADF435xDeviceProfile(%s)" % self.name
+        """Return ``ADF435xProfile(<name>)``."""
+        return "ADF435xProfile(%s)" % self.name
 
 
-ADF4350 = ADF435xDeviceProfile(
+ADF4350 = ADF435xProfile(
     name="ADF4350",
     rf_divider_max=16,
     has_phase_adjust=False,
@@ -119,7 +119,7 @@ ADF4350 = ADF435xDeviceProfile(
     prescaler_4_5_max_hz=3_000_000_000,
 )
 
-ADF4351 = ADF435xDeviceProfile(
+ADF4351 = ADF435xProfile(
     name="ADF4351",
     rf_divider_max=64,
     has_phase_adjust=True,

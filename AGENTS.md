@@ -34,13 +34,13 @@ Do not violate without updating tests.
 11. **Explicit write verbs** — `_write_stale_registers`, `_write_prebuilt_plan`; no `_program()`.
 12. **MicroPython-safe `adf435x/`** — no `dataclasses`, `pathlib`, CPython-only stdlib.
 13. **Board-agnostic library** — pins in callers/examples/tests only.
-14. **Tables store words; playback diffs** — `FrequencyTable` entries hold all six words; `play_step()` uses `load_prevalidated()` then writes what differs from `last_written`. No precomputed delta plans.
+14. **Tables store words; playback diffs** — `FrequencyTable` entries hold all six words; `play_step()` uses `load_words()` then writes what differs from `last_written`. No precomputed delta plans.
 15. **No SPI while powered down** — `set_frequency()` / output controls stage settings; `power_up()` writes them. `power_up()` solves before raising CE.
 
 ## Critical gotchas
 
 - `WORKED_WORDS[n]` is register **Rn**. Compare a full six-register write with `reversed(WORKED_WORDS)`.
-- `commit_plan()` for every retune and table hop, divider changes included (minimal stale set + latch R0); `commit_all_plan()` only for power-up or full reprogram.
+- `commit_plan()` for every retune and table hop, divider changes included (minimal stale set + latch R0); `full_plan()` only for power-up or full reprogram.
 - Prescaler threshold **3.6 GHz** (4351) / **3.0 GHz** (4350). R4 encodes **log2(divider)**, not the divider value.
 - Never duplicate hex register values in markdown — reference `WORKED_*` by name (single source: `tests/conftest.py`; enforced by `tests/test_docs.py`).
 - Register fields are defined once in `config.FIELDS`; cross-field checks live in `register_mapper._RULES`.

@@ -58,8 +58,8 @@ spi = SPI(
 
 adf = ADF435xDevice(
     spi,
-    load_enable_pin=ADF435X_LE_PIN,
-    chip_enable_pin=ADF435X_CE_PIN,
+    le_pin=ADF435X_LE_PIN,
+    ce_pin=ADF435X_CE_PIN,
 )
 
 regfile = ADF435xRegisterFile(ADF4351)
@@ -79,7 +79,7 @@ print("Powering on (CE high)")
 adf.chip_enable()
 
 print("Initial programming (R5..R0)")
-plan = regfile.commit_all_plan()
+plan = regfile.full_plan()
 write_plan(adf, regfile, plan)
 print("Wrote %d register words" % len(plan))
 

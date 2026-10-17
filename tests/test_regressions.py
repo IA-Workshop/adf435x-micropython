@@ -17,7 +17,7 @@ from adf435x import consts
 from adf435x.profiles import ADF4351
 from adf435x.register_file import ADF435xRegisterFile
 from adf435x.solver import ExactFrequencyError, SolveOptions, solve
-from adf435x.sweep import DividerOctaveCrossingError, FrequencyTable
+from adf435x.sweep import DividerCrossingError, FrequencyTable
 from adf435x.synthesizer import ADF435xSynthesizer
 from conftest import WORKED_FIELDS, FakeChip, FakeDevice
 
@@ -350,7 +350,7 @@ class TestCrossingSuggestions:
     def test_low_range_uses_one_divider(self):
         """The suggested low range stays on the low endpoint's divider."""
         synth = ADF435xSynthesizer(FakeDevice(), ADF4351, REF_HZ)
-        with pytest.raises(DividerOctaveCrossingError) as exc:
+        with pytest.raises(DividerCrossingError) as exc:
             FrequencyTable.from_range(synth, 100_000_000, 200_000_000, 1_000_000)
         (_, low_hi), _ = _narrow_ranges(exc.value)
         divider = solve(low_hi, REF_HZ, ADF4351).fields["rf_divider"]
@@ -358,7 +358,7 @@ class TestCrossingSuggestions:
 
     def test_descending_list_ranges_are_ordered(self, synth):
         """Suggested ranges are ascending for a descending list."""
-        with pytest.raises(DividerOctaveCrossingError) as exc:
+        with pytest.raises(DividerCrossingError) as exc:
             FrequencyTable.from_frequencies(synth, [300_000_000, 100_000_000])
         (a, b), (c, d) = _narrow_ranges(exc.value)
         assert a <= b and c <= d

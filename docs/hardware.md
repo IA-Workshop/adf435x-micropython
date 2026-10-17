@@ -35,7 +35,7 @@ from machine import Pin, SPI
 from adf435x.device import ADF435xDevice
 
 spi = SPI(1, baudrate=1_000_000, polarity=0, phase=0, sck=Pin(10), mosi=Pin(11))
-device = ADF435xDevice(spi, load_enable_pin=13, chip_enable_pin=14, muxout_pin=9)
+device = ADF435xDevice(spi, le_pin=13, ce_pin=14, muxout_pin=9)
 ```
 
 Pass `muxout_pin=None` if MUXOUT is not wired. Lock detect is then not

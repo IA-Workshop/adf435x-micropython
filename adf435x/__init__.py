@@ -7,7 +7,7 @@ imported here and the package also loads on a PC. See docs/api-guide.md.
 
 from . import consts, config, profiles, register_mapper, register_file
 from .config import ADF435xConfig
-from .profiles import ADF435xDeviceProfile, ADF4350, ADF4351
+from .profiles import ADF435xProfile, ADF4350, ADF4351
 from .register_mapper import ADF435xRegisterMapper
 from .register_file import ADF435xRegisterFile
 from .solver import (
@@ -16,11 +16,11 @@ from .solver import (
     NoSolutionError,
     SolveOptions,
     SolveResult,
-    max_hz_for_rf_divider,
+    divider_max_hz,
     output_band_hz,
     solve,
 )
-from .sweep import DividerOctaveCrossingError, FrequencyEntry, FrequencyTable
+from .sweep import DividerCrossingError, FrequencyEntry, FrequencyTable
 from .synthesizer import ADF435xSynthesizer, LockTimeoutError
 
 __all__ = [
@@ -30,7 +30,7 @@ __all__ = [
     "register_mapper",
     "register_file",
     "ADF435xConfig",
-    "ADF435xDeviceProfile",
+    "ADF435xProfile",
     "ADF4350",
     "ADF4351",
     "ADF435xRegisterMapper",
@@ -42,10 +42,10 @@ __all__ = [
     "solve",
     "SolveOptions",
     "SolveResult",
-    "DividerOctaveCrossingError",
+    "DividerCrossingError",
     "ExactFrequencyError",
     "FrequencyOutOfRangeError",
     "NoSolutionError",
     "output_band_hz",
-    "max_hz_for_rf_divider",
+    "divider_max_hz",
 ]

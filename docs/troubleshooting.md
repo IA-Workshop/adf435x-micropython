@@ -13,7 +13,7 @@ Work through these in order.
    MUXOUT high and then low without needing lock. If MUXOUT does not follow,
    the [SPI](glossary.md#spi) wiring, [LE](glossary.md#le) or the MUXOUT
    input is wrong. Check that SPI is in mode 0, and that LE is wired to the
-   pin you passed as `load_enable_pin`.
+   pin you passed as `le_pin`.
 2. Check the [reference](glossary.md#reference). `ref_hz` must equal the
    real [REFIN](symbols.md#refin) frequency, and REFIN must be from 10 MHz
    to 250 MHz (30 MHz at most with the doubler on).
@@ -54,7 +54,7 @@ Work through these in order.
 
 ## Sweeps
 
-`DividerOctaveCrossingError` means the range needs more than one RF divider.
+`DividerCrossingError` means the range needs more than one RF divider.
 Narrow it as the message suggests, or pass `allow_divider_change=True`.
 
 If [hops](glossary.md#hop) are slower than expected, check

@@ -61,7 +61,7 @@ def commit(regfile):
 
 def commit_all(regfile):
     """Plan a full six-word write and mark it written."""
-    plan = regfile.commit_all_plan()
+    plan = regfile.full_plan()
     regfile.mark_written()
     return plan
 

@@ -10,14 +10,14 @@ MOD also writes R1. See docs/sweeps.md.
 """
 
 from .register_file import ADF435xRegisterFile
-from .solver import max_hz_for_rf_divider, output_band_hz, pll_mode_fields
+from .solver import divider_max_hz, output_band_hz, pll_mode_fields
 
 # Set on every entry. With double buffering on, a new RF divider waits for
 # the R0 write (data sheet p.12), so it takes effect together with the new N.
 _FAST_HOP_FIELDS = {"double_buffer": True}
 
 
-class DividerOctaveCrossingError(ValueError):
+class DividerCrossingError(ValueError):
     """
     A table needs more than one RF divider, and ``allow_divider_change`` is off.
 
@@ -66,7 +66,7 @@ class DividerOctaveCrossingError(ValueError):
 def _divider_band(rf_divider, profile):
     """Return ``(lo, hi)``, the range over which the solver picks *rf_divider*."""
     low = output_band_hz(rf_divider)[0]
-    return low, max_hz_for_rf_divider(rf_divider, profile)
+    return low, divider_max_hz(rf_divider, profile)
 
 
 class FrequencyEntry:
@@ -100,7 +100,7 @@ class FrequencyEntry:
         self.fields = fields
         self.words = None
         self.divider_boundary = divider_boundary
-        self._pfd = result.f_pfd_fraction
+        self._pfd = result.pfd_fraction
 
     @property
     def rf_divider(self):
@@ -156,7 +156,7 @@ class FrequencyTable:
         ------
         TypeError
             A bound or the step is not an integer.
-        DividerOctaveCrossingError
+        DividerCrossingError
             The range needs several RF dividers and *allow_divider_change*
             is False.
         ValueError
@@ -209,7 +209,7 @@ class FrequencyTable:
                     pair = sorted(
                         ((targets[0], first), (hz, result.fields["rf_divider"]))
                     )
-                    raise DividerOctaveCrossingError(
+                    raise DividerCrossingError(
                         pair[0][0], pair[1][0], pair[0][1], pair[1][1], synth.profile
                     )
 

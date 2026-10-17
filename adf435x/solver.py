@@ -12,7 +12,7 @@ relationships it uses, with symbols as in docs/symbols.md:
 """
 
 from . import consts
-from .profiles import ADF435xDeviceProfile
+from .profiles import ADF435xProfile
 
 # Limits shared by the ADF4350 and ADF4351, in hertz.
 VCO_MIN_HZ = 2_200_000_000
@@ -134,12 +134,12 @@ class SolveResult:
         VCO frequency, rounded to the nearest hertz.
     exact : bool
         True only when the output is exactly the target, to the sub-hertz.
-    f_pfd_fraction : tuple of (int, int)
+    pfd_fraction : tuple of (int, int)
         Exact fPFD as ``(numerator, denominator)``.
     """
 
     def __init__(
-        self, fields, achieved_hz, error_hz, f_pfd_hz, vco_hz, exact, f_pfd_fraction
+        self, fields, achieved_hz, error_hz, f_pfd_hz, vco_hz, exact, pfd_fraction
     ):
         """Store the result."""
         self.fields = fields
@@ -148,7 +148,7 @@ class SolveResult:
         self.f_pfd_hz = f_pfd_hz
         self.vco_hz = vco_hz
         self.exact = exact
-        self.f_pfd_fraction = f_pfd_fraction
+        self.pfd_fraction = pfd_fraction
 
 
 def _round_div(num: int, den: int) -> int:
@@ -169,7 +169,7 @@ def _require_int(name, value, minimum=None):
         raise ValueError("%s=%d must be at least %d" % (name, value, minimum))
 
 
-def _output_min_hz(profile: ADF435xDeviceProfile) -> int:
+def _output_min_hz(profile: ADF435xProfile) -> int:
     """Return the lowest output frequency *profile* can reach."""
     return _ceil_div(VCO_MIN_HZ, profile.rf_divider_max)
 
@@ -192,7 +192,7 @@ def _compute_f_pfd(ref_hz, r_counter, doubler, rdiv2):
     return ref_hz * (2 if doubler else 1), r_counter * (2 if rdiv2 else 1)
 
 
-def _pick_rf_divider(target_hz: int, profile: ADF435xDeviceProfile) -> int:
+def _pick_rf_divider(target_hz: int, profile: ADF435xProfile) -> int:
     """Return the smallest RF divider that puts the VCO in its range.
 
     Raises ``NoSolutionError`` if no legal divider does.
@@ -439,7 +439,7 @@ def solve(
     ----------
     target_hz, ref_hz : int
         Output and reference frequencies, in whole hertz.
-    profile : ADF435xDeviceProfile
+    profile : ADF435xProfile
         ``ADF4350`` or ``ADF4351``.
     options : SolveOptions or None
         Reference path and MOD options.
@@ -526,7 +526,7 @@ def solve(
         f_pfd_hz=_round_div(pfd_num, pfd_den),
         vco_hz=_round_div(n_num * pfd_num, mod * pfd_den),
         exact=err_num == 0,
-        f_pfd_fraction=(pfd_num, pfd_den),
+        pfd_fraction=(pfd_num, pfd_den),
     )
 
 
@@ -538,7 +538,7 @@ def output_band_hz(rf_divider):
     return (_ceil_div(VCO_MIN_HZ, rf_divider), VCO_MAX_HZ // rf_divider)
 
 
-def max_hz_for_rf_divider(rf_divider, profile):
+def divider_max_hz(rf_divider, profile):
     """Return the highest output frequency at which the solver picks *rf_divider*.
 
     The solver tries dividers from smallest up, so *rf_divider* is chosen

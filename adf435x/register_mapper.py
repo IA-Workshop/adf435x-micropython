@@ -26,7 +26,7 @@ from .config import (
     WIDTH,
     ADF435xConfig,
 )
-from .profiles import ADF435xDeviceProfile
+from .profiles import ADF435xProfile
 
 # How each profile feature is named in error messages.
 _CAPABILITY_TEXT = {
@@ -118,13 +118,13 @@ _RULES = (
 
 class ADF435xRegisterMapper:
     """
-    Check and encode register words for one part (an ``ADF435xDeviceProfile``).
+    Check and encode register words for one part (an ``ADF435xProfile``).
 
     ``encode_register()`` assumes valid input. Call ``validate_config()``
     first on any config that did not come through ``ADF435xRegisterFile``.
     """
 
-    def __init__(self, profile: ADF435xDeviceProfile):
+    def __init__(self, profile: ADF435xProfile):
         """Store *profile* and build the per-register encode layout."""
         self._profile = profile
 
@@ -139,7 +139,7 @@ class ADF435xRegisterMapper:
         self._layout = tuple(tuple(fields) for fields in layout)
 
     @property
-    def profile(self) -> ADF435xDeviceProfile:
+    def profile(self) -> ADF435xProfile:
         """The part this mapper encodes for."""
         return self._profile
 

@@ -4,7 +4,7 @@ import pytest
 
 from adf435x import consts
 from adf435x.profiles import ADF4351
-from adf435x.sweep import DividerOctaveCrossingError, FrequencyTable
+from adf435x.sweep import DividerCrossingError, FrequencyTable
 from adf435x.synthesizer import ADF435xSynthesizer, LockTimeoutError
 from conftest import FakeChip, FakeDevice
 
@@ -132,7 +132,7 @@ class TestFromFrequencies:
 
     def test_divider_crossing_reports_bands(self, synth):
         """A crossing names each divider's band and narrower ranges."""
-        with pytest.raises(DividerOctaveCrossingError) as exc:
+        with pytest.raises(DividerCrossingError) as exc:
             FrequencyTable.from_frequencies(synth, [100_000_000, 3_000_000_000])
         err = exc.value
         assert (err.lower_hz, err.upper_hz) == (100_000_000, 3_000_000_000)

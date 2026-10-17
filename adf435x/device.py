@@ -15,9 +15,9 @@ class ADF435xDevice:
     ----------
     spi : machine.SPI
         A configured SPI bus that can transmit (mode 0).
-    load_enable_pin : int
+    le_pin : int
         GPIO number wired to LE.
-    chip_enable_pin : int
+    ce_pin : int
         GPIO number wired to CE.
     muxout_pin : int or None
         GPIO number wired to MUXOUT, or None if MUXOUT is not wired.
@@ -26,14 +26,14 @@ class ADF435xDevice:
     def __init__(
         self,
         spi: SPI,
-        load_enable_pin: int,
-        chip_enable_pin: int,
+        le_pin: int,
+        ce_pin: int,
         muxout_pin: int | None = None,
     ):
         """Set up the LE, CE and MUXOUT pins. LE and CE start low."""
         self.spi = spi
-        self.load_enable_pin = Pin(load_enable_pin, Pin.OUT, value=0)
-        self.chip_enable_pin = Pin(chip_enable_pin, Pin.OUT, value=0)
+        self.le_pin = Pin(le_pin, Pin.OUT, value=0)
+        self.ce_pin = Pin(ce_pin, Pin.OUT, value=0)
         if muxout_pin is None:
             self.muxout_pin = None
         else:
@@ -44,11 +44,11 @@ class ADF435xDevice:
 
     def chip_enable(self) -> None:
         """Drive CE high to power the chip up."""
-        self.chip_enable_pin.high()
+        self.ce_pin.high()
 
     def chip_disable(self) -> None:
         """Drive CE low to power the chip down."""
-        self.chip_enable_pin.low()
+        self.ce_pin.low()
 
     def read_muxout(self) -> int:
         """Return the logic level on MUXOUT, 0 or 1.
@@ -72,7 +72,7 @@ class ADF435xDevice:
         buf[2] = (word >> 8) & 0xFF
         buf[3] = word & 0xFF
 
-        le = self.load_enable_pin
+        le = self.le_pin
         le.low()
         self.spi.write(buf)
         le.high()

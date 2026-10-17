@@ -10,7 +10,7 @@ import pytest
 
 from adf435x import consts
 from adf435x.config import FIELDS, KIND, NAME, UINT, WIDTH
-from adf435x.profiles import ADF4350, ADF4351, ADF435xDeviceProfile
+from adf435x.profiles import ADF4350, ADF4351, ADF435xProfile
 from adf435x.register_file import ADF435xRegisterFile
 from adf435x.register_mapper import ADF435xRegisterMapper
 
@@ -74,7 +74,7 @@ class TestCheckPll:
     def test_int_above_maximum_rejected(self):
         """INT above the profile maximum is rejected."""
         # Custom profile with a tiny int_max isolates the upper-bound branch.
-        profile = ADF435xDeviceProfile(
+        profile = ADF435xProfile(
             "test",
             rf_divider_max=64,
             has_phase_adjust=True,
@@ -182,7 +182,7 @@ class TestModRange:
     def test_mod_above_profile_max_rejected(self):
         """MOD above the profile maximum is rejected."""
         # Custom profile with a small mod_max isolates the upper-bound branch.
-        profile = ADF435xDeviceProfile(
+        profile = ADF435xProfile(
             "test",
             rf_divider_max=64,
             has_phase_adjust=True,
