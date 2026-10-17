@@ -10,22 +10,26 @@ HUMAN_DOCS = sorted(
     [ROOT / "README.md", ROOT / "CONTRIBUTING.md", ROOT / "CHANGELOG.md"]
     + list((ROOT / "docs").rglob("*.md"))
 )
+# Generated or nested checkouts, not project docs.
+_SKIP_DIRS = {".git", "node_modules", ".pytest_cache", "worktrees", "build-mpy"}
+
+
+def _project(paths):
+    return sorted(
+        p for p in paths if not _SKIP_DIRS.intersection(p.relative_to(ROOT).parts)
+    )
+
+
 # Agent docs may link anywhere, but their links must resolve too. The journal
 # is append-only history and may cite files that no longer exist.
-AGENT_DOCS = sorted(
+AGENT_DOCS = _project(
     [ROOT / "AGENTS.md", ROOT / "CLAUDE.md"]
     + [p for p in (ROOT / ".agents").glob("*.md") if p.name != "journal.md"]
     + list((ROOT / ".claude").rglob("*.md"))
     + list((ROOT / ".cursor").rglob("*.md"))
     + list((ROOT / ".cursor").rglob("*.mdc"))
 )
-# Generated or nested checkouts, not project docs.
-_SKIP_DIRS = {".git", "node_modules", ".pytest_cache", "worktrees", "build-mpy"}
-ALL_MARKDOWN = sorted(
-    p
-    for p in ROOT.rglob("*.md")
-    if not _SKIP_DIRS.intersection(p.relative_to(ROOT).parts)
-)
+ALL_MARKDOWN = _project(ROOT.rglob("*.md"))
 _LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 _CODE_FENCE = re.compile(r"```.*?```", re.S)
 
