@@ -219,7 +219,7 @@ class TestPickBandClk:
 
 
 class TestGoldenVector:
-    """Datasheet worked example (2112.6 MHz, ADF4351)."""
+    """Data sheet worked example (2112.6 MHz, ADF4351)."""
 
     def test_fields_match_worked_example(self):
         """Solver fields match the conftest golden vector."""
@@ -228,7 +228,7 @@ class TestGoldenVector:
             assert result.fields[key] == value
 
     def test_encode_matches_worked_words(self, mapper):
-        """Encoded registers match the datasheet golden words."""
+        """Encoded registers match the data sheet golden words."""
         result = solve(GOLDEN_TARGET_HZ, REF_HZ, ADF4351)
         words = mapper.encode_config(make_config(**result.fields))
         assert words == WORKED_WORDS

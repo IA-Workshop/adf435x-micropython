@@ -1,7 +1,7 @@
 """
 Host tests for consts.py: the const override must be invoked when running on
 the host under CPython, and the field positions must reconstruct known-good
-register words (Datasheet worked example, 2112.6 MHz).
+register words (Data sheet worked example, 2112.6 MHz).
 """
 
 from adf435x import consts as c
@@ -45,7 +45,7 @@ def test_r5_reserved_ones():
 
 
 def test_muxout_digital_lock_value():
-    """Digital lock detect encodes to the datasheet value 0b110."""
+    """Digital lock detect encodes to the data sheet value 0b110."""
     assert c.REG2_MUX_DIGITALLOCK == 0b110
 
 

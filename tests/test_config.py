@@ -88,7 +88,7 @@ class TestEncoding:
     """A configuration encodes to the expected register words."""
 
     def test_worked_regfile_example_words(self, worked_regfile):
-        """The datasheet worked example encodes to the known-good words."""
+        """The data sheet worked example encodes to the known-good words."""
         assert worked_regfile.current_words() == WORKED_WORDS
 
     @pytest.mark.parametrize("profile", [ADF4350, ADF4351], ids=lambda p: p.name)

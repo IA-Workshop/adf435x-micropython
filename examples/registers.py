@@ -1,7 +1,7 @@
 """
 ADF435x register-file example in MicroPython.
 
-Builds the datasheet worked-example PLL settings (ADF4351 data sheet, p. 21)
+Builds the data sheet worked-example PLL settings (ADF4351 data sheet, p. 21)
 through ``ADF435xRegisterFile``, then programs the chip over SPI. RF output is
 scaled for bench verification on a mid-range oscilloscope. About 200 MHz
 bandwidth, 1 GSa/s is enough to measure the period.
@@ -17,7 +17,7 @@ Hardware assumptions
       fVCO = fPFD * (INT + FRAC/MOD) = 10 * 422.52 = 4225.2 MHz
       fOUT = fVCO / RF_divider = 4225.2 / 32 = 132.0375 MHz
 
-  The data-sheet example uses RF divide-by-2 for 2112.6 MHz; divide-by-32
+  The data sheet example uses RF divide-by-2 for 2112.6 MHz; divide-by-32
   keeps the same PLL numbers but brings the output into scope range.
   Catalog slug: ``adf4351_scope_equiv_132p0375mhz`` (see ``examples/validate.py``;
   ADF4351 only).

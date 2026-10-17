@@ -45,7 +45,7 @@ adf_device = ADF435xDevice(
 )
 
 # 3. Define minimal register words needed for operation. (Taken from ADF4351
-#    datasheet worked example, p. 21). R2 is given in two variants that differ
+#    data sheet worked example, p. 21). R2 is given in two variants that differ
 #    only in the MUXOUT source that will drive the pin high, then low, for a
 #    basic connectivity test.
 R0 = 0x00D30068

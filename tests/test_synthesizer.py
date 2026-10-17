@@ -16,7 +16,7 @@ class TestSetFrequency:
     """Frequency solve and SPI write path."""
 
     def test_golden_vector_words(self, synth, fake_device):
-        """Golden target produces datasheet WORKED_WORDS on first power-up."""
+        """Golden target produces data sheet WORKED_WORDS on first power-up."""
         synth.power_up(frequency_hz=GOLDEN_HZ)
         # SPI order is R5 down to R0; WORKED_WORDS is indexed R0..R5.
         assert fake_device.writes == list(reversed(WORKED_WORDS))

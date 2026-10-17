@@ -19,7 +19,7 @@ All notable user-facing changes are documented here.
   MUXOUT set to the N-divider output (it stops VCO band select).
 - The encoder no longer raises for capability errors (validation already
   rejects them) and masks every field to its width, so a bad flag value can
-  no longer spill into a neighbouring bit.
+  no longer spill into a neighboring bit.
 - `ADF435xRegisterFile`: removed `commit()`, `commit_all()` and the
   `invalidate` alias. Use `commit_plan()` / `commit_all_plan()`, write the
   words, then `mark_written()` or `mark_write_failed()`.

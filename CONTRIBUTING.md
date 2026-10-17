@@ -31,7 +31,7 @@ also runs the library on the MicroPython Unix port
 
 ## Tests
 
-- Add or update tests for every behaviour change, next to the layer you
+- Add or update tests for every behavior change, next to the layer you
   changed (`tests/test_<module>.py`).
 - The data sheet worked example is `WORKED_FIELDS` / `WORKED_WORDS` in
   `tests/conftest.py`; reuse it rather than writing register values out
@@ -41,7 +41,7 @@ also runs the library on the MicroPython Unix port
 - A known bug that is not fixed yet can be pinned with `@known_bug(...)` in
   `tests/test_regressions.py` (a strict xfail).
 
-## Changes that touch hardware behaviour
+## Changes that touch hardware behavior
 
 Anything that changes what is written to the chip (register values, write
 order, timing) should be checked on hardware with

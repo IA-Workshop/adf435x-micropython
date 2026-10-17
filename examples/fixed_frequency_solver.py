@@ -16,7 +16,7 @@ Scope notes
 -----------
 - Frequencies below ~500 MHz are easier on a mid-range scope (200 MHz BW,
   1 GSa/s). The default target is 200 MHz.
-- Higher targets (for example the datasheet 2112.6 MHz example) need a scope
+- Higher targets (for example the data sheet 2112.6 MHz example) need a scope
   with sufficient bandwidth.
 - ``result.achieved_hz`` may differ slightly from ``TARGET_FREQ_HZ`` when the
   PLL grid cannot hit the target exactly; the printed value is what to expect.

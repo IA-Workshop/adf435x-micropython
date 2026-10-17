@@ -17,7 +17,7 @@ Scope notes
   prints slugs; default ``SELECT`` is ``scope_200mhz``).
 - For 137.5 MHz cross-part scope verification use ``TARGET_FREQ_HZ = 137_500_000``
   (ADF4350 floor, integer-N). Catalog: ``cross_part_scope_137p5mhz``.
-- For the datasheet golden example, use ``TARGET_FREQ_HZ = 2_112_600_000``
+- For the data sheet golden example, use ``TARGET_FREQ_HZ = 2_112_600_000``
   (needs sufficient BW). Catalog: ``golden_2112p6mhz``.
 """
 

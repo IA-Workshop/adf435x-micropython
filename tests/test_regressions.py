@@ -1,6 +1,6 @@
 """Regression tests for defects found in the code review (2026-10-15).
 
-Each test asserts the correct behaviour; the finding ID in its class or
+Each test asserts the correct behavior; the finding ID in its class or
 reason (C1, C2, ...) refers to the review and remediation plan. All were
 fixed in remediation steps A2-A8.
 
@@ -117,7 +117,7 @@ class TestSweepUsesSynthConfig:
 
 
 class TestRangeTableCoverage:
-    """from_range must honour the requested step and bounds (C2)."""
+    """from_range must honor the requested step and bounds (C2)."""
 
     def test_entry_count_matches_step(self, synth):
         """100-101 MHz in 10 kHz steps has 101 entries."""
@@ -279,7 +279,7 @@ class TestValidationGaps:
 
 
 class TestLowSpurSolve:
-    """The solver must honour the low-spur MOD minimum (C21, solver side)."""
+    """The solver must honor the low-spur MOD minimum (C21, solver side)."""
 
     def test_set_frequency_in_low_spur_mode(self, synth):
         """A low-spur retune picks a MOD of at least 50."""

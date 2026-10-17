@@ -326,7 +326,7 @@ def _farey_neighbors(num, den, qmax):
 
     Walks the continued fraction of ``num/den``. If it is itself such a
     fraction, returns just that; otherwise returns the last convergent and the
-    best semiconvergent, which bracket ``num/den`` and are its neighbours in
+    best semiconvergent, which bracket ``num/den`` and are its neighbors in
     the Farey sequence of order *qmax*.
 
     Returns

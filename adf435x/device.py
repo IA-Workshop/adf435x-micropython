@@ -4,7 +4,7 @@ MicroPython SPI/GPIO handler for ADF435x frequency synthesizers.
 Each register write is one 32-bit word on SPI (4 bytes, big-endian), followed
 by a load-enable (LE) pulse that latches the shift-register contents into the
 active register map. Multi-register updates must be ordered R5 down to R0 per
-the datasheet; ``ADF435xRegisterFile.commit_plan()`` produces that order.
+the data sheet; ``ADF435xRegisterFile.commit_plan()`` produces that order.
 """
 
 from machine import Pin, SPI
@@ -105,7 +105,7 @@ class ADF435xDevice:
 
         Notes
         -----
-        The caller must supply datasheet-correct order (usually R5 down to
+        The caller must supply the order the data sheet requires (usually R5 down to
         R0). Double-buffered fields in R1, R2, and optionally R4 require a
         final R0 write to latch; see ``ADF435xRegisterFile.commit_plan()``.
         """

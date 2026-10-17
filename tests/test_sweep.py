@@ -20,7 +20,7 @@ _MOD_640_HZ = 2_200_015_625
 
 
 class TestFromRange:
-    """Range tables honour bounds and step."""
+    """Range tables honor bounds and step."""
 
     def test_entries_on_requested_points(self, synth):
         """190-210 MHz in 2 MHz steps is exactly 190, 192, ... 210 MHz."""

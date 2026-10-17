@@ -82,9 +82,9 @@ class ADF435xDeviceProfile:
         Highest VCO frequency allowed with the 4/5 prescaler; above this the 8/9
         prescaler is required. Used by the solver, not the encoder.
     int_min_4_5 : int
-        Minimum INT with the 4/5 prescaler (datasheet NMIN = 23).
+        Minimum INT with the 4/5 prescaler (data sheet NMIN = 23).
     int_min_8_9 : int
-        Minimum INT with the 8/9 prescaler (datasheet NMIN = 75).
+        Minimum INT with the 8/9 prescaler (data sheet NMIN = 75).
     int_max : int
         Maximum INT (65,535).
     mod_min : int

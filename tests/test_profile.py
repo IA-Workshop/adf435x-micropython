@@ -54,7 +54,7 @@ class TestPrescalerCeiling:
 
 
 class TestPllLimits:
-    """Datasheet INT/MOD bounds (ADF4350 and ADF4351 share these)."""
+    """Data sheet INT/MOD bounds (ADF4350 and ADF4351 share these)."""
 
     @pytest.mark.parametrize("profile", [ADF4350, ADF4351], ids=lambda p: p.name)
     def test_int_minimums(self, profile):
