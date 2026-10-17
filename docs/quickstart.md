@@ -1,9 +1,13 @@
 # Quickstart
 
-This walks through programming one output frequency and confirming lock.
-You need a MicroPython board, an ADF4350 or ADF4351 board (for example the
-Analog Devices evaluation board), and a scope, counter, or spectrum analyzer
-to see the output.
+This page programs one output frequency and checks that the chip has
+[locked](glossary.md#lock) onto it. You need:
+
+- a board running [MicroPython](glossary.md#micropython);
+- an ADF4350 or ADF4351 board, such as the Analog Devices [evaluation
+  board](glossary.md#evaluation-board);
+- an oscilloscope, frequency [counter](glossary.md#counter) or [spectrum
+  analyzer](glossary.md#spectrum-analyzer) to see the output.
 
 ## 1. Install the library
 
@@ -12,18 +16,20 @@ Copy the `adf435x/` folder to the board so that `import adf435x` works (see
 
 ## 2. Wire the board
 
-Connect SPI clock and data, plus two GPIO outputs and, ideally, one input:
+Connect the [SPI](glossary.md#spi) clock and data lines, two
+[GPIO](glossary.md#gpio) outputs and, if you can, one GPIO input:
 
 | ADF435x pin | Board pin | Direction |
 |-------------|-----------|-----------|
 | CLK | SPI SCK | output |
 | DATA | SPI MOSI | output |
-| LE | any GPIO | output |
-| CE | any GPIO | output |
-| MUXOUT | any GPIO | input (optional, for lock detect) |
+| [LE](glossary.md#le) | any GPIO | output |
+| [CE](glossary.md#ce) | any GPIO | output |
+| [MUXOUT](glossary.md#muxout) | any GPIO | input (optional, for lock detect) |
 
-Share ground between the boards and feed the reference clock to REFIN.
-[Hardware](hardware.md) has the details and a reference pin map.
+Connect the two boards' grounds together, and feed the
+[reference](glossary.md#reference) clock to the [REFIN](symbols.md#refin)
+pin. [Hardware](hardware.md) has the details and a reference pin map.
 
 ## 3. Program a frequency
 
@@ -43,12 +49,13 @@ print("locked:", synth.wait_locked())
 print("output:", synth.achieved_hz, "Hz")
 ```
 
-- `ref_hz` is the frequency of your reference clock, in whole hertz. Use
-  `ADF4350` instead of `ADF4351` for that part.
-- `power_up()` raises the chip-enable line and writes all six registers.
-- `wait_locked()` returns `True` once MUXOUT reports digital lock detect.
-  Lock means the PLL has settled; confirm the frequency itself with an
-  instrument.
+- `ref_hz` is the frequency of your reference clock, in whole hertz. For an
+  ADF4350, use `ADF4350` instead of `ADF4351`.
+- `power_up()` raises CE and writes all six
+  [registers](glossary.md#register).
+- `wait_locked()` returns `True` once MUXOUT reports lock. Lock means the
+  [PLL](glossary.md#pll) has settled; it does not prove the frequency is
+  right, so check it with an instrument.
 
 ## 4. Change frequency
 
@@ -58,10 +65,10 @@ print(result.achieved_hz, result.error_hz, result.exact)
 ```
 
 Only the registers that changed are written. `achieved_hz` is the output
-rounded to the nearest hertz, `error_hz` is target minus achieved, and
-`exact` is `True` when the output is exactly the target. See
-[Frequency planning](frequency-planning.md) for when a target cannot be hit
-exactly.
+rounded to the nearest hertz, `error_hz` is the target minus the achieved
+frequency, and `exact` is `True` when the output is exactly the target.
+[Frequency planning](frequency-planning.md) explains when a target cannot be
+hit exactly.
 
 ## 5. Output controls
 
@@ -74,8 +81,10 @@ synth.unmute()
 synth.power_down()    # chip-enable low; settings are kept
 ```
 
+Output power is in [dBm](glossary.md#dbm).
+
 ## Next steps
 
-- Hop through many frequencies quickly: [Sweeps](sweeps.md).
-- Something not working: [Troubleshooting](troubleshooting.md).
-- Ready-made scripts: [Examples](examples/index.md).
+- To hop through many frequencies quickly, see [Sweeps](sweeps.md).
+- If something does not work, see [Troubleshooting](troubleshooting.md).
+- For ready-made scripts, see [Examples](examples/index.md).

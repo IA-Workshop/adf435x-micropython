@@ -1,13 +1,15 @@
 # Changelog
 
-All notable user-facing changes are documented here.
+All notable user-facing changes are documented here. Terms such as MOD and
+fPFD are explained in the [glossary](docs/glossary.md) and on the
+[symbols](docs/symbols.md) page.
 
 ## Unreleased
 
 ### Changed (breaking)
 
 - Register fields are described once in `adf435x.config.FIELDS`. Removed:
-  `ADF435xRegisterMapper.register_0` … `register_5` (use
+  `ADF435xRegisterMapper.register_0` to `register_5` (use
   `encode_register(index, config)`), `config.FIELD_WIDTH`,
   `config.FIELD_RANGE_MIN`, `config.FIELD_ENUM_VALUES`, the `consts.*_VALUES`
   tuples, and `consts.DISABLED`, `ENABLED`, `WORD_SIZE_BYTES`, `CONTROL_POS`,
@@ -26,7 +28,7 @@ All notable user-facing changes are documented here.
 - Solver: `achieved_hz` and `vco_hz` are rounded to the nearest hertz (were
   floored) and `error_hz` is `target_hz - achieved_hz`.
 - Solver: `SolveOptions.channel_spacing_hz` is replaced by `channel_step_hz`,
-  the step at the **RF output** (MOD = fPFD / (step × RF divider), which must
+  the step at the RF output (MOD = fPFD / (step × RF divider), which must
   be a whole number).
 - Solver: an explicit MOD (`SolveOptions.mod`) is used as given, no longer
   reduced by a common factor.
@@ -81,8 +83,9 @@ All notable user-facing changes are documented here.
 ### Documentation
 
 - New user guides in `docs/`: quickstart, hardware, API guide, frequency
-  planning, sweeps, troubleshooting, development, examples, glossary; new
-  `CONTRIBUTING.md`. The README has a quickstart again, and its links work.
+  planning, sweeps, troubleshooting, development, examples, a glossary of
+  terms and a page of symbols; new `CONTRIBUTING.md`. The README has a
+  quickstart again, and its links work.
 
 ### Fixed
 
@@ -101,7 +104,7 @@ All notable user-facing changes are documented here.
   loses accuracy to a MOD locked from the first entry.
 - Divider-crossing sweeps run on boards without MUXOUT (boundary hops dwell
   instead of waiting for lock), and the crossing error suggests ranges that
-  really stay on one divider.
+  stay on one divider.
 - Table hops no longer force a 6 ns lock-detect window in fractional-N.
 - The synthesizer applies its reference path (R counter, doubler, divide-by-2)
   and band-select clock at construction, so no write can carry placeholder
