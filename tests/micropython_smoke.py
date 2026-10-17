@@ -62,7 +62,7 @@ from conftest import WORKED_FIELDS, WORKED_WORDS, FakeDevice  # noqa: E402
 
 import adf435x  # noqa: E402
 from adf435x import ADF4351, ADF435xRegisterFile, ADF435xSynthesizer, solve  # noqa: E402
-from adf435x.sweep import ADF435xSweeper, FrequencyTable  # noqa: E402
+from adf435x.sweep import FrequencyTable  # noqa: E402
 
 REF_HZ = 10_000_000
 GOLDEN_HZ = 2_112_600_000
@@ -98,9 +98,11 @@ def main():
     check("lock detect polls", synth.wait_locked(timeout_us=1_000) is True)
 
     table = FrequencyTable.from_range(synth, 190_000_000, 210_000_000, 2_000_000)
-    player = ADF435xSweeper(synth, table)
-    player.run()
-    check("sweep plays every entry", player.index == len(table))
+    check("table hits every 2 MHz point exactly", table.max_error_hz == 0 and len(table) == 11)
+    before = len(device.writes)
+    check("sweep plays without lock timeouts", synth.play(table, wait_for_lock=True, boundary_dwell_us=0) == 0)
+    check("in-band hops are single R0 writes", len(device.writes) - before <= 6 + 10)
+    check("synth ends on the last entry", synth.frequency == 210_000_000)
 
     from adf435x.device import ADF435xDevice
 

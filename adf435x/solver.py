@@ -160,9 +160,13 @@ class SolveResult:
     exact : bool
         True only when the output is exactly the target (no sub-hertz
         residual).
+    f_pfd_fraction : tuple of (int, int)
+        Exact PFD frequency as ``(numerator, denominator)``.
     """
 
-    def __init__(self, fields, achieved_hz, error_hz, f_pfd_hz, vco_hz, exact):
+    def __init__(
+        self, fields, achieved_hz, error_hz, f_pfd_hz, vco_hz, exact, f_pfd_fraction
+    ):
         """Store solver output fields and achieved frequencies."""
         self.fields = fields
         self.achieved_hz = achieved_hz
@@ -170,6 +174,7 @@ class SolveResult:
         self.f_pfd_hz = f_pfd_hz
         self.vco_hz = vco_hz
         self.exact = exact
+        self.f_pfd_fraction = f_pfd_fraction
 
 
 def _round_div(num: int, den: int) -> int:
@@ -408,20 +413,35 @@ def _less(err_a, err_b, mod_a, mod_b):
     return left < right or (left == right and mod_a < mod_b)
 
 
-def _set_pll_mode_fields(fields, frac, profile):
+def pll_mode_fields(integer_n, profile):
     """
-    Set lock detect, ABP, and charge cancel for integer-N or fractional-N.
+    Lock detect, ABP, and charge-cancel fields for integer-N or fractional-N.
 
     Data sheet p.19-20: fractional-N uses LDF/LDP = 00, ABP 6 ns, charge
     cancel off; integer-N uses LDF/LDP = 11, ABP 3 ns, charge cancel on.
+    Fractional-N settings also work at FRAC = 0, so a table may keep them for
+    the integer channels of a fractional sweep.
+
+    Parameters
+    ----------
+    integer_n : bool
+        True for integer-N (FRAC = 0) settings.
+    profile : ADF435xDeviceProfile
+        Device profile; ABP and charge cancel are set only where present.
+
+    Returns
+    -------
+    dict
     """
-    integer_n = frac == 0
-    fields["ldf"] = consts.REG2_LDF_INT_N if integer_n else consts.REG2_LDF_FRAC_N
-    fields["ldp"] = consts.REG2_LDP_6NS if integer_n else consts.REG2_LDP_10NS
+    fields = {
+        "ldf": consts.REG2_LDF_INT_N if integer_n else consts.REG2_LDF_FRAC_N,
+        "ldp": consts.REG2_LDP_6NS if integer_n else consts.REG2_LDP_10NS,
+    }
     if profile.has_programmable_abp:
         fields["abp"] = consts.REG3_ABP_3NS if integer_n else consts.REG3_ABP_6NS
     if profile.has_charge_cancel:
         fields["charge_cancel"] = integer_n
+    return fields
 
 
 def _fixed_mod(opts, pfd_num, pfd_den, rf_divider, profile):
@@ -549,7 +569,7 @@ def solve(
         "band_clk_mode": band_clk_mode,
         "feedback": consts.REG4_FEEDBACK_FUNDAMENTAL,
     }
-    _set_pll_mode_fields(fields, frac, profile)
+    fields.update(pll_mode_fields(frac == 0, profile))
 
     err_num, _ = plan.error(n_num, mod)
     achieved_hz = _round_div(n_num * pfd_num, mod * plan.big_d)
@@ -566,88 +586,8 @@ def solve(
         f_pfd_hz=_round_div(pfd_num, pfd_den),
         vco_hz=_round_div(n_num * pfd_num, mod * pfd_den),
         exact=err_num == 0,
+        f_pfd_fraction=(pfd_num, pfd_den),
     )
-
-
-# --- Frequency tables (moves to sweep.py in remediation step A5) ---
-
-class DividerOctaveCrossingError(ValueError):
-    """
-    A frequency table span requires more than one RF output divider.
-
-    Attributes
-    ----------
-    lower_hz, upper_hz : int
-        Requested bounds or offending frequency pair.
-    lower_divider, upper_divider : int
-        RF dividers assigned to the low and high endpoints.
-    lower_band_hz, upper_band_hz : tuple of (int, int)
-        ``(min_hz, max_hz)`` output band for each divider.
-    """
-
-    def __init__(
-        self,
-        message,
-        *,
-        lower_hz,
-        upper_hz,
-        lower_divider,
-        upper_divider,
-        lower_band_hz,
-        upper_band_hz,
-    ):
-        """Store the crossing details and message."""
-        super().__init__(message)
-        self.lower_hz = lower_hz
-        self.upper_hz = upper_hz
-        self.lower_divider = lower_divider
-        self.upper_divider = upper_divider
-        self.lower_band_hz = lower_band_hz
-        self.upper_band_hz = upper_band_hz
-
-
-def achieved_hz_from_n_num(n_num, mod, f_pfd, rf_divider):
-    """
-    RF output in hertz for fractional-N numerator *n_num* (N = n_num / mod).
-
-    Parameters
-    ----------
-    n_num : int
-        Combined numerator INT * MOD + FRAC.
-    mod : int
-        Fractional modulus.
-    f_pfd : int
-        PFD frequency in hertz.
-    rf_divider : int
-        RF output divider.
-
-    Returns
-    -------
-    int
-        Achieved RF output frequency in hertz.
-    """
-    return ((n_num * f_pfd) // mod) // rf_divider
-
-
-def rf_channel_step_hz(f_pfd, mod, rf_divider):
-    """
-    Minimum RF output spacing for fixed MOD and dividers.
-
-    Parameters
-    ----------
-    f_pfd : int
-        PFD frequency in hertz.
-    mod : int
-        Fractional modulus.
-    rf_divider : int
-        RF output divider.
-
-    Returns
-    -------
-    int
-        Channel step at the RF output in hertz.
-    """
-    return f_pfd // mod // rf_divider
 
 
 def output_band_hz(rf_divider):
@@ -694,323 +634,3 @@ def max_hz_for_rf_divider(rf_divider, profile):
         return band_hi
     # Next-smaller divider wins at ceil(VCO_MIN / smaller) and above.
     return min(band_hi, _ceil_div(VCO_MIN_HZ, smaller) - 1)
-
-
-def _raise_divider_crossing(lower_hz, upper_hz, low_div, high_div):
-    """Raise ``DividerOctaveCrossingError`` with band details."""
-    low_band = output_band_hz(low_div)
-    high_band = output_band_hz(high_div)
-    narrow_low_hi = min(upper_hz, low_band[1])
-    narrow_high_lo = max(lower_hz, high_band[0])
-    message = (
-        "RF divider octave crossing: %d Hz uses divide-by-%d "
-        "(band %d–%d Hz), %d Hz needs divide-by-%d (band %d–%d Hz). "
-        "Narrow to [%d, %d] or [%d, %d], or set allow_divider_change=True."
-        % (
-            lower_hz,
-            low_div,
-            low_band[0],
-            low_band[1],
-            upper_hz,
-            high_div,
-            high_band[0],
-            high_band[1],
-            lower_hz,
-            narrow_low_hi,
-            narrow_high_lo,
-            upper_hz,
-        )
-    )
-    raise DividerOctaveCrossingError(
-        message,
-        lower_hz=lower_hz,
-        upper_hz=upper_hz,
-        lower_divider=low_div,
-        upper_divider=high_div,
-        lower_band_hz=low_band,
-        upper_band_hz=high_band,
-    )
-
-
-def _enumerate_achievable_hz(n_low, n_high, mod, f_pfd, rf_divider):
-    """
-    List achievable RF frequencies on the PLL grid from *n_low* to *n_high*.
-
-    Parameters
-    ----------
-    n_low, n_high : int
-        Inclusive fractional-N numerators (INT * MOD + FRAC).
-    mod : int
-        Fractional modulus.
-    f_pfd : int
-        PFD frequency in hertz.
-    rf_divider : int
-        RF output divider.
-
-    Returns
-    -------
-    list of int
-        Sorted unique achievable RF frequencies in hertz.
-    """
-    freqs = []
-    prev = None
-    for n_num in range(n_low, n_high + 1):
-        rf_hz = achieved_hz_from_n_num(n_num, mod, f_pfd, rf_divider)
-        if rf_hz != prev:
-            freqs.append(rf_hz)
-            prev = rf_hz
-    return freqs
-
-
-def _pick_step_grid(achievable_hz, step_hz):
-    """
-    Select grid points closest to each ``start + n * step`` target.
-
-    Always includes the first and last achievable frequencies in the range.
-
-    Parameters
-    ----------
-    achievable_hz : list of int
-        Sorted achievable frequencies (ascending).
-    step_hz : int
-        Desired spacing between table entries in hertz.
-
-    Returns
-    -------
-    list of int
-        Selected RF frequencies for the sweep table.
-    """
-    if not achievable_hz:
-        return []
-    if step_hz <= 0:
-        raise ValueError("step_hz must be positive")
-
-    selected = [achievable_hz[0]]
-    idx = 0
-    while True:
-        goal = selected[-1] + step_hz
-        if goal > achievable_hz[-1]:
-            break
-        while (
-            idx + 1 < len(achievable_hz)
-            and abs(achievable_hz[idx + 1] - goal)
-            <= abs(achievable_hz[idx] - goal)
-        ):
-            idx += 1
-        best = achievable_hz[idx]
-        if best <= selected[-1]:
-            break
-        selected.append(best)
-
-    if selected[-1] != achievable_hz[-1]:
-        selected.append(achievable_hz[-1])
-    return selected
-
-
-def boundary_indices_from_results(results):
-    """
-    Indices where the RF output divider changes between consecutive entries.
-
-    Parameters
-    ----------
-    results : list of SolveResult
-        Solve results in playback order.
-
-    Returns
-    -------
-    frozenset of int
-        Table indices that start a new RF divider band.
-    """
-    if len(results) < 2:
-        return frozenset()
-    boundaries = set()
-    prev_div = results[0].fields["rf_divider"]
-    for i in range(1, len(results)):
-        div = results[i].fields["rf_divider"]
-        if div != prev_div:
-            boundaries.add(i)
-        prev_div = div
-    return frozenset(boundaries)
-
-
-def _endpoint_dividers(lower_hz, upper_hz, profile, base):
-    """RF dividers ``solve()`` would pick for each endpoint."""
-    if base.rf_divider is not None:
-        return base.rf_divider, base.rf_divider
-    return (
-        _pick_rf_divider(lower_hz, profile),
-        _pick_rf_divider(upper_hz, profile),
-    )
-
-
-def build_frequency_table(
-    lower_hz,
-    upper_hz,
-    step_hz,
-    ref_hz,
-    profile,
-    *,
-    allow_divider_change=False,
-    options=None,
-):
-    """
-    Build a sweep table between *lower_hz* and *upper_hz*.
-
-    Solves the endpoints, locks MOD from the lower solve, verifies both ends
-    share the same RF divider (unless *allow_divider_change*), enumerates the
-    PLL grid, and picks entries nearest the requested step.
-
-    Parameters
-    ----------
-    lower_hz, upper_hz : int
-        Frequency bounds in hertz (lower must not exceed upper).
-    step_hz : int
-        Desired table spacing in hertz.
-    ref_hz : int
-        Reference input frequency in hertz.
-    profile : ADF435xDeviceProfile
-        Device profile (ADF4350 or ADF4351).
-    allow_divider_change : bool
-        When True, split the span at RF divider octaves and build an
-        optimized sub-table per band (locked MOD within each segment).
-    options : SolveOptions or None
-        Reference-path and MOD policy overrides (default R=1, no doubler).
-
-    Returns
-    -------
-    tuple of (list, int)
-        ``(entries, channel_step_hz)`` where each entry is a ``SolveResult``
-        and ``channel_step_hz`` is the RF channel spacing (0 when the span
-        crosses divider bands).
-
-    Raises
-    ------
-    ValueError
-        If bounds are invalid or the range crosses an RF divider octave.
-    DividerOctaveCrossingError
-        Subclass of ``ValueError`` with ``lower_band_hz`` / ``upper_band_hz``.
-    """
-    if lower_hz > upper_hz:
-        raise ValueError("lower_hz must not exceed upper_hz")
-
-    base = _resolve_options(options)
-    low_div, high_div = _endpoint_dividers(lower_hz, upper_hz, profile, base)
-    if low_div != high_div:
-        if not allow_divider_change:
-            _raise_divider_crossing(
-                lower_hz,
-                upper_hz,
-                low_div,
-                high_div,
-            )
-        segments = _divider_segments(
-            lower_hz, upper_hz, ref_hz, profile, base
-        )
-        all_entries = []
-        for i, (seg_lo, seg_hi, _div) in enumerate(segments):
-            seg_entries, _ = _build_single_divider_table(
-                seg_lo,
-                seg_hi,
-                step_hz,
-                ref_hz,
-                profile,
-                options=base,
-            )
-            if i > 0 and seg_entries:
-                if (
-                    all_entries
-                    and seg_entries[0].achieved_hz
-                    == all_entries[-1].achieved_hz
-                ):
-                    all_entries.pop()
-            all_entries.extend(seg_entries)
-        return all_entries, 0
-
-    return _build_single_divider_table(
-        lower_hz,
-        upper_hz,
-        step_hz,
-        ref_hz,
-        profile,
-        options=base,
-    )
-
-
-def _divider_segments(lower_hz, upper_hz, ref_hz, profile, base):
-    """
-    Split *lower_hz*..*upper_hz* into contiguous RF-divider bands.
-
-    Returns
-    -------
-    list of tuple
-        ``(seg_lower_hz, seg_upper_hz, rf_divider)`` in ascending order.
-    """
-    segments = []
-    pos = lower_hz
-    while pos <= upper_hz:
-        div = solve(pos, ref_hz, profile, options=base).fields["rf_divider"]
-        seg_hi = min(upper_hz, max_hz_for_rf_divider(div, profile))
-        segments.append((pos, seg_hi, div))
-        if seg_hi >= upper_hz:
-            break
-        pos = seg_hi + 1
-    return segments
-
-
-def _build_single_divider_table(
-    lower_hz,
-    upper_hz,
-    step_hz,
-    ref_hz,
-    profile,
-    *,
-    options,
-):
-    """
-    Build an optimized table within one RF divider band.
-
-    Locks MOD from the lower endpoint, enumerates the PLL grid, and picks
-    entries nearest the requested step.
-
-    Returns
-    -------
-    tuple of (list, int)
-        ``(entries, channel_step_hz)``.
-    """
-    if step_hz <= 0:
-        raise ValueError("step_hz must be positive")
-
-    low = solve(lower_hz, ref_hz, profile, options=options)
-    mod = low.fields["mod"]
-    rf_divider = low.fields["rf_divider"]
-    opts = options.with_locked_pll(mod, rf_divider)
-
-    high = solve(upper_hz, ref_hz, profile, options=opts)
-    if high.fields["rf_divider"] != rf_divider:
-        raise ValueError(
-            "internal error: segment %d–%d spans RF dividers %d and %d"
-            % (
-                lower_hz,
-                upper_hz,
-                rf_divider,
-                high.fields["rf_divider"],
-            )
-        )
-
-    f_pfd = low.f_pfd_hz
-    channel_step_hz = rf_channel_step_hz(f_pfd, mod, rf_divider)
-
-    n_low = low.fields["int_n"] * mod + low.fields["frac"]
-    n_high = high.fields["int_n"] * mod + high.fields["frac"]
-    if n_low > n_high:
-        n_low, n_high = n_high, n_low
-
-    achievable = _enumerate_achievable_hz(
-        n_low, n_high, mod, f_pfd, rf_divider
-    )
-    table_hz = _pick_step_grid(achievable, step_hz)
-
-    entries = []
-    for hz in table_hz:
-        entries.append(solve(hz, ref_hz, profile, options=opts))
-    return entries, channel_step_hz

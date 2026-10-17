@@ -3,8 +3,8 @@
 Maintainer milestone tracker. Living summary of completed work and open items.
 
 **Host tests:** refresh with `pytest -q` (see [rules.md](rules.md) testing
-section for conventions). Baseline 2026-10-17 (after A4): 1116 passed,
-21 xfailed (known bugs pinned in `tests/test_regressions.py`).
+section for conventions). Baseline 2026-10-17 (after A5): 1145 passed,
+6 xfailed (known bugs pinned in `tests/test_regressions.py`).
 
 ## Completed milestones
 
@@ -13,9 +13,10 @@ section for conventions). Baseline 2026-10-17 (after A4): 1116 passed,
 - **PLL solver** — [`solver.py`](../adf435x/solver.py): integer Hz math, MOD
   search, golden vector verified; exported from [`__init__.py`](../adf435x/__init__.py)
 - **Synthesizer facade** — [`synthesizer.py`](../adf435x/synthesizer.py):
-  `ADF435xSynthesizer`, plan/mark writes, lock detect, fast-hop mode helper
-- **Sweep support** — [`sweep.py`](../adf435x/sweep.py): `FrequencyTable`,
-  `ADF435xSweeper`, divider-boundary handling, MOD lock per band
+  `ADF435xSynthesizer`, plan/mark writes, lock detect, table playback
+- **Sweep support** — [`sweep.py`](../adf435x/sweep.py): `FrequencyTable`
+  (words from the synth's settings, one exact MOD per divider band where
+  possible); playback via `ADF435xSynthesizer.play()` / `play_step()`
 - **Examples** — fixed frequency, solver demo, linear sweep, octave-crossing
   sweep, frequency table builder, raw device/register demos
 - **Agent documentation** — consolidated under `.agents/`; human docs in
@@ -38,16 +39,18 @@ section for conventions). Baseline 2026-10-17 (after A4): 1116 passed,
   `config_version` and `load_prevalidated()` for table playback
 - **Remediation A4: solver** — exact rational fPFD, continued-fraction MOD
   search (~280x faster), locked MOD kept, data-sheet lock-detect settings
+- **Remediation A5: sweeps** — tables encoded from the synth's settings;
+  exact shared MOD per band or per-point fallback; diff-based playback on
+  the synthesizer; `ADF435xSweeper` removed
 
 ## Open work
 
 | Priority | Item | Notes |
 |----------|------|-------|
 | Low | Docs figure assets | Wiring diagram, probe photos, decision tree |
-| High | Remediation A5–A9 | Fix the 21 pinned xfails in `tests/test_regressions.py` (sweep rewrite, solver rewrite, validation, synthesizer, docs) |
+| High | Remediation A6–A9 | Fix the 6 pinned xfails in `tests/test_regressions.py` (sweep rewrite, solver rewrite, validation, synthesizer, docs) |
 | Medium | Remediation B (bench) | Lock-detect policy, DLD settle time, sweep/SPI checks once the testbench is back |
 | Low | Cheat-sheet golden vectors | Catalog beyond datasheet golden; see [cheat sheet](https://ez.analog.com/rf/w/documents/14697/adf4350-and-adf4351-common-questions-cheat-sheet) |
-| Low | Export sweep from `__init__.py` | Deferred until sweep API fully stable |
 
 ## Package export notes
 

@@ -24,6 +24,32 @@ Append-only log of implementation decisions. Newest entries at the top.
 
 ---
 
+## 2026-10-17 — Frequency tables store words; playback diffs (docs-refactor, A5)
+
+**Context:** Tables encoded default settings (C1), chose MOD from the lower
+endpoint's exact solve (C2/C3), enumerated the whole PLL grid (P2), and the
+sweeper wrote precomputed deltas through synthesizer privates (C15, Q1).
+
+**Decision:** Solve every requested point; per RF-divider band, lock the
+LCM of the points' exact MODs when it fits (single-R0 hops, zero error),
+else keep each point's best MOD. One PLL mode per locked band. Entries store
+fields plus all six words encoded from a copy of the synth's settings (with
+`double_buffer=True`), re-encoded when `config_version` changes. Playback is
+`synth.play()` / `play_step()`: `load_prevalidated()` then write whatever
+differs from `last_written`, so any interleaving stays correct. Boundary hops
+wait for lock only when MUXOUT exists. `ADF435xSweeper` and
+`build_frequency_table` removed.
+
+**Alternatives rejected:** Locking MOD to the smallest grid that brackets the
+step (silent errors); keeping delta plans (wrong after interleaved writes);
+keeping `ADF435xSweeper` as a wrapper (second API).
+
+**Files affected:** `adf435x/sweep.py`, `adf435x/synthesizer.py`,
+`adf435x/solver.py`, `adf435x/__init__.py`, sweep/regression tests,
+sweep examples, smoke script
+
+**Follow-ups:** Bench B4/B5 to confirm single-word hops and divider latching.
+
 ## 2026-10-17 — Exact solver with continued-fraction MOD search (docs-refactor, A3–A4)
 
 **Context:** The solver truncated fPFD and floored outputs (phantom errors,

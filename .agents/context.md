@@ -24,7 +24,7 @@ Read only the row for your change type.
 | Bit layout / encode | `.agents/datasheet.md`, `.agents/engineering_guidelines.md` §1–3 + naming | `test_register_mapper.py`, `test_register_file.py`, `test_validation.py` |
 | Frequency / MOD | `.agents/datasheet.md`, naming in `.agents/engineering_guidelines.md` | `test_solver.py` |
 | Synthesizer / SPI writes | `.agents/engineering_guidelines.md` §4–5, §11–13; `adf435x/synthesizer.py` | `test_synthesizer.py` |
-| Sweep / fast-hop | `.agents/datasheet.md`, `.agents/engineering_guidelines.md`; `adf435x/sweep.py` | `test_sweep.py` |
+| Sweep / tables | `.agents/datasheet.md`, `.agents/engineering_guidelines.md`; `adf435x/sweep.py` | `test_sweep.py` |
 | Board pins / SPI wiring | `docs/hardware.md` | `test_device.py`; `examples/validate.py` on board |
 | New public names | `.agents/engineering_guidelines.md` naming | matching layer tests |
 | Test harness / fixtures | `.agents/rules.md` testing section | touched `tests/` files |

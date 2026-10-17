@@ -13,7 +13,6 @@ from .profiles import ADF435xDeviceProfile, ADF4350, ADF4351
 from .register_mapper import ADF435xRegisterMapper
 from .register_file import ADF435xRegisterFile
 from .solver import (
-    DividerOctaveCrossingError,
     ExactFrequencyError,
     FrequencyOutOfRangeError,
     NoSolutionError,
@@ -23,7 +22,8 @@ from .solver import (
     output_band_hz,
     solve,
 )
-from .synthesizer import ADF435xSynthesizer
+from .sweep import DividerOctaveCrossingError, FrequencyEntry, FrequencyTable
+from .synthesizer import ADF435xSynthesizer, LockTimeoutError
 
 __all__ = [
     "consts",
@@ -38,6 +38,9 @@ __all__ = [
     "ADF435xRegisterMapper",
     "ADF435xRegisterFile",
     "ADF435xSynthesizer",
+    "FrequencyTable",
+    "FrequencyEntry",
+    "LockTimeoutError",
     "solve",
     "SolveOptions",
     "SolveResult",

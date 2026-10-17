@@ -78,8 +78,11 @@ The solver sets these from FRAC (data sheet p.19–20):
 | ABP | 6 ns (4351) / fixed 3 ns (4350) | 3 ns | ADF4350 ABP not programmable |
 | charge_cancel | off | on | ADF4351 only |
 
-Fast-hop / sweep mode ([`synthesizer.py`](../adf435x/synthesizer.py)):
-`double_buffer=True`, `ldp=6ns` for rapid R0-only hops.
+Frequency tables ([`sweep.py`](../adf435x/sweep.py)) add only
+`double_buffer=True` (R4 divider latches with the R0 write). Lock-detect
+settings follow the table's PLL mode: a locked-MOD band with any fractional
+channel keeps fractional-N settings for all its entries (valid at FRAC = 0
+too), so integer channels do not rewrite R2/R3 mid-sweep.
 
 ## Double-buffer latching (Figure 23, p. 14)
 

@@ -37,6 +37,17 @@ All notable user-facing changes are documented here.
 - Solver: non-integer frequencies raise `TypeError`; `ref_hz <= 0`, an
   out-of-range MOD, and an illegal `rf_divider` raise `ValueError` up front.
 
+- Sweeps: `ADF435xSweeper` is removed. Build a `FrequencyTable`, then call
+  `synth.play(table, ...)` or `synth.play_step(table, index)`.
+  `FrequencyEntry.plan` is replaced by `words` (all six registers); playback
+  writes only what differs from the last write. `build_frequency_table()`
+  and its helpers are removed from `adf435x.solver`, and
+  `DividerOctaveCrossingError` moved to `adf435x.sweep` (still exported from
+  the package root).
+- Tables: `from_range` targets exactly `lower_hz, lower_hz + step_hz, ...`
+  plus `upper_hz`; each RF-divider band shares one MOD that hits every point
+  exactly when one fits (<= 4095), else each point gets its own best MOD.
+
 ### Added
 
 - `ADF435xRegisterFile.config_version` (counts successful `configure()`
@@ -44,6 +55,13 @@ All notable user-facing changes are documented here.
 - `SolveResult.exact`: true only when the output is exactly the target;
   `SolveOptions(exact=True)` uses it.
 - `SolveOptions.mod_min` and `SolveOptions.copy(**overrides)`.
+- `ADF435xSynthesizer.solve()`, `play()`, `play_step()`, `solve_options`,
+  `mod_min`, `has_lock_detect`, and `LockTimeoutError`
+  (`play(..., require_lock=True)`); `play()` returns the number of lock
+  timeouts.
+- `FrequencyTable.max_error_hz`, the `max_error_hz=` limit when building,
+  and `FrequencyEntry.target_hz`, `exact`, `rf_divider`. `FrequencyTable` is
+  exported from the package root.
 - `FrequencyOutOfRangeError`, `NoSolutionError` and `ExactFrequencyError`
   are exported from the package root.
 
@@ -55,11 +73,25 @@ All notable user-facing changes are documented here.
 - ADF4351: PFD frequencies between 31.875 and 32 MHz are accepted (fast
   band-select mode).
 - Low-spur noise mode: the synthesizer asks the solver for MOD >= 50.
+- Sweeps keep the synthesizer's settings (output power, charge-pump
+  current, aux output, ...) instead of writing defaults, and the register
+  cache always matches the chip, including after `set_frequency()` between
+  steps.
+- `from_range` returns every requested point instead of a coarser grid, and
+  never ends short of or beyond `upper_hz`; `from_frequencies` no longer
+  loses accuracy to a MOD locked from the first entry.
+- Divider-crossing sweeps run on boards without MUXOUT (boundary hops dwell
+  instead of waiting for lock), and the crossing error suggests ranges that
+  really stay on one divider.
+- Table hops no longer force a 6 ns lock-detect window in fractional-N.
 
 ### Performance
 
 - The MOD search is about 280x faster: 16 us per solve on the MicroPython
   Unix port, was 4.6 ms.
+- Table building no longer enumerates every grid point (a full-octave table
+  at MOD 4095 needed ~5.6 MB on MicroPython), and playback no longer
+  validates and re-encodes on every hop.
 
 ## 0.1.0
 

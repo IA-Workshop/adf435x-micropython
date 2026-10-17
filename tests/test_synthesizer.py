@@ -128,20 +128,36 @@ class TestOutputControls:
         )
 
 
-class TestFastHopMode:
-    """Private fast-hop settings for sweeper."""
+class TestSolve:
+    """Public solve() uses the synthesizer's reference path."""
 
-    def test_enable_fast_hop_sets_double_buffer(self, synth):
-        """_enable_fast_hop_mode enables double buffering."""
-        synth._enable_fast_hop_mode()
-        assert synth.regfile.config.double_buffer is True
-        assert synth.regfile.config.ldp == consts.REG2_LDP_6NS
+    def test_solve_does_not_apply(self, synth):
+        """solve() returns fields without touching the register file."""
+        before = synth.regfile.current_words()
+        result = synth.solve(2_112_600_000)
+        assert result.fields["int_n"] == 422
+        assert synth.regfile.current_words() == before
 
-    def test_enable_fast_hop_is_idempotent(self, synth):
-        """Second call to _enable_fast_hop_mode is a no-op."""
-        synth._enable_fast_hop_mode()
-        synth._enable_fast_hop_mode()
-        assert synth._fast_hop_mode
+    def test_low_spur_raises_mod_min(self, synth):
+        """In low-spur mode the solver is asked for MOD >= 50."""
+        synth.regfile.configure(noise_mode=consts.REG2_LOW_SPUR, mod=50)
+        assert synth.solve(2_112_600_000).fields["mod"] >= 50
+
+
+class TestLockDetectCapability:
+    """has_lock_detect probes MUXOUT once."""
+
+    def test_true_with_muxout(self, synth):
+        """A device that reads MUXOUT reports lock detect."""
+        assert synth.has_lock_detect is True
+
+    def test_false_without_muxout(self):
+        """A device without MUXOUT reports no lock detect."""
+        from adf435x.profiles import ADF4351
+        from conftest import FakeDevice
+
+        synth = ADF435xSynthesizer(FakeDevice(muxout=None), ADF4351, 10_000_000)
+        assert synth.has_lock_detect is False
 
 
 class TestConfigureFailure:

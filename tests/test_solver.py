@@ -10,13 +10,10 @@ from adf435x.profiles import ADF4350, ADF4351
 from adf435x.solver import (
     ExactFrequencyError,
     FrequencyOutOfRangeError,
-    DividerOctaveCrossingError,
     NoSolutionError,
     SolveOptions,
     VCO_MAX_HZ,
     VCO_MIN_HZ,
-    achieved_hz_from_n_num,
-    boundary_indices_from_results,
     _compute_f_pfd,
     _farey_neighbors,
     _output_min_hz,
@@ -25,7 +22,6 @@ from adf435x.solver import (
     _pick_rf_divider,
     _round_div,
     _simplest_between,
-    build_frequency_table,
     output_band_hz,
     solve,
 )
@@ -80,15 +76,6 @@ class TestComputeFPfd:
         """An out-of-range R counter is rejected."""
         with pytest.raises(ValueError, match="r_counter="):
             _compute_f_pfd(REF_HZ, 0, False, False)
-
-
-class TestComputeAchieved:
-    """Forward frequency from PLL register values."""
-
-    def test_golden_vector(self):
-        """Worked-example INT/FRAC/MOD reproduces 2112.6 MHz out."""
-        achieved = achieved_hz_from_n_num(422 * 25 + 13, 25, REF_HZ, 2)
-        assert achieved == GOLDEN_TARGET_HZ
 
 
 def _brute_simplest(lo, hi, qmax=200):
@@ -394,53 +381,6 @@ class TestSolveBandEdges:
         result = solve(_output_min_hz(ADF4351), REF_HZ, ADF4351)
         assert result.fields["rf_divider"] == 64
         assert result.achieved_hz == _output_min_hz(ADF4351)
-
-
-class TestBuildFrequencyTable:
-    """Sweep table planning."""
-
-    def test_example_band_has_multiple_entries(self):
-        """190–210 MHz with 2 MHz step yields a multi-point table."""
-        table, step = build_frequency_table(
-            190_000_000, 210_000_000, 2_000_000, REF_HZ, ADF4351
-        )
-        assert step > 0
-        assert len(table) >= 3
-        assert not boundary_indices_from_results(table)
-        assert table[0].achieved_hz <= table[-1].achieved_hz
-
-    def test_octave_crossing_error_includes_bands(self):
-        """Crossing span reports divider bands and narrow ranges."""
-        with pytest.raises(DividerOctaveCrossingError) as exc:
-            build_frequency_table(
-                100_000_000,
-                3_000_000_000,
-                100_000_000,
-                REF_HZ,
-                ADF4351,
-            )
-        assert exc.value.lower_band_hz[1] > 0
-        assert "Narrow to" in str(exc.value)
-
-    def test_allow_divider_change_builds_segmented_table(self):
-        """allow_divider_change builds per-band tables with boundaries."""
-        table, step = build_frequency_table(
-            100_000_000,
-            300_000_000,
-            25_000_000,
-            REF_HZ,
-            ADF4351,
-            allow_divider_change=True,
-        )
-        boundaries = boundary_indices_from_results(table)
-        assert step == 0
-        assert len(table) >= 2
-        assert boundaries
-        # Locked MOD within the first segment.
-        first_seg_end = min(boundaries)
-        mods = [table[i].fields["mod"] for i in range(first_seg_end)]
-        assert len(mods) >= 2
-        assert len(set(mods)) == 1
 
 
 class TestOutputBandHz:

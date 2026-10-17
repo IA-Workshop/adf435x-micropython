@@ -187,6 +187,14 @@ class FakeChip(FakeDevice):
 
 
 @pytest.fixture
+def no_sleep(monkeypatch):
+    """Replace the synthesizer's sleep with a recorder (no real delay)."""
+    sleeps = []
+    monkeypatch.setattr("adf435x.synthesizer._sleep_us", sleeps.append)
+    return sleeps
+
+
+@pytest.fixture
 def fake_device():
     """Fake SPI/GPIO device for synthesizer tests."""
     return FakeDevice(muxout=1)

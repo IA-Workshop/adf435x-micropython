@@ -6,8 +6,8 @@ that into a failure, and the marker must be removed in the same change.
 The finding ID in each reason (C1, C2, ...) refers to the review findings
 and the remediation plan.
 
-Tests that pin a private helper (``_pick_step_grid``) go away with the
-helper when the sweep code is rewritten; port the intent, not the call.
+Fixed tests keep running as ordinary regression tests. When an API
+changes, port the test's intent to the new API rather than deleting it.
 """
 
 import ast
@@ -20,19 +20,15 @@ import pytest
 from adf435x import consts
 from adf435x.profiles import ADF4351
 from adf435x.register_file import ADF435xRegisterFile
-from adf435x.solver import (
-    DividerOctaveCrossingError,
-    ExactFrequencyError,
-    SolveOptions,
-    _pick_step_grid,
-    build_frequency_table,
-    solve,
-)
-from adf435x.sweep import ADF435xSweeper, FrequencyTable
+from adf435x.solver import ExactFrequencyError, SolveOptions, solve
+from adf435x.sweep import DividerOctaveCrossingError, FrequencyTable
 from adf435x.synthesizer import ADF435xSynthesizer
 from conftest import WORKED_FIELDS, FakeChip, FakeDevice
 
 REF_HZ = 10_000_000
+
+# Playback dwells for real; record the sleeps instead.
+pytestmark = pytest.mark.usefixtures("no_sleep")
 EXAMPLES = pathlib.Path(__file__).resolve().parent.parent / "examples"
 
 
@@ -69,7 +65,6 @@ def _powered_chip_synth(ref_hz=REF_HZ, muxout=1):
 class TestSweepUsesSynthConfig:
     """Sweep writes must carry the synthesizer's own settings (C1)."""
 
-    @known_bug("C1", "sweep plans encode a default config", AssertionError)
     def test_output_power_preserved(self):
         """A user-set -4 dBm survives the first sweep hop."""
         chip, synth = _powered_chip_synth()
@@ -77,12 +72,11 @@ class TestSweepUsesSynthConfig:
         table = FrequencyTable.from_range(
             synth, 190_000_000, 210_000_000, 2_000_000
         )
-        ADF435xSweeper(synth, table).step()
+        synth.play_step(table, 0)
         r4 = chip.active_words[consts.REG4_ADDR]
         power = _field(r4, consts.REG4_OUTPUT_POWER_POS, 2)
         assert power == consts.REG4_POWER_MINUS_4DBM
 
-    @known_bug("C1", "sweep plans encode a default config", AssertionError)
     def test_charge_pump_current_preserved(self):
         """A user-set CP current survives the first sweep hop."""
         chip, synth = _powered_chip_synth()
@@ -91,22 +85,20 @@ class TestSweepUsesSynthConfig:
         table = FrequencyTable.from_range(
             synth, 190_000_000, 210_000_000, 2_000_000
         )
-        ADF435xSweeper(synth, table).step()
+        synth.play_step(table, 0)
         r2 = chip.active_words[consts.REG2_ADDR]
         assert _field(r2, consts.REG2_CP_CURRENT_POS, 4) == 3
 
-    @known_bug("C1", "fast-hop double buffer never reaches the chip", AssertionError)
     def test_fast_hop_double_buffer_written(self):
         """Fast-hop mode's R2 DB13 is set on the chip after playback."""
         chip, synth = _powered_chip_synth()
         table = FrequencyTable.from_range(
             synth, 190_000_000, 210_000_000, 2_000_000
         )
-        ADF435xSweeper(synth, table).step()
+        synth.play_step(table, 0)
         r2 = chip.active_words[consts.REG2_ADDR]
         assert _field(r2, consts.REG2_DOUBLE_BUFFER_POS, 1) == 1
 
-    @known_bug("C1", "write cache diverges from the chip", AssertionError)
     def test_cache_matches_chip_after_hop(self):
         """After a hop, last-written words equal what the chip holds."""
         chip, synth = _powered_chip_synth()
@@ -114,7 +106,7 @@ class TestSweepUsesSynthConfig:
         table = FrequencyTable.from_range(
             synth, 190_000_000, 210_000_000, 2_000_000
         )
-        ADF435xSweeper(synth, table).step()
+        synth.play_step(table, 0)
         cached = [r["last_written"] for r in synth.regfile.dump()["registers"]]
         assert cached == chip.input_words
 
@@ -125,7 +117,6 @@ class TestSweepUsesSynthConfig:
 class TestRangeTableCoverage:
     """from_range must honour the requested step and bounds (C2)."""
 
-    @known_bug("C2", "MOD locked from the lower endpoint's exact solve", AssertionError)
     def test_entry_count_matches_step(self, synth):
         """100-101 MHz in 10 kHz steps has 101 entries."""
         table = FrequencyTable.from_range(
@@ -133,7 +124,6 @@ class TestRangeTableCoverage:
         )
         assert len(table) == 101
 
-    @known_bug("C2", "grid too coarse to land on the requested points", AssertionError)
     def test_points_land_on_requested_grid(self, synth):
         """190-210 MHz in 2 MHz steps hits 190, 192, ... 210 MHz."""
         table = FrequencyTable.from_range(
@@ -142,11 +132,6 @@ class TestRangeTableCoverage:
         achieved = [table[i].achieved_hz for i in range(len(table))]
         assert achieved == list(range(190_000_000, 210_000_001, 2_000_000))
 
-    @known_bug("C2", "_pick_step_grid drops interior grid points", AssertionError)
-    def test_step_grid_keeps_interior_points(self):
-        """A step finer than the grid keeps every grid point."""
-        assert _pick_step_grid([0, 10, 20, 30, 40], 3) == [0, 10, 20, 30, 40]
-
     def test_reaches_upper_bound(self, synth):
         """190.01-190.1 MHz ends at 190.1 MHz, not 190.02 MHz."""
         table = FrequencyTable.from_range(
@@ -154,7 +139,6 @@ class TestRangeTableCoverage:
         )
         assert table[len(table) - 1].achieved_hz == 190_100_000
 
-    @known_bug("C2", "upper endpoint rounds past the requested bound", AssertionError)
     def test_stays_within_bounds(self, synth):
         """No entry of a 433.05-434.79 MHz table exceeds 434.79 MHz."""
         table = FrequencyTable.from_range(
@@ -169,7 +153,6 @@ class TestRangeTableCoverage:
 class TestFrequencyListAccuracy:
     """from_frequencies must not trade accuracy silently (C3)."""
 
-    @known_bug("C3", "MOD locked from the first frequency", AssertionError)
     def test_independently_exact_targets_stay_exact(self, synth):
         """Targets that each solve exactly keep zero error in a table."""
         freqs = [100_000_000, 100_010_000, 100_123_456]
@@ -192,14 +175,19 @@ class TestLockedMod:
         mods = {table[i].fields["mod"] for i in range(len(table))}
         assert len(mods) == 1
 
-    @known_bug("C4", "MOD changes force R1 rewrites mid-sweep", AssertionError)
-    def test_in_band_hops_are_single_r0_writes(self, synth):
-        """Hops after the first write only R0."""
+    def test_in_band_hops_are_single_r0_writes(self):
+        """Every hop after the first writes exactly one word (R0)."""
+        chip, synth = _powered_chip_synth()
         table = FrequencyTable.from_range(
             synth, 433_050_000, 434_790_000, 25_000
         )
-        lengths = {len(table[i].plan) for i in range(1, len(table))}
-        assert lengths == {1}
+        synth.play_step(table, 0)
+        sizes = set()
+        for i in range(1, len(table)):
+            before = len(chip.writes)
+            synth.play_step(table, i)
+            sizes.add((len(chip.writes) - before, chip.writes[-1] & 0x7))
+        assert sizes == {(1, consts.REG0_ADDR)}
 
     def test_explicit_mod_is_kept(self):
         """SolveOptions(mod=50) returns MOD 50 (inverts test_explicit_mod_gcd_reduces)."""
@@ -326,11 +314,12 @@ class TestLockDetectSettings:
         result = solve(200_000_000, REF_HZ, ADF4351)
         assert result.fields.get("ldp") == consts.REG2_LDP_6NS
 
-    @known_bug("C9", "fast-hop forces 6 ns in fractional-N", AssertionError)
     def test_fast_hop_keeps_fractional_n_window(self, synth):
-        """Fast-hop mode does not force LDP 6 ns on a fractional-N tune."""
-        synth.set_frequency(2_112_600_000)
-        synth._enable_fast_hop_mode()
+        """Playing a fractional-N table keeps the 10 ns window."""
+        table = FrequencyTable.from_frequencies(
+            synth, [2_112_600_000, 2_112_800_000]
+        )
+        synth.play(table)
         assert synth.regfile.config.ldp == consts.REG2_LDP_10NS
 
 
@@ -374,7 +363,6 @@ class TestPowerUp:
 class TestSweepWithoutMuxout:
     """Boards without MUXOUT can still sweep across dividers (C11)."""
 
-    @known_bug("C11", "boundary hops always read MUXOUT", RuntimeError)
     def test_boundary_sweep_completes(self):
         """A divider-crossing sweep runs to completion with no MUXOUT."""
         synth = ADF435xSynthesizer(FakeDevice(muxout=None), ADF4351, REF_HZ)
@@ -385,9 +373,8 @@ class TestSweepWithoutMuxout:
             5_000_000,
             allow_divider_change=True,
         )
-        player = ADF435xSweeper(synth, table)
-        player.run()
-        assert player.index == len(table)
+        synth.play(table)
+        assert synth.achieved_hz == table[len(table) - 1].achieved_hz
 
 
 # --- C12: lock polling starts before band select can finish -------------------
@@ -434,18 +421,15 @@ def _narrow_ranges(err):
 class TestCrossingSuggestions:
     """Suggested ranges must not themselves cross a divider (C13)."""
 
-    @known_bug("C13", "suggested upper bound is one hertz too high", AssertionError)
     def test_low_range_uses_one_divider(self):
         """The suggested low range stays on the low endpoint's divider."""
+        synth = ADF435xSynthesizer(FakeDevice(), ADF4351, REF_HZ)
         with pytest.raises(DividerOctaveCrossingError) as exc:
-            build_frequency_table(
-                100_000_000, 200_000_000, 1_000_000, REF_HZ, ADF4351
-            )
+            FrequencyTable.from_range(synth, 100_000_000, 200_000_000, 1_000_000)
         (_, low_hi), _ = _narrow_ranges(exc.value)
         divider = solve(low_hi, REF_HZ, ADF4351).fields["rf_divider"]
         assert divider == exc.value.lower_divider
 
-    @known_bug("C13", "descending lists give reversed ranges", AssertionError)
     def test_descending_list_ranges_are_ordered(self, synth):
         """Suggested ranges are ascending for a descending list."""
         with pytest.raises(DividerOctaveCrossingError) as exc:
@@ -487,17 +471,15 @@ class TestSolverInputs:
 class TestInterleavedPlayback:
     """Hops stay correct after other writes between steps (C15)."""
 
-    @known_bug("C15", "delta plans assume the previous table entry", AssertionError)
     def test_step_after_set_frequency(self):
         """After set_frequency between steps, the chip matches the cache."""
         chip, synth = _powered_chip_synth()
         table = FrequencyTable.from_range(
             synth, 190_000_000, 210_000_000, 2_000_000
         )
-        player = ADF435xSweeper(synth, table)
-        player.step()
+        synth.play_step(table, 0)
         synth.set_frequency(200_100_000)
-        player.step()
+        synth.play_step(table, 1)
         cached = [r["last_written"] for r in synth.regfile.dump()["registers"]]
         assert cached == chip.input_words
 
