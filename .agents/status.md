@@ -3,8 +3,8 @@
 Maintainer milestone tracker. Living summary of completed work and open items.
 
 **Host tests:** refresh with `pytest -q` (see [rules.md](rules.md) testing
-section for conventions). Baseline 2026-10-17 (after A6): 1154 passed,
-1 xfailed (known bugs pinned in `tests/test_regressions.py`).
+section for conventions). Baseline 2026-10-17 (after A8): 533 passed, no
+known-bug xfails (refactor oracles removed; see `tests/test_regressions.py`).
 
 **Host benchmarks** (`bench/bench.py`, 2026-10-17; relative only, on-target
 numbers come from bench step B7):
@@ -56,21 +56,25 @@ numbers come from bench step B7):
   before CE, staged retunes while powered down, lock-detect settle time
 - **Remediation A7: host performance** — allocation-free SPI word writes;
   `bench/bench.py` baselines above
+- **Remediation A8: cleanup** — oracles and `with_locked_pll` removed;
+  examples use `Pin` objects for SPI; `registers.py` expected output fixed
 
 ## Open work
 
 | Priority | Item | Notes |
 |----------|------|-------|
 | Low | Docs figure assets | Wiring diagram, probe photos, decision tree |
-| High | Remediation A7–A9 | Fix the last pinned xfail (C19); perf, cleanup, docs in `tests/test_regressions.py` (sweep rewrite, solver rewrite, validation, synthesizer, docs) |
+| High | Remediation A9 | Human docs (`docs/`), agent-doc consolidation, `.agents/datasheet.md` corrections |
 | Medium | Remediation B (bench) | Lock-detect policy, DLD settle time (`LOCK_SETTLE_MARGIN_US` is provisional), sweep/SPI checks once the testbench is back |
 | Low | Cheat-sheet golden vectors | Catalog beyond datasheet golden; see [cheat sheet](https://ez.analog.com/rf/w/documents/14697/adf4350-and-adf4351-common-questions-cheat-sheet) |
 
 ## Package export notes
 
-Exported from package root: synthesizer, solver, register stack, profiles.
+Exported from package root: synthesizer (and `LockTimeoutError`), solver and
+its errors, frequency tables (`FrequencyTable`, `FrequencyEntry`,
+`DividerOctaveCrossingError`), register stack, profiles.
 
-Submodule-only (by design): `adf435x.sweep`, `adf435x.device`.
+Submodule-only (by design): `adf435x.device` (imports `machine`).
 
 When completing a milestone, update this file and append rationale to
 [journal.md](journal.md) if non-obvious.

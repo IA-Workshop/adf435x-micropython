@@ -61,7 +61,8 @@ All notable user-facing changes are documented here.
   calls) and `load_prevalidated(fields, words)` for precomputed state.
 - `SolveResult.exact`: true only when the output is exactly the target;
   `SolveOptions(exact=True)` uses it.
-- `SolveOptions.mod_min` and `SolveOptions.copy(**overrides)`.
+- `SolveOptions.mod_min` and `SolveOptions.copy(**overrides)` (replaces
+  `with_locked_pll`, which is removed).
 - `ADF435xSynthesizer.solve()`, `play()`, `play_step()`, `solve_options`,
   `mod_min`, `has_lock_detect`, and `LockTimeoutError`
   (`play(..., require_lock=True)`); `play()` returns the number of lock
@@ -97,6 +98,8 @@ All notable user-facing changes are documented here.
   and band-select clock at construction, so no write can carry placeholder
   values (R=1, a band-select clock far above 500 kHz).
 - An invalid `power_up()` frequency leaves CE low.
+- `examples/registers.py` expected 131.9125 MHz; the output is 132.0375 MHz.
+  All examples pass SPI pins as `machine.Pin` objects.
 
 ### Performance
 
