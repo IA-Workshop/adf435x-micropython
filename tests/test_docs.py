@@ -19,10 +19,12 @@ AGENT_DOCS = sorted(
     + list((ROOT / ".cursor").rglob("*.md"))
     + list((ROOT / ".cursor").rglob("*.mdc"))
 )
+# Generated or nested checkouts, not project docs.
+_SKIP_DIRS = {".git", "node_modules", ".pytest_cache", "worktrees", "build-mpy"}
 ALL_MARKDOWN = sorted(
     p
     for p in ROOT.rglob("*.md")
-    if ".git" not in p.parts and "node_modules" not in p.parts
+    if not _SKIP_DIRS.intersection(p.relative_to(ROOT).parts)
 )
 _LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 _CODE_FENCE = re.compile(r"```.*?```", re.S)

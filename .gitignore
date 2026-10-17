@@ -109,3 +109,4 @@ build-mpy/
 *.log
 .pypirc
 .pixi
+.claude/worktrees/
