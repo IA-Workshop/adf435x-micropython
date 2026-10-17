@@ -1,0 +1,8 @@
+---
+description: "ADF435x register field table, validation rules and register file"
+globs: adf435x/config.py,adf435x/consts.py,adf435x/profiles.py,adf435x/register_mapper.py,adf435x/register_file.py
+alwaysApply: false
+---
+
+Read and follow [.claude/rules/register-encode.md](../../.claude/rules/register-encode.md). It is the
+single copy of these conventions for both Claude Code and Cursor.

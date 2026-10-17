@@ -1,12 +1,9 @@
 # Development journal
 
-> Lives in `.agents/`. Append-only human history — **off the implementation
-> read path**.
-
-Append after non-obvious merges; permanent rules belong in
-[engineering_guidelines.md](engineering_guidelines.md).
-
-Append-only log of implementation decisions. Newest entries at the top.
+Append-only record of non-obvious decisions, newest first. Maintainers and
+agents add entries; nobody edits old ones. Entries describe the code as it
+was, so do not read this file to learn the current design. Permanent rules
+belong in [engineering_guidelines.md](engineering_guidelines.md).
 
 ## Entry format
 

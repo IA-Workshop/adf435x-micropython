@@ -6,9 +6,13 @@ up a board, see [docs/development.md](docs/development.md).
 ## Setup and tests
 
 ```bash
-pip install -e ".[test]"
+pip install -e ".[dev]"
 pytest
+black adf435x examples bench tests
 ```
+
+Code is formatted with [black](https://black.readthedocs.io/) at 88
+columns; CI fails if `black --check` would change anything.
 
 All tests run on a PC ([CPython](docs/glossary.md#cpython) 3.10 or later),
 with no hardware. CI also runs the library on the [MicroPython Unix

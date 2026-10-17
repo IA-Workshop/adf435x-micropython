@@ -1,15 +1,16 @@
 @AGENTS.md
 
 <!--
-Claude Code loads AGENTS.md via the @import above (markdown links do not load
-files — only `@path` does). Cursor, Codex, and other agents read AGENTS.md
-directly. Keep shared policy in AGENTS.md / .agents/ — not here. This comment is
-stripped before injection, so it costs no context.
+Claude Code reads AGENTS.md through the import above. Shared policy belongs
+in AGENTS.md or .agents/, not here. Block comments like this one are
+stripped before the file is loaded, so they cost no context.
 -->
 
-## Claude Code specifics
+## Claude Code
 
-- Path-scoped rules in `.claude/rules/` load automatically when you edit matching
-  files; each one points into `.agents/` for the full rationale.
-- Load on demand for deep work: `.agents/engineering_guidelines.md`,
-  `.agents/rules.md`, `.agents/datasheet.md`.
+- Rules in `.claude/rules/` load when you read or edit a file that matches
+  their `paths`. Each adds the layer-specific conventions for that code.
+- Skills in `.claude/skills/`: `adf435x-development` (the change workflow)
+  and `docs-style-review` (a writing review pass, run with
+  `/docs-style-review`).
+- `/context` shows which instruction files are loaded.

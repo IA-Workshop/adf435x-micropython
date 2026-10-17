@@ -19,6 +19,7 @@ actionable and reference form.
 | Add `SynthPolicy`, `DeviceLimits`, or a second options bag | `SolveOptions` + `ADF435xProfile` bounds |
 | Precompute delta write plans for a sweep | Store all six words per entry; `play_step()` diffs against `last_written` |
 | Write SPI while CE is low | Stage in the register file; `power_up()` writes |
+| Leave agent notes, step labels or review IDs in code comments | Put the constraint in `.agents/`; comments explain the code to a person |
 | Round fPFD or use float math in the solver | Integer fractions (`pfd_num / pfd_den`); `exact` only when the residual is zero |
 
 ## Invariant notes (beyond the one-liners in AGENTS.md)

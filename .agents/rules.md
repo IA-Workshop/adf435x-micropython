@@ -1,48 +1,46 @@
 # Agent workflow and maintenance rules
 
-What to run, what to update, and where wrappers point.
+What to run, what to update, and how the tool files fit together.
 
 ## Implementation workflow
 
 1. Read the `.agents/context.md` task-routing row for your change type.
-2. Read `.agents/engineering_guidelines.md` when touching names, the solver, the
-   register file, or the synthesizer.
-3. Implement a minimal diff in `adf435x/` (MicroPython-safe).
-4. Run `pytest` for the touched layers before handoff.
+2. Read `.agents/engineering_guidelines.md` when touching names, the solver,
+   the register file or the synthesizer.
+3. Make the smallest diff that does the job; `adf435x/` stays
+   MicroPython-safe.
+4. Run `pytest -q` and `black --check adf435x examples bench tests`.
 5. Update docs per the table below.
-6. Append `.agents/journal.md` only for a non-obvious decision (write-only during
-   work — never read it for orientation).
-
-```bash
-pip install -e ".[test]"
-pytest
-```
+6. Append to `.agents/journal.md` only for a decision that is not obvious
+   from the code and tests. Do not read it to learn the current design; it
+   describes past states.
 
 ## Tests by layer
 
 | Change | Tests |
 |--------|-------|
-| Register / encode | `test_register_mapper.py`, `test_register_file.py`, `test_validation.py` |
+| Register / encode | `test_config.py`, `test_register_mapper.py`, `test_register_file.py`, `test_validation.py`, `test_fake_chip.py` |
 | Solver | `test_solver.py` |
 | Synthesizer | `test_synthesizer.py` |
 | Sweep | `test_sweep.py` |
 | Device SPI | `test_device.py` |
+| Docs | `test_docs.py` |
 | Version / `package.json` | `test_packaging.py` |
+| Any fixed bug | `test_regressions.py` |
 
-Host CPython ≥ 3.10; fake `machine` in `tests/conftest.py`. Golden vector is
-`WORKED_FIELDS` / `WORKED_WORDS` in conftest — do not re-hardcode hex elsewhere.
-One assertion per parametrized test; group with `Test*` classes. Centralized
-`FakeDevice` in conftest; no per-file fakes. Current baseline count: refresh with
-`pytest -q` and record in `.agents/status.md`. Bench validation (not pytest):
-`examples/validate.py` → `docs/examples/validation.md`.
+Conventions for writing tests are in `.claude/rules/tests.md`. Record the
+current test count in `.agents/status.md` when it changes at a milestone;
+do not repeat it elsewhere. Bench validation is not pytest:
+`examples/validate.py`, described in `docs/examples/validation.md`.
 
-- **Known bugs** are strict xfails in `tests/test_regressions.py`, tagged with
-  a review ID. A fix makes the test XPASS, which fails the run: remove the
-  `known_bug` marker in the same change. Never add a normal test that asserts
-  current buggy behaviour.
-- **Review finding IDs** (code review of 2026-10-15, fixed in remediation
-  A2–A8) are kept here, not in the test file. Map to
-  `tests/test_regressions.py` classes:
+- Known bugs are strict xfails in `tests/test_regressions.py`, made with
+  `known_bug(finding, why)`. A fix makes the test pass unexpectedly, which
+  fails the run, so remove the marker in the same change. Do not add a
+  normal test that asserts current buggy behavior.
+- Review finding IDs, from the code review of 2026-10-15 (all fixed in
+  remediation steps A2 to A8), map to `tests/test_regressions.py` classes.
+  Use the ID as the first argument of `known_bug(...)` if a finding
+  reopens. Keep IDs out of test docstrings and comments.
 
   | ID | Defect | Test class |
   |----|--------|------------|
@@ -64,51 +62,65 @@ One assertion per parametrized test; group with `Test*` classes. Centralized
   | C19 | Example arithmetic | `TestExampleConstants` |
   | Q6 | Public error classes | `TestPublicErrors` |
 
-  Use these IDs as the first argument of `known_bug(...)` for a reopened
-  finding; keep step and finding IDs out of test docstrings and comments.
-- **`FakeChip`** (conftest) models register latching (DBR/DBB, data sheet p.12);
-  use it to assert `last_written` matches what the chip holds.
-- **Refactor oracles** (frozen v0.1.0 encoder output and solver) proved the
-  A2 and A4 rewrites and were removed in A8; recover them from git history
-  (commit ecf5a78) if a future rewrite needs them.
-- **Benchmarks:** `python bench/bench.py` or `micropython bench/bench.py`;
+- `FakeChip` (conftest) models register latching (DBR/DBB, data sheet
+  p.12). Use it to check that `last_written` matches what the chip holds.
+- The refactor oracles (frozen v0.1.0 encoder output and solver) checked
+  the A2 and A4 rewrites and were removed in A8. Recover them from commit
+  `ecf5a78` if a future rewrite needs them.
+- Benchmarks: `python bench/bench.py` or `micropython bench/bench.py`;
   record notable changes in `.agents/status.md`.
-- **MicroPython:** CI compiles `adf435x/` with `mpy-cross` and runs
-  `micropython tests/micropython_smoke.py` on the Unix port. Run it locally
-  before changing anything that might not be MicroPython-safe.
 
 ## Documentation update obligations
 
-After each implementation step:
-
 | Change | Update |
 |--------|--------|
-| Board deploy / wiring | `docs/hardware.md` |
-| New names / catalog | `.agents/engineering_guidelines.md` |
-| Datasheet fact | `.agents/datasheet.md` (+ a test) |
-| Tests / HIL conventions | this file, testing section |
-| Milestone | `.agents/status.md` |
-| Permanent invariant | `AGENTS.md` + `.agents/engineering_guidelines.md` |
-| Human API / behaviour | `docs/api-guide.md` (plus `docs/sweeps.md`, `docs/frequency-planning.md` as relevant) |
+| Public API or behavior | `docs/api-guide.md`, plus `docs/sweeps.md` or `docs/frequency-planning.md` as relevant |
+| New term or symbol in human docs | `docs/glossary.md` or `docs/symbols.md` |
+| Board deploy or wiring | `docs/hardware.md` |
 | User-visible change | `CHANGELOG.md` "Unreleased" |
-| Non-obvious merge rationale | `.agents/journal.md` (append only) |
+| New names | `.agents/engineering_guidelines.md` |
+| Data sheet fact | `.agents/datasheet.md`, plus a test |
+| Permanent invariant | `AGENTS.md` and `.agents/engineering_guidelines.md` |
+| Test conventions | `.claude/rules/tests.md` and this file |
+| Writing rules | `.agents/writing_style.md` |
+| Milestone | `.agents/status.md` |
+| Non-obvious decision | `.agents/journal.md` (append only) |
 
-## Wrapper policy
+## Versions and releases
 
-- **Source of truth:** the `.agents/` directory.
-- **Thin entry points:** `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/`, `.claude/rules/`
-  point here and carry no routing tables of their own.
-- `CLAUDE.md` is `@AGENTS.md` plus Claude-only notes. Cursor and Codex read
-  `AGENTS.md` directly.
-- `.claude/rules/*.md` and `.cursor/rules/*.mdc` are path-scoped pointers into
-  `.agents/`; they trigger on matching file edits and never restate content.
+- Between releases `pyproject.toml` and `package.json` carry the same
+  development version (`X.Y.Z.devN`); `test_packaging.py` checks that they
+  agree and that `package.json` lists every `adf435x/*.py` module.
+- The release workflow runs on a `vX.Y.Z` tag and fails unless the tag
+  matches both files. Do not tag a release before the bench checks listed
+  in `.agents/status.md` have passed; the maintainer tags releases.
+
+## Tool files
+
+- `AGENTS.md` is the shared entry point. Codex and Cursor read it directly;
+  `CLAUDE.md` imports it with `@AGENTS.md` and adds Claude Code notes. Keep
+  shared policy out of `CLAUDE.md`.
+- `.claude/rules/*.md` hold the conventions for one area of code, loaded
+  when Claude reads or edits a file matching their `paths`. They add detail
+  to `AGENTS.md` and do not repeat it.
+- `.cursor/rules/*.mdc` have the same globs and only point to the matching
+  `.claude/rules/` file, so each convention has one copy.
+- `.claude/skills/` holds the skills; Cursor reads that directory too. Keep
+  skill frontmatter to `name`, `description` and, for user-only skills,
+  `disable-model-invocation`.
+- When you rename or move a file these name, update every pointer. The
+  docs tests check that links resolve.
 
 ## Documentation boundary
 
-- Human docs (`docs/**`, and the human body of `README.md`) link only to
-  `docs/**`, source, tests, or external URLs. They **never** reference
-  `.agents/**`, `AGENTS.md`, or `CLAUDE.md`.
-- Agent docs (`.agents/**`, `AGENTS.md`, `CLAUDE.md`) **may** link to `docs/**`,
-  source, tests, and external URLs.
-- New agent fact → `.agents/`. New human explanation → `docs/`. Never cross the
-  boundary in the human→agent direction.
+Human docs (`README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `docs/**`) and
+agent docs (`AGENTS.md`, `CLAUDE.md`, `.agents/**`, `.claude/**`,
+`.cursor/**`) serve different readers and purposes.
+
+- Either side may cite the other, for example a human page linking the
+  data sheet fact list as a source.
+- Neither relies on the other. A user must not need an agent doc to
+  understand or use the library, and an agent must not need a human page
+  to learn a rule or invariant.
+- New agent fact: `.agents/`. New explanation for users: `docs/`. If both
+  readers need it, write it for each, in that reader's terms.

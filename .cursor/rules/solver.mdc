@@ -1,0 +1,8 @@
+---
+description: "ADF435x solver: exact fPFD fractions and MOD search policy"
+globs: adf435x/solver.py,tests/test_solver.py
+alwaysApply: false
+---
+
+Read and follow [.claude/rules/solver.md](../../.claude/rules/solver.md). It is the
+single copy of these conventions for both Claude Code and Cursor.
