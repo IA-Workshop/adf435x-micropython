@@ -106,6 +106,7 @@ CLAUDE.md                  @AGENTS.md plus Claude Code notes
   journal.md               append-only decision log (not for orientation)
   rules/<area>.md          conventions for one area, with `paths:` globs
   skills/<name>/SKILL.md   skills
+.claude/settings.json      shared Claude Code settings (test/format only)
 .claude/rules              symlink to .agents/rules
 .claude/skills/<name>      symlink to .agents/skills/<name>
 .cursor/rules/<area>.mdc   pointer to .agents/rules/<area>.md, same globs

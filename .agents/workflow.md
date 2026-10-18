@@ -114,9 +114,12 @@ consistent:
   `disable-model-invocation` for user-only skills. Write paths in skills
   and rules from the repository root in backticks, not as relative links,
   because the same file is read through more than one path.
-- Settings: `.claude/settings.json` (shared, committed) when the project
-  has any; personal settings go in `.claude/settings.local.json` and
-  `CLAUDE.local.md`, both gitignored.
+- Settings: `.claude/settings.json` is shared with everyone who clones
+  this public repo, so it only pre-approves the test and format commands
+  (`pytest`, `python -m pytest`, `black`). Do not add hooks, broader
+  permissions, models or environment variables there. Personal settings
+  go in `.claude/settings.local.json` and `CLAUDE.local.md`, both
+  gitignored.
 - `tests/test_docs.py` (`TestToolFiles`) checks the links, pointers,
   globs and skill names. Run it after changing any of these files.
 
