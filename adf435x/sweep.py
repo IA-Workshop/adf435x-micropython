@@ -1,64 +1,127 @@
-"""
-Frequency-table planning and sequence playback for ADF435x synthesizers.
+"""Frequency tables: solve a list of frequencies once, then hop through them.
 
-``FrequencyTable`` precomputes SPI write plans; ``ADF435xSweeper`` plays them
-back. MicroPython-safe; no ``machine`` import.
+Each entry stores its register fields and all six encoded words, built from
+the synthesizer's own settings, so a hop only writes the registers that
+differ from the last write. The MOD rule: within each RF divider band, if
+one MOD of 4095 or less hits every point exactly (the least common multiple
+of their MODs), every entry uses it and an in-band hop is a single R0
+write. Otherwise each point gets its own best MOD, and a hop to a different
+MOD also writes R1. See docs/sweeps.md.
 """
 
 from .register_file import ADF435xRegisterFile
-from .solver import (
-    _raise_divider_crossing,
-    boundary_indices_from_results,
-    build_frequency_table,
-)
-from .synthesizer import _sleep_us
+from .solver import divider_max_hz, output_band_hz, pll_mode_fields
+
+# Set on every entry. With double buffering on, a new RF divider waits for
+# the R0 write (data sheet p.12), so it takes effect together with the new N.
+_FAST_HOP_FIELDS = {"double_buffer": True}
+
+
+class DividerCrossingError(ValueError):
+    """
+    A table needs more than one RF divider, and ``allow_divider_change`` is off.
+
+    The message suggests ranges that stay on one divider.
+
+    Attributes
+    ----------
+    lower_hz, upper_hz : int
+        The two frequencies that need different dividers, lower first.
+    lower_divider, upper_divider : int
+        The RF divider each one needs.
+    lower_band_hz, upper_band_hz : tuple of (int, int)
+        ``(min_hz, max_hz)``: the range over which the solver uses each of
+        those dividers.
+    """
+
+    def __init__(self, lower_hz, upper_hz, lower_divider, upper_divider, profile):
+        """Store the details and build the message."""
+        self.lower_hz = lower_hz
+        self.upper_hz = upper_hz
+        self.lower_divider = lower_divider
+        self.upper_divider = upper_divider
+        self.lower_band_hz = _divider_band(lower_divider, profile)
+        self.upper_band_hz = _divider_band(upper_divider, profile)
+        super().__init__(
+            "RF divider octave crossing: %d Hz uses divide-by-%d "
+            "(band %d-%d Hz), %d Hz needs divide-by-%d (band %d-%d Hz). "
+            "Narrow to [%d, %d] or [%d, %d], or set allow_divider_change=True."
+            % (
+                lower_hz,
+                lower_divider,
+                self.lower_band_hz[0],
+                self.lower_band_hz[1],
+                upper_hz,
+                upper_divider,
+                self.upper_band_hz[0],
+                self.upper_band_hz[1],
+                lower_hz,
+                min(upper_hz, self.lower_band_hz[1]),
+                max(lower_hz, self.upper_band_hz[0]),
+                upper_hz,
+            )
+        )
+
+
+def _divider_band(rf_divider, profile):
+    """Return ``(lo, hi)``, the range over which the solver picks *rf_divider*."""
+    low = output_band_hz(rf_divider)[0]
+    return low, divider_max_hz(rf_divider, profile)
 
 
 class FrequencyEntry:
     """
-    One row in a frequency table.
+    One row of a frequency table.
 
-    Parameters
+    Attributes
     ----------
+    target_hz : int
+        The frequency asked for.
     achieved_hz : int
-        Actual output frequency in hertz.
+        Output frequency, rounded to the nearest hertz.
     error_hz : int
-        Signed residual target minus achieved.
-    plan : list of int
-        Pre-encoded SPI words for this hop (R5 down to R0 order).
+        ``target_hz - achieved_hz``.
+    exact : bool
+        True when the output is exactly the target.
     fields : dict
-        Register config fields; used to sync the synthesizer register file.
+        Register fields this entry sets: the solver's, plus double buffering.
+    words : list of int
+        All six register words, R0 first.
+    divider_boundary : bool
+        True when this entry's RF divider differs from the previous entry's.
     """
 
-    def __init__(self, achieved_hz, error_hz, plan, fields, divider_boundary=False):
-        """Store achieved frequency, error, write plan, and config fields."""
-        self.achieved_hz = achieved_hz
-        self.error_hz = error_hz
-        self.plan = plan
+    def __init__(self, result, fields, divider_boundary):
+        """Store one solved row. ``FrequencyTable`` fills in ``words``."""
+        self.target_hz = result.achieved_hz + result.error_hz
+        self.achieved_hz = result.achieved_hz
+        self.error_hz = result.error_hz
+        self.exact = result.exact
         self.fields = fields
+        self.words = None
         self.divider_boundary = divider_boundary
+        self._pfd = result.pfd_fraction
+
+    @property
+    def rf_divider(self):
+        """This entry's RF divider."""
+        return self.fields["rf_divider"]
 
 
 class FrequencyTable:
     """
-    Ordered list of frequencies with pre-encoded SPI commit plans.
+    Frequencies solved ahead of time, for ``ADF435xSynthesizer.play()``.
 
-    Build via ``from_range`` or ``from_frequencies``; pass to ``ADF435xSweeper``.
+    Build one with ``from_range()`` or ``from_frequencies()``, then index it
+    like a list. A table belongs to the synthesizer it was built with.
     """
 
-    def __init__(self, entries, channel_step_hz=0):
-        """
-        Store entries and optional channel-step metadata.
-
-        Parameters
-        ----------
-        entries : list of FrequencyEntry
-            Table rows in playback order.
-        channel_step_hz : int
-            RF channel spacing from MOD and fPFD (0 if not applicable).
-        """
+    def __init__(self, entries, profile, regfile):
+        """Store *entries* and encode their words from *regfile*'s settings."""
         self._entries = entries
-        self._channel_step_hz = channel_step_hz
+        self._version = None
+        self._profile = profile
+        self.sync(regfile)
 
     @classmethod
     def from_range(
@@ -69,43 +132,51 @@ class FrequencyTable:
         step_hz,
         *,
         allow_divider_change=False,
+        max_error_hz=None,
     ):
         """
-        Build an ascending table between *lower_hz* and *upper_hz*.
+        Build a table of ``lower_hz, lower_hz + step_hz, ...`` up to ``upper_hz``.
+
+        ``upper_hz`` is always the last entry, even if the steps miss it.
 
         Parameters
         ----------
         synth : ADF435xSynthesizer
-            Source of profile, reference frequency, and solve options.
+            Supplies the part, the reference path and the register settings.
         lower_hz, upper_hz, step_hz : int
-            Frequency bounds and desired step in hertz.
+            Whole hertz, with ``lower_hz <= upper_hz`` and ``step_hz > 0``.
         allow_divider_change : bool
-            When True, split at RF divider octaves and build an optimized
-            sub-table per band (locked MOD within each segment). Divider
-            boundary entries use a full register write and extended dwell
-            at playback.
-
-        Returns
-        -------
-        FrequencyTable
+            Allow more than one RF divider. Each entry that starts a new
+            divider has ``divider_boundary`` set.
+        max_error_hz : int or None
+            Raise ``ValueError`` if any entry is further than this from its
+            target.
 
         Raises
         ------
-        DividerOctaveCrossingError
-            When endpoints need different RF dividers and
-            *allow_divider_change* is False.
+        TypeError
+            A bound or the step is not an integer.
+        DividerCrossingError
+            The range needs several RF dividers and *allow_divider_change*
+            is False.
+        ValueError
+            Bad bounds or step, or *max_error_hz* exceeded.
         """
-        results, channel_step_hz = build_frequency_table(
-            lower_hz,
-            upper_hz,
-            step_hz,
-            synth.ref_hz,
-            synth.profile,
-            allow_divider_change=allow_divider_change,
-            options=synth._solve_options,
-        )
-        entries = _encode_plans(synth.profile, results)
-        return cls(entries, channel_step_hz)
+        for name, value in (
+            ("lower_hz", lower_hz),
+            ("upper_hz", upper_hz),
+            ("step_hz", step_hz),
+        ):
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise TypeError("%s must be an integer number of hertz" % name)
+        if lower_hz > upper_hz:
+            raise ValueError("lower_hz must not exceed upper_hz")
+        if step_hz <= 0:
+            raise ValueError("step_hz must be positive")
+        targets = list(range(lower_hz, upper_hz + 1, step_hz))
+        if targets[-1] != upper_hz:
+            targets.append(upper_hz)
+        return cls._build(synth, targets, allow_divider_change, max_error_hz)
 
     @classmethod
     def from_frequencies(
@@ -114,46 +185,72 @@ class FrequencyTable:
         frequencies,
         *,
         allow_divider_change=False,
+        max_error_hz=None,
     ):
         """
-        Build a table from an explicit frequency list (any order).
+        Build a table from a list of frequencies, kept in the order given.
 
-        Parameters
-        ----------
-        synth : ADF435xSynthesizer
-            Source of profile, reference frequency, and solve options.
-        frequencies : list of int
-            Target frequencies in hertz, in playback order.
-        allow_divider_change : bool
-            When True, group consecutive frequencies by RF divider and lock
-            MOD within each group. Divider boundary entries use a full
-            register write and extended dwell at playback.
-
-        Returns
-        -------
-        FrequencyTable
-
-        Raises
-        ------
-        ValueError
-            If the list is empty.
-        DividerOctaveCrossingError
-            When an entry needs a different RF divider and
-            *allow_divider_change* is False.
+        *frequencies* must not be empty. The other arguments and errors are
+        as for ``from_range()``.
         """
         if not frequencies:
             raise ValueError("frequencies must not be empty")
+        return cls._build(synth, list(frequencies), allow_divider_change, max_error_hz)
 
-        results = _solve_frequencies(
-            synth,
-            frequencies,
-            allow_divider_change=allow_divider_change,
-        )
-        entries = _encode_plans(synth.profile, results)
-        return cls(entries)
+    @classmethod
+    def _build(cls, synth, targets, allow_divider_change, max_error_hz):
+        """Solve every target, group by divider, apply the MOD rule, encode."""
+        results = [synth.solve(hz) for hz in targets]
+
+        if not allow_divider_change:
+            first = results[0].fields["rf_divider"]
+            for hz, result in zip(targets, results):
+                if result.fields["rf_divider"] != first:
+                    pair = sorted(
+                        ((targets[0], first), (hz, result.fields["rf_divider"]))
+                    )
+                    raise DividerCrossingError(
+                        pair[0][0], pair[1][0], pair[0][1], pair[1][1], synth.profile
+                    )
+
+        # Apply the MOD rule to each run of targets that share an RF divider.
+        entries = []
+        start = 0
+        while start < len(results):
+            divider = results[start].fields["rf_divider"]
+            end = start
+            while end < len(results) and results[end].fields["rf_divider"] == divider:
+                end += 1
+            segment = _lock_segment(synth, targets[start:end], results[start:end])
+            for offset, (result, fields) in enumerate(segment):
+                boundary = bool(entries) and offset == 0
+                entries.append(FrequencyEntry(result, fields, boundary))
+            start = end
+
+        table = cls(entries, synth.profile, synth.regfile)
+        if max_error_hz is not None and table.max_error_hz > max_error_hz:
+            raise ValueError(
+                "table error %d Hz exceeds max_error_hz=%d"
+                % (table.max_error_hz, max_error_hz)
+            )
+        return table
+
+    def sync(self, regfile):
+        """Re-encode every entry's words if *regfile*'s settings have changed.
+
+        ``ADF435xSynthesizer.play_step()`` calls this before each hop. When
+        nothing changed it costs one integer comparison.
+        """
+        if regfile.config_version == self._version:
+            return
+        encoder = ADF435xRegisterFile(self._profile, config=regfile.config.copy())
+        for entry in self._entries:
+            encoder.configure(**entry.fields)
+            entry.words = encoder.current_words()
+        self._version = regfile.config_version
 
     def __len__(self):
-        """Number of table entries."""
+        """Number of entries."""
         return len(self._entries)
 
     def __getitem__(self, index):
@@ -161,223 +258,76 @@ class FrequencyTable:
         return self._entries[index]
 
     @property
-    def channel_step_hz(self):
-        """RF channel spacing in hertz (from range builds)."""
-        return self._channel_step_hz
-
-
-def _solve_frequencies(synth, frequencies, *, allow_divider_change=False):
-    """
-    Solve a list of target frequencies for table construction.
-
-    Returns
-    -------
-    list of SolveResult
-        Solve results in playback order.
-    """
-    results = []
-    i = 0
-    while i < len(frequencies):
-        first = synth._solve(frequencies[i])
-        div = first.fields["rf_divider"]
-        mod = first.fields["mod"]
-        opts = synth._solve_options.with_locked_pll(mod)
-        results.append(first)
-        i += 1
-        while i < len(frequencies):
-            trial = synth._solve(frequencies[i], options=opts)
-            if trial.fields["rf_divider"] != div:
-                if not allow_divider_change:
-                    _raise_divider_crossing(
-                        frequencies[0],
-                        frequencies[i],
-                        div,
-                        trial.fields["rf_divider"],
-                    )
-                break
-            results.append(trial)
-            i += 1
-    return results
-
-
-def _encode_plans(profile, results):
-    """
-    Pre-encode SPI commit plans for a list of solve results.
-    """
-    boundary_indices = boundary_indices_from_results(results)
-    regfile = ADF435xRegisterFile(profile)
-    entries = []
-    for i, result in enumerate(results):
-        regfile.configure(**result.fields)
-        is_boundary = i in boundary_indices
-        if i == 0 or is_boundary:
-            plan = regfile.commit_all_plan()
-        else:
-            plan = regfile.commit_plan()
-        entries.append(
-            FrequencyEntry(
-                result.achieved_hz,
-                result.error_hz,
-                plan,
-                result.fields,
-                divider_boundary=is_boundary,
-            )
-        )
-        regfile.mark_written()
-    return entries
-
-
-class ADF435xSweeper:
-    """
-    Play back a ``FrequencyTable`` through a synthesizer.
-
-    Parameters
-    ----------
-    synth : ADF435xSynthesizer
-        Target synthesizer (duck-typed device inside).
-    table : FrequencyTable
-        Precomputed frequency sequence.
-    dwell_us : int
-        Microseconds to wait after each hop (default 0).
-    wait_for_lock : bool
-        When True, call ``wait_locked()`` after each in-band hop.
-    boundary_dwell_us : int
-        Microseconds to dwell after a divider-boundary hop (default 500 ms).
-        Boundary hops always wait for lock regardless of *wait_for_lock*.
-    """
-
-    def __init__(
-        self,
-        synth,
-        table,
-        *,
-        dwell_us=0,
-        wait_for_lock=False,
-        boundary_dwell_us=500_000,
-    ):
-        """Store synthesizer, table, and playback options."""
-        self._synth = synth
-        self._table = table
-        self._dwell_us = dwell_us
-        self._wait_for_lock = wait_for_lock
-        self._boundary_dwell_us = boundary_dwell_us
-        self._ready = False
-        self._index = 0
-
-    @classmethod
-    def run_range(
-        cls,
-        synth,
-        lower_hz,
-        upper_hz,
-        step_hz,
-        *,
-        dwell_us=0,
-        wait_for_lock=False,
-        allow_divider_change=False,
-        boundary_dwell_us=500_000,
-    ):
-        """
-        Build a range table, play once, and return.
-
-        Parameters
-        ----------
-        synth : ADF435xSynthesizer
-        lower_hz, upper_hz, step_hz : int
-        dwell_us : int
-        wait_for_lock : bool
-        allow_divider_change : bool
-            Passed to ``FrequencyTable.from_range``.
-        boundary_dwell_us : int
-            Dwell after divider-boundary hops.
-        """
-        table = FrequencyTable.from_range(
-            synth,
-            lower_hz,
-            upper_hz,
-            step_hz,
-            allow_divider_change=allow_divider_change,
-        )
-        player = cls(
-            synth,
-            table,
-            dwell_us=dwell_us,
-            wait_for_lock=wait_for_lock,
-            boundary_dwell_us=boundary_dwell_us,
-        )
-        player.run()
+    def max_error_hz(self):
+        """The largest ``abs(error_hz)`` of any entry."""
+        return max(abs(entry.error_hz) for entry in self._entries)
 
     @property
-    def index(self):
-        """Current playback index (entries already written)."""
-        return self._index
+    def channel_step_hz(self):
+        """Channel spacing at the RF output, in hertz, or 0.
 
-    def reset(self):
-        """Reset playback index and ready state."""
-        self._ready = False
-        self._index = 0
-
-    def run(self, *, cycles=1):
+        It is 0 unless every entry shares one divider and one MOD and the
+        spacing is a whole number of hertz.
         """
-        Play the table cyclically.
+        mods = {entry.fields["mod"] for entry in self._entries}
+        dividers = {entry.rf_divider for entry in self._entries}
+        if len(mods) != 1 or len(dividers) != 1:
+            return 0
+        entry = self._entries[0]
+        pfd_num, pfd_den = entry._pfd
+        den = pfd_den * entry.fields["mod"] * entry.rf_divider
+        return pfd_num // den if pfd_num % den == 0 else 0
 
-        Parameters
-        ----------
-        cycles : int
-            Number of times to play the full table.
-        """
-        for cycle in range(cycles):
-            if cycle > 0:
-                self._index = 0
-            while self.step() is not None:
-                pass
 
-    def step(self):
-        """
-        Advance one table entry.
+def _gcd(a, b):
+    """Return the greatest common divisor. MicroPython's ``math`` has no gcd."""
+    while b:
+        a, b = b, a % b
+    return a
 
-        Returns
-        -------
-        int or None
-            Achieved frequency in hertz, or None when the table is exhausted.
-        """
-        self._ensure_ready()
-        if self._index >= len(self._table):
-            return None
-        entry = self._table[self._index]
-        self._play_entry(entry)
-        self._index += 1
-        return entry.achieved_hz
 
-    def _ensure_ready(self):
-        """Enable fast-hop register settings and chip power."""
-        if self._ready:
-            return
-        self._synth._enable_fast_hop_mode()
-        if not self._synth.is_powered:
-            self._synth._device.chip_enable()
-            self._synth._powered = True
-        self._ready = True
+def _reduced_mod(fields):
+    """Return the MOD of an entry's N = INT + FRAC/MOD in lowest terms."""
+    return fields["mod"] // _gcd(fields["frac"], fields["mod"])
 
-    def _play_entry(self, entry):
-        """
-        Write one table entry and optionally wait.
 
-        Parameters
-        ----------
-        entry : FrequencyEntry
-        """
-        self._synth._regfile.configure(**entry.fields)
-        self._synth._achieved_hz = entry.achieved_hz
-        self._synth._target_hz = entry.achieved_hz + entry.error_hz
-        self._synth._write_prebuilt_plan(entry.plan)
-        if entry.divider_boundary:
-            self._synth.wait_locked()
-            if self._boundary_dwell_us > 0:
-                _sleep_us(self._boundary_dwell_us)
-        else:
-            if self._wait_for_lock:
-                self._synth.wait_locked()
-            if self._dwell_us > 0:
-                _sleep_us(self._dwell_us)
+def _lock_segment(synth, targets, results):
+    """Apply the MOD rule to targets that share one RF divider.
 
+    Returns a list of ``(SolveResult, fields)`` pairs, one per target.
+    """
+    profile = synth.profile
+
+    # A shared MOD is possible only if every point is exact. The smallest one
+    # is the least common multiple of their MODs, raised to the minimum MOD.
+    locked = None
+    if all(result.exact for result in results):
+        lcm = 1
+        for result in results:
+            q = _reduced_mod(result.fields)
+            lcm = lcm * q // _gcd(lcm, q)
+            if lcm > profile.mod_max:
+                break
+        mod_min = synth.mod_min
+        if lcm < mod_min:
+            lcm *= (mod_min + lcm - 1) // lcm
+        if lcm <= profile.mod_max:
+            locked = lcm
+
+    if locked is not None:
+        divider = results[0].fields["rf_divider"]
+        options = synth.solve_options.copy(mod=locked, rf_divider=divider)
+        results = [synth.solve(hz, options=options) for hz in targets]
+        # One PLL mode for the whole segment, so a channel that lands on
+        # FRAC = 0 does not rewrite R2 and R3.
+        integer_n = all(result.fields["frac"] == 0 for result in results)
+        mode = pll_mode_fields(integer_n, profile)
+
+    out = []
+    for result in results:
+        fields = dict(result.fields)
+        if locked is not None:
+            fields.update(mode)
+        fields.update(_FAST_HOP_FIELDS)
+        out.append((result, fields))
+    return out

@@ -1,109 +1,90 @@
 # adf435x-micropython
 
-MicroPython library for the ADF4350 and ADF4351 wideband PLL synthesizers.
-Runs on any MicroPython board with SPI and GPIO; pin wiring is application-specific.
+A [MicroPython](docs/glossary.md#micropython) library for the Analog Devices
+ADF4350 and ADF4351 wideband [PLL](docs/glossary.md#pll) synthesizers. You
+ask for a frequency in hertz; the library works out the PLL settings and
+sends them to the chip over [SPI](docs/glossary.md#spi). It runs on any
+MicroPython board with SPI and a few [GPIO](docs/glossary.md#gpio) pins, and
+its tests run on a PC with [CPython](docs/glossary.md#cpython).
 
-**Releases:** [GitHub Releases](https://github.com/IA-Workshop/adf435x-micropython/releases)
-· [Changelog](CHANGELOG.md)
+[Releases](https://github.com/IA-Workshop/adf435x-micropython/releases) ·
+[Changelog](CHANGELOG.md) · [Documentation](docs/index.md)
 
-Agent/AI contributors: see [AGENTS.md](AGENTS.md) (Claude Code: [CLAUDE.md](CLAUDE.md)).
+> These docs describe the code on this branch, which has breaking changes
+> since v0.1.0 (see the "Unreleased" section of the [changelog](CHANGELOG.md)).
+> For v0.1.0 itself, read the README at the `v0.1.0` tag.
 
-## Install
+## Installation
 
-**Offline (release zip):** download `adf435x-X.Y.Z.zip` from
-[Releases](https://github.com/IA-Workshop/adf435x-micropython/releases), unzip,
-and copy the `adf435x/` folder to the MicroPython filesystem.
+Pick one of these:
 
-**Online (networked board):**
+- From a release: download `adf435x-X.Y.Z.zip` from
+  [Releases](https://github.com/IA-Workshop/adf435x-micropython/releases),
+  unzip it, and copy the `adf435x/` folder to the board's filesystem.
+- With [`mip`](docs/glossary.md#mip), on a board with a network connection:
 
-```python
-import mip
-mip.install("github:IA-Workshop/adf435x-micropython", version="v0.1.0")
-```
+  ```python
+  import mip
+  mip.install("github:IA-Workshop/adf435x-micropython", version="vX.Y.Z")
+  ```
 
-Or from the host: `mpremote mip install github:IA-Workshop/adf435x-micropython@v0.1.0`
+  Replace `vX.Y.Z` with a release tag. v0.1.0 has the older API; read the
+  README at that tag if you install it.
+- From a clone of this repository: copy `adf435x/` to the board, as
+  described in [docs/development.md](docs/development.md).
 
-**Development:** clone this repo and bulk-sync `adf435x/` with
-[MicroPico](https://github.com/paulober/MicroPico) or
-[mpremote](https://docs.micropython.org/en/latest/reference/mpremote.html).
-See [agent/HARDWARE.md](agent/HARDWARE.md) for the maintainer reference pin map.
-Copy scripts from `examples/` as needed. Host files (`tests/`, `pyproject.toml`)
-are not required on the device.
+## Quickstart
 
-## Quick start
-
-Adjust SPI bus and GPIO numbers for your board (reference wiring in
-[agent/HARDWARE.md](agent/HARDWARE.md)):
+Wire SPI ([SCK and MOSI](docs/glossary.md#mosi-and-sck)),
+[LE](docs/glossary.md#le), [CE](docs/glossary.md#ce) and, if you can,
+[MUXOUT](docs/glossary.md#muxout); [docs/hardware.md](docs/hardware.md)
+explains each signal. Change the pin numbers below to match your board, and
+run:
 
 ```python
 from machine import Pin, SPI
 
+from adf435x import ADF4351, ADF435xSynthesizer
 from adf435x.device import ADF435xDevice
-from adf435x.profiles import ADF4351
-from adf435x.synthesizer import ADF435xSynthesizer
 
-spi = SPI(1, baudrate=1_000_000, polarity=0, phase=0,
-          sck=Pin(10), mosi=Pin(11))
-device = ADF435xDevice(
-    spi,
-    load_enable_pin=13,
-    chip_enable_pin=14,
-    muxout_pin=9,
-)
+spi = SPI(1, baudrate=1_000_000, polarity=0, phase=0, sck=Pin(10), mosi=Pin(11))
+device = ADF435xDevice(spi, le_pin=13, ce_pin=14, muxout_pin=9)
+
 synth = ADF435xSynthesizer(device, ADF4351, ref_hz=10_000_000)
 synth.power_up(frequency_hz=200_000_000)
-synth.wait_locked()
-print(synth.achieved_hz)
+print("locked:", synth.wait_locked(), "output:", synth.achieved_hz, "Hz")
 ```
 
-## API levels
+`ref_hz` is the frequency of the [reference](docs/glossary.md#reference)
+clock on your board, and `wait_locked()` waits for the PLL to
+[lock](docs/glossary.md#lock). For a step-by-step walkthrough, see
+[docs/quickstart.md](docs/quickstart.md).
 
-1. **`ADF435xSynthesizer`** — set one frequency, lock detect, output power
-   (`adf435x` package root).
-2. **`FrequencyTable` / `ADF435xSweeper`** — precomputed hop sequences
-   (`import adf435x.sweep`).
-3. **Register file + solver** — lower-level field and Hz planning
-   (`ADF435xRegisterFile`, `solve`).
+## What you can do
 
-Layer overview: [agent/ARCHITECTURE.md](agent/ARCHITECTURE.md).
+| Goal | Use | Guide |
+|------|-----|-------|
+| Set one frequency, retune, mute, set output power, check lock | `ADF435xSynthesizer` | [API guide](docs/api-guide.md) |
+| [Sweep](docs/glossary.md#sweep) or jump between frequencies quickly | `FrequencyTable` and `synth.play()` | [Sweeps](docs/sweeps.md) |
+| Plan frequencies without hardware | `solve()`, `FrequencyTable` | [Frequency planning](docs/frequency-planning.md) |
+| Set individual [register](docs/glossary.md#register) fields | `ADF435xRegisterFile` | [API guide](docs/api-guide.md#register-level-control) |
 
-## Testing
+The scripts in [`examples/`](examples/) show each of these;
+[docs/examples/index.md](docs/examples/index.md) describes them.
 
-Host-side tests run under CPython with pytest. No board or `machine` module is
-required; `tests/conftest.py` installs a fake `machine` for device-handler
-checks.
+## Contributing
 
-```bash
-conda activate general    # local convention; any Python 3.10+ env works
-pip install -e ".[test]"
-pytest
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Or with a virtual environment:
+## Credits and references
 
-```bash
-pip install -e ".[test]"
-pytest
-```
+The ADF4350 and ADF4351 are Analog Devices products. IA-Workshop
+contributors maintain this library; [CHANGELOG.md](CHANGELOG.md) has the
+release history.
 
-On-board bench validation (scope/counter checks):
-[`examples/validate.py`](examples/validate.py).
-Run from the host (**Run current file**); bulk-sync deploys `adf435x/` only.
-See [agent/HARDWARE.md](agent/HARDWARE.md).
-
-See [agent/TESTING.md](agent/TESTING.md) for fixtures, conventions, and the
-golden vector.
-
-## See Also
-
-### ADF4350
-
-- [Product Page](https://www.analog.com/en/products/adf4350.html)
-- [Data Sheet (PDF)](https://www.analog.com/media/en/technical-documentation/data-sheets/ADF4350.pdf)
-
-### ADF4351
-
-- [Product Page](https://www.analog.com/en/products/adf4351.html)
-- [Data Sheet (PDF)](https://www.analog.com/media/en/technical-documentation/data-sheets/ADF4351.pdf)
-
-Extracted PLL/register facts for contributors: [agent/DATASHEET.md](agent/DATASHEET.md).
+- ADF4350: [product page](https://www.analog.com/en/products/adf4350.html) ·
+  [data sheet
+  (PDF)](https://www.analog.com/media/en/technical-documentation/data-sheets/ADF4350.pdf)
+- ADF4351: [product page](https://www.analog.com/en/products/adf4351.html) ·
+  [data sheet
+  (PDF)](https://www.analog.com/media/en/technical-documentation/data-sheets/ADF4351.pdf)

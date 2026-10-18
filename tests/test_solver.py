@@ -1,5 +1,8 @@
 """Host tests for the ADF435x frequency solver."""
 
+import math
+from fractions import Fraction
+
 import pytest
 
 from adf435x import consts
@@ -7,21 +10,18 @@ from adf435x.profiles import ADF4350, ADF4351
 from adf435x.solver import (
     ExactFrequencyError,
     FrequencyOutOfRangeError,
-    DividerOctaveCrossingError,
     NoSolutionError,
     SolveOptions,
     VCO_MAX_HZ,
     VCO_MIN_HZ,
-    achieved_hz_from_n_num,
-    boundary_indices_from_results,
     _compute_f_pfd,
-    _normalize_frac_mod,
+    _farey_neighbors,
     _output_min_hz,
     _pick_band_clk,
-    _pick_prescaler,
+    _Plan,
     _pick_rf_divider,
     _round_div,
-    build_frequency_table,
+    _simplest_between,
     output_band_hz,
     solve,
 )
@@ -50,23 +50,27 @@ def test_round_div(num, den, expected):
 
 
 class TestComputeFPfd:
-    """PFD frequency from the reference path."""
+    """PFD frequency from the reference path, as an exact fraction."""
 
     def test_r_counter_one(self):
         """R=1 with no doubler or div-2 passes REFIN through."""
-        assert _compute_f_pfd(REF_HZ, 1, False, False) == REF_HZ
+        assert _compute_f_pfd(REF_HZ, 1, False, False) == (REF_HZ, 1)
 
     def test_r_counter_ten(self):
         """R=10 divides REFIN by ten."""
-        assert _compute_f_pfd(REF_HZ, 10, False, False) == 1_000_000
+        assert _compute_f_pfd(REF_HZ, 10, False, False) == (REF_HZ, 10)
 
     def test_doubler(self):
         """The reference doubler doubles REFIN before the R divider."""
-        assert _compute_f_pfd(REF_HZ, 1, True, False) == 2 * REF_HZ
+        assert _compute_f_pfd(REF_HZ, 1, True, False) == (2 * REF_HZ, 1)
 
     def test_rdiv2(self):
         """Reference div-2 halves REFIN before the R divider."""
-        assert _compute_f_pfd(REF_HZ, 1, False, True) == REF_HZ // 2
+        assert _compute_f_pfd(REF_HZ, 1, False, True) == (REF_HZ, 2)
+
+    def test_non_integer_pfd_kept_exact(self):
+        """25 MHz / 3 is not rounded."""
+        assert _compute_f_pfd(25_000_000, 3, False, False) == (25_000_000, 3)
 
     def test_invalid_r_counter(self):
         """An out-of-range R counter is rejected."""
@@ -74,29 +78,71 @@ class TestComputeFPfd:
             _compute_f_pfd(REF_HZ, 0, False, False)
 
 
-class TestComputeAchieved:
-    """Forward frequency from PLL register values."""
+def _brute_simplest(lo, hi, qmax=200):
+    """Reference: smallest-denominator fraction strictly inside (lo, hi)."""
+    for q in range(1, qmax + 1):
+        p = math.floor(lo * q) + 1
+        if Fraction(p, q) < hi:
+            return p, q
+    return None
 
-    def test_golden_vector(self):
-        """Worked-example INT/FRAC/MOD reproduces 2112.6 MHz out."""
-        achieved = achieved_hz_from_n_num(422 * 25 + 13, 25, REF_HZ, 2)
-        assert achieved == GOLDEN_TARGET_HZ
+
+def _brute_neighbors(x, qmax):
+    """Reference: closest fractions below/at and above/at x, q <= qmax."""
+    below = max(Fraction(math.floor(x * q), q) for q in range(1, qmax + 1))
+    above = min(Fraction(math.ceil(x * q), q) for q in range(1, qmax + 1))
+    return {below, above}
 
 
-class TestGcdNormalize:
-    """FRAC/MOD gcd reduction for spur reduction."""
+_RATIONALS = [
+    Fraction(n, d)
+    for n, d in [
+        (42252, 100),
+        (10563, 25),
+        (7, 3),
+        (355, 113),
+        (1, 7),
+        (1000001, 7),
+        (31415926, 10000000),
+        (99, 98),
+        (5, 1),
+        (13, 2),
+    ]
+]
+
+
+class TestFractionSearch:
+    """Continued-fraction helpers agree with brute force."""
+
+    @pytest.mark.parametrize("x", _RATIONALS, ids=str)
+    def test_farey_neighbors(self, x):
+        """The two returned fractions are the closest on each side."""
+        got = {
+            Fraction(p, q) for p, q in _farey_neighbors(x.numerator, x.denominator, 50)
+        }
+        assert got == _brute_neighbors(x, 50)
 
     @pytest.mark.parametrize(
-        "frac, mod, expected",
+        "x, width",
         [
-            (26, 50, (13, 25)),
-            (13, 25, (13, 25)),
-            (0, 2, (0, 2)),
+            (x, w)
+            for x in _RATIONALS
+            for w in (Fraction(1, 3), Fraction(1, 997), Fraction(2))
+            if x - w > 0
         ],
+        ids=str,
     )
-    def test_normalize_frac_mod(self, frac, mod, expected):
-        """gcd reduction lowers MOD when FRAC and MOD share a factor."""
-        assert _normalize_frac_mod(frac, mod) == expected
+    def test_simplest_between(self, x, width):
+        """Smallest denominator strictly inside (x - w, x + w)."""
+        lo, hi = x - width, x + width
+        p, q = _simplest_between(
+            lo.numerator, lo.denominator, hi.numerator, hi.denominator
+        )
+        assert (p, q) == _brute_simplest(lo, hi)
+
+    def test_simplest_between_integer_lower_bound(self):
+        """An integer lower bound (unbounded reciprocal) is handled."""
+        assert _simplest_between(3, 1, 10, 3) == (13, 4)
 
 
 class TestOutputRange:
@@ -105,8 +151,8 @@ class TestOutputRange:
     @pytest.mark.parametrize(
         "profile, max_div, expected_min",
         [
-            (ADF4351, 64, _round_div(VCO_MIN_HZ, 64)),
-            (ADF4350, 16, _round_div(VCO_MIN_HZ, 16)),
+            (ADF4351, 64, VCO_MIN_HZ // 64),
+            (ADF4350, 16, VCO_MIN_HZ // 16),
         ],
     )
     def test_output_min_hz(self, profile, max_div, expected_min):
@@ -156,7 +202,9 @@ class TestPickPrescaler:
     )
     def test_prescaler_threshold(self, profile, vco_hz, expected):
         """Prescaler follows each profile's 4/5 vs 8/9 VCO threshold."""
-        assert _pick_prescaler(vco_hz, profile) == expected
+        # N = 1/1 at fPFD = vco_hz puts the VCO exactly at vco_hz.
+        plan = _Plan(vco_hz, vco_hz, 1, 1, profile)
+        assert plan.prescaler(1, 1) == expected
 
 
 class TestPickBandClk:
@@ -164,24 +212,29 @@ class TestPickBandClk:
 
     def test_adf4351_high_pfd_uses_fast_mode(self):
         """10 MHz fPFD uses fast band select with divide 20."""
-        div, mode = _pick_band_clk(REF_HZ, ADF4351)
-        assert div == 20
-        assert mode == consts.REG3_BAND_CLK_HIGH
+        assert _pick_band_clk(REF_HZ, 1, ADF4351) == (20, consts.REG3_BAND_CLK_HIGH)
 
     def test_adf4351_low_pfd_uses_normal_mode(self):
         """100 kHz fPFD uses normal band select."""
-        div, mode = _pick_band_clk(100_000, ADF4351)
-        assert div == 1
-        assert mode == consts.REG3_BAND_CLK_LOW
+        assert _pick_band_clk(100_000, 1, ADF4351) == (1, consts.REG3_BAND_CLK_LOW)
 
     def test_adf4350_always_normal(self):
         """ADF4350 has no fast band-select mode."""
-        div, mode = _pick_band_clk(REF_HZ, ADF4350)
+        _, mode = _pick_band_clk(REF_HZ, 1, ADF4350)
         assert mode == consts.REG3_BAND_CLK_LOW
+
+    def test_non_integer_pfd_rounds_divider_up(self):
+        """25 MHz / 3 (8.33 MHz) needs divide 17 to stay at or below 500 kHz."""
+        assert _pick_band_clk(25_000_000, 3, ADF4351) == (17, consts.REG3_BAND_CLK_HIGH)
+
+    def test_adf4350_above_31_875_mhz_rejected(self):
+        """Normal mode cannot divide a 32 MHz PFD to 125 kHz (max 255)."""
+        with pytest.raises(NoSolutionError):
+            _pick_band_clk(32_000_000, 1, ADF4350)
 
 
 class TestGoldenVector:
-    """Datasheet worked example (2112.6 MHz, ADF4351)."""
+    """Data sheet worked example (2112.6 MHz, ADF4351)."""
 
     def test_fields_match_worked_example(self):
         """Solver fields match the conftest golden vector."""
@@ -190,7 +243,7 @@ class TestGoldenVector:
             assert result.fields[key] == value
 
     def test_encode_matches_worked_words(self, mapper):
-        """Encoded registers match the datasheet golden words."""
+        """Encoded registers match the data sheet golden words."""
         result = solve(GOLDEN_TARGET_HZ, REF_HZ, ADF4351)
         words = mapper.encode_config(make_config(**result.fields))
         assert words == WORKED_WORDS
@@ -253,16 +306,57 @@ class TestSolveModTieBreak:
         result = solve(GOLDEN_TARGET_HZ, REF_HZ, ADF4351)
         assert result.fields["mod"] == 25
 
-    def test_explicit_mod_gcd_reduces(self):
-        """MOD=50 gcd-reduces to the same FRAC/MOD as MOD=25."""
+    def test_explicit_mod_is_not_reduced(self):
+        """MOD=50 is kept: 2112.6 MHz is FRAC=26 over MOD=50."""
         result = solve(
             GOLDEN_TARGET_HZ,
             REF_HZ,
             ADF4351,
             options=SolveOptions(mod=50),
         )
+        assert (result.fields["frac"], result.fields["mod"]) == (26, 50)
+
+    def test_mod_min_scales_mod(self):
+        """mod_min=50 doubles MOD 25 without changing N."""
+        result = solve(
+            GOLDEN_TARGET_HZ, REF_HZ, ADF4351, options=SolveOptions(mod_min=50)
+        )
+        assert (result.fields["frac"], result.fields["mod"]) == (26, 50)
+
+    def test_integer_n_mod_min(self):
+        """An integer-N target with mod_min=50 keeps FRAC=0 at MOD 50."""
+        result = solve(200_000_000, REF_HZ, ADF4351, options=SolveOptions(mod_min=50))
+        assert (result.fields["frac"], result.fields["mod"]) == (0, 50)
+
+    def test_small_mod_preferred_within_rounding(self):
+        """Among errors that round to the same hertz, the smaller MOD wins."""
+        # 433.92 MHz: MOD 1374 is within a hertz of the best MOD-4095 error.
+        result = solve(433_920_123, REF_HZ, ADF4351)
+        assert result.fields["mod"] < 4095
+
+
+class TestChannelStep:
+    """channel_step_hz fixes the RF output step."""
+
+    def test_output_step_sets_mod(self):
+        """200 kHz output steps at /2 from 10 MHz give MOD 25 (data sheet p.21)."""
+        result = solve(
+            GOLDEN_TARGET_HZ,
+            REF_HZ,
+            ADF4351,
+            options=SolveOptions(channel_step_hz=200_000),
+        )
         assert result.fields["mod"] == 25
-        assert result.fields["frac"] == 13
+
+    def test_non_dividing_step_rejected(self):
+        """A step that does not divide fPFD / divider evenly raises."""
+        with pytest.raises(ValueError, match="channel_step_hz"):
+            solve(
+                GOLDEN_TARGET_HZ,
+                REF_HZ,
+                ADF4351,
+                options=SolveOptions(channel_step_hz=300_000),
+            )
 
 
 class TestSolveOutOfRange:
@@ -308,53 +402,6 @@ class TestSolveBandEdges:
         result = solve(_output_min_hz(ADF4351), REF_HZ, ADF4351)
         assert result.fields["rf_divider"] == 64
         assert result.achieved_hz == _output_min_hz(ADF4351)
-
-
-class TestBuildFrequencyTable:
-    """Sweep table planning."""
-
-    def test_example_band_has_multiple_entries(self):
-        """190–210 MHz with 2 MHz step yields a multi-point table."""
-        table, step = build_frequency_table(
-            190_000_000, 210_000_000, 2_000_000, REF_HZ, ADF4351
-        )
-        assert step > 0
-        assert len(table) >= 3
-        assert not boundary_indices_from_results(table)
-        assert table[0].achieved_hz <= table[-1].achieved_hz
-
-    def test_octave_crossing_error_includes_bands(self):
-        """Crossing span reports divider bands and narrow ranges."""
-        with pytest.raises(DividerOctaveCrossingError) as exc:
-            build_frequency_table(
-                100_000_000,
-                3_000_000_000,
-                100_000_000,
-                REF_HZ,
-                ADF4351,
-            )
-        assert exc.value.lower_band_hz[1] > 0
-        assert "Narrow to" in str(exc.value)
-
-    def test_allow_divider_change_builds_segmented_table(self):
-        """allow_divider_change builds per-band tables with boundaries."""
-        table, step = build_frequency_table(
-            100_000_000,
-            300_000_000,
-            25_000_000,
-            REF_HZ,
-            ADF4351,
-            allow_divider_change=True,
-        )
-        boundaries = boundary_indices_from_results(table)
-        assert step == 0
-        assert len(table) >= 2
-        assert boundaries
-        # Locked MOD within the first segment.
-        first_seg_end = min(boundaries)
-        mods = [table[i].fields["mod"] for i in range(first_seg_end)]
-        if len(mods) > 1:
-            assert len(set(mods)) == 1
 
 
 class TestOutputBandHz:

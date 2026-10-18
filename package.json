@@ -11,5 +11,5 @@
     ["adf435x/sweep.py", "adf435x/sweep.py"],
     ["adf435x/device.py", "adf435x/device.py"]
   ],
-  "version": "0.1.0"
+  "version": "0.2.0.dev0"
 }

@@ -22,7 +22,7 @@ def test_write_register_spi_big_endian(mock_machine, word, expected_bytes):
     from adf435x.device import ADF435xDevice
 
     spi = mock_machine.SPI()
-    dev = ADF435xDevice(spi, load_enable_pin=1, chip_enable_pin=2)
+    dev = ADF435xDevice(spi, le_pin=1, ce_pin=2)
     dev.write_register(word)
 
     assert spi.writes == [expected_bytes]
@@ -38,8 +38,8 @@ def test_write_register_le_sequence(mock_machine, word):
 
     spi = mock_machine.SPI()
     le = mock_machine.Pin(1, mock_machine.Pin.OUT, value=0)
-    dev = ADF435xDevice(spi, load_enable_pin=1, chip_enable_pin=2)
-    dev.load_enable_pin = le
+    dev = ADF435xDevice(spi, le_pin=1, ce_pin=2)
+    dev.le_pin = le
     # Record each LE transition by wrapping the pin's low/high methods.
     transitions = []
     original_low = le.low
@@ -75,7 +75,7 @@ def test_write_registers_preserves_order(mock_machine, words):
     from adf435x.device import ADF435xDevice
 
     spi = mock_machine.SPI()
-    dev = ADF435xDevice(spi, load_enable_pin=1, chip_enable_pin=2)
+    dev = ADF435xDevice(spi, le_pin=1, ce_pin=2)
     dev.write_registers(words)
 
     # Decode the captured big-endian writes back to ints to compare order.
@@ -114,4 +114,4 @@ def test_chip_enable_disable(mock_machine, method, expected_level):
 
     dev = ADF435xDevice(mock_machine.SPI(), 1, 2)
     getattr(dev, method)()
-    assert dev.chip_enable_pin._value == expected_level
+    assert dev.ce_pin._value == expected_level

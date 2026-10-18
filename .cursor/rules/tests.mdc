@@ -1,0 +1,8 @@
+---
+description: "ADF435x test fakes, fixtures and known-bug markers"
+globs: tests/**
+alwaysApply: false
+---
+
+Read and follow [.claude/rules/tests.md](../../.claude/rules/tests.md). It is the
+single copy of these conventions for both Claude Code and Cursor.

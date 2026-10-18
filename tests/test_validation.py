@@ -9,13 +9,12 @@ still masks out-of-range bitfields rather than re-validating them.
 import pytest
 
 from adf435x import consts
-from adf435x.config import FIELD_WIDTH
-from adf435x.profiles import ADF4350, ADF4351, ADF435xDeviceProfile
+from adf435x.config import FIELDS, KIND, NAME, UINT, WIDTH
+from adf435x.profiles import ADF4350, ADF4351, ADF435xProfile
 from adf435x.register_file import ADF435xRegisterFile
 from adf435x.register_mapper import ADF435xRegisterMapper
 
-from conftest import WORKED_FIELDS, WORKED_WORDS, make_config
-
+from conftest import WORKED_FIELDS, WORKED_WORDS, commit, make_config
 
 # The four PLL fields whose cross-check fires when any of them is validated.
 _PLL_ONLY = frozenset(("int_n", "frac", "mod", "prescaler"))
@@ -75,7 +74,7 @@ class TestCheckPll:
     def test_int_above_maximum_rejected(self):
         """INT above the profile maximum is rejected."""
         # Custom profile with a tiny int_max isolates the upper-bound branch.
-        profile = ADF435xDeviceProfile(
+        profile = ADF435xProfile(
             "test",
             rf_divider_max=64,
             has_phase_adjust=True,
@@ -183,7 +182,7 @@ class TestModRange:
     def test_mod_above_profile_max_rejected(self):
         """MOD above the profile maximum is rejected."""
         # Custom profile with a small mod_max isolates the upper-bound branch.
-        profile = ADF435xDeviceProfile(
+        profile = ADF435xProfile(
             "test",
             rf_divider_max=64,
             has_phase_adjust=True,
@@ -301,7 +300,7 @@ class TestRegisterFileValidation:
         assert worked_regfile.current_words() == WORKED_WORDS
 
     def test_default_config_is_pll_valid(self):
-        """The default config satisfies the PLL invariants out of the box."""
+        """The default config passes the PLL rule as it is."""
         f = ADF435xRegisterFile(ADF4351)
         assert f.config.int_n == 75
         assert f.config.frac < f.config.mod
@@ -318,14 +317,14 @@ class TestRegisterFileValidation:
 
     def test_configure_frac_valid_reencodes(self, worked_regfile):
         """A valid FRAC change validates then re-encodes the R0 word."""
-        worked_regfile.commit()
+        commit(worked_regfile)
         before = worked_regfile.current_words()
         worked_regfile.configure(frac=14)
         after = worked_regfile.current_words()
         assert after[0] != before[0]
         # The re-encoded R0 must match a direct encode with the new FRAC.
-        assert after[0] == worked_regfile._mapper.register_0(
-            worked_regfile.config.int_n, 14
+        assert after[0] == worked_regfile._mapper.encode_register(
+            0, worked_regfile.config
         )
 
 
@@ -342,9 +341,9 @@ class TestTrustedEncode:
 
     def test_oversized_int_masked_at_encode(self, mapper):
         """The encoder masks an oversized INT instead of raising."""
-        # Same oversized value validate_config rejects is silently masked here,
-        # documenting the validate-at-setup / trust-at-encode split.
-        assert mapper.register_0(1 << 16, 0) == mapper.register_0(0, 0)
+        # validate_config() rejects this value (test above); encode only masks.
+        big = mapper.encode_register(0, make_config(int_n=1 << 16))
+        assert big == mapper.encode_register(0, make_config(int_n=0))
 
     def test_worked_words_still_match(self, mapper):
         """Masking leaves valid worked-example words unchanged."""
@@ -355,17 +354,31 @@ class TestTrustedEncode:
         with pytest.raises(ValueError, match="invalid register index"):
             mapper.encode_register(6, make_config())
 
-    def test_all_width_fields_have_rules(self):
-        """Every width-limited field has a known validation rule."""
-        # Guards against adding a maskable field without a matching range rule,
-        # which would let a bad value slip through to a silent mask.
-        assert set(FIELD_WIDTH) <= {
-            "int_n",
-            "frac",
-            "phase",
-            "mod",
-            "r_counter",
-            "cp_current_code",
-            "clockdiv_value",
-            "band_clk_div",
-        }
+    @pytest.mark.parametrize(
+        "spec", [s for s in FIELDS if s[KIND] == UINT], ids=lambda s: s[NAME]
+    )
+    def test_every_uint_field_width_checked(self, mapper, spec):
+        """Each unsigned field rejects a value one bit too wide."""
+        # Width checks come from the field table, so no field can be added
+        # without one; this guards the generic path for every UINT field.
+        name = spec[NAME]
+        with pytest.raises(ValueError, match="does not fit"):
+            mapper.validate_config(
+                make_config(**{name: 1 << spec[WIDTH]}), only=frozenset((name,))
+            )
+
+
+class TestValueTypes:
+    """Validation rejects values of the wrong kind."""
+
+    def test_float_rejected(self, mapper):
+        """A float for an integer field raises instead of failing at encode."""
+        with pytest.raises(ValueError, match="must be an integer"):
+            mapper.validate_config(
+                make_config(cp_current_code=7.0), only=frozenset(("cp_current_code",))
+            )
+
+    def test_unknown_field_in_only_rejected(self, mapper):
+        """An unknown name in *only* raises ValueError."""
+        with pytest.raises(ValueError, match="unknown configuration field"):
+            mapper.validate_config(make_config(), only=frozenset(("bogus",)))

@@ -1,33 +1,20 @@
 """
-ADF435x fixed-frequency example using ADF435xSynthesizer.
+Program one output frequency and check for lock.
 
-Set ``TARGET_FREQ_HZ`` to the desired RF output, run on the board, and probe
-RFOUTA with an oscilloscope.
-
-Example pin map (ADF4351 eval board — adjust for your MicroPython board)
-------------------------------------------------------------------------
-- 10 MHz reference on REFIN (R counter = 1, no doubler).
-- SPI1: SCK=GP10, MOSI=GP11, LE=GP13, CE=GP14, MUXOUT=GP9.
-- 1 MHz SPI, mode 0. See agent/HARDWARE.md for generic wiring requirements.
-
-Scope notes
------------
-- Default target is 200 MHz (scope-friendly). Catalog slug: ``scope_200mhz``.
-  For all bench cases use ``examples/validate.py`` (``list``
-  prints slugs; default ``SELECT`` is ``scope_200mhz``).
-- For 137.5 MHz cross-part scope verification use ``TARGET_FREQ_HZ = 137_500_000``
-  (ADF4350 floor, integer-N). Catalog: ``cross_part_scope_137p5mhz``.
-- For the datasheet golden example, use ``TARGET_FREQ_HZ = 2_112_600_000``
-  (needs sufficient BW). Catalog: ``golden_2112p6mhz``.
+Set ``TARGET_FREQ_HZ``, run the script on the board, and probe RFOUTA. The
+default, 200 MHz, is low enough for a 200 MHz oscilloscope. The pins and the
+10 MHz reference match the reference setup in docs/hardware.md; change
+``PINS`` and ``REF_HZ`` for your board. Walkthrough and other targets to
+try: docs/examples/fixed-frequency.md.
 """
 
-from machine import SPI
+from machine import Pin, SPI
 
 from adf435x.device import ADF435xDevice
 from adf435x.profiles import ADF4351
 from adf435x.synthesizer import ADF435xSynthesizer
 
-# --- User settings -----------------------------------------------------------
+# --- Settings to change ------------------------------------------------------
 TARGET_FREQ_HZ = 200_000_000
 REF_HZ = 10_000_000
 
@@ -46,14 +33,14 @@ spi = SPI(
     polarity=0,
     phase=0,
     bits=8,
-    sck=PINS["sck"],
-    mosi=PINS["mosi"],
+    sck=Pin(PINS["sck"]),
+    mosi=Pin(PINS["mosi"]),
 )
 
 device = ADF435xDevice(
     spi,
-    load_enable_pin=PINS["le"],
-    chip_enable_pin=PINS["ce"],
+    le_pin=PINS["le"],
+    ce_pin=PINS["ce"],
     muxout_pin=PINS["muxout"],
 )
 
@@ -64,9 +51,6 @@ synth.power_up(frequency_hz=TARGET_FREQ_HZ)
 
 locked = synth.wait_locked(timeout_us=500_000)
 print("Target:    %d Hz (%.6f MHz)" % (TARGET_FREQ_HZ, TARGET_FREQ_HZ / 1e6))
-print("Achieved:  %d Hz (%.6f MHz)" % (
-    synth.achieved_hz,
-    synth.achieved_hz / 1e6,
-))
+print("Achieved:  %d Hz (%.6f MHz)" % (synth.achieved_hz, synth.achieved_hz / 1e6))
 print("MUXOUT:    %s" % ("high" if locked else "not high within timeout"))
 print("Probe RFOUTA with scope or counter.")

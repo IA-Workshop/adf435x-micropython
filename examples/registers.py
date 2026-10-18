@@ -1,38 +1,25 @@
 """
-ADF435x register-file example in MicroPython.
+Set register fields by hand with ``ADF435xRegisterFile``, then program them.
 
-Builds the datasheet worked-example PLL settings (ADF4351 data sheet, p. 21)
-through ``ADF435xRegisterFile``, then programs the chip over SPI. RF output is
-scaled for bench verification on a mid-range oscilloscope. About 200 MHz
-bandwidth, 1 GSa/s is enough to measure the period.
+Uses the PLL numbers from the ADF4351 data sheet worked example (p.21) but
+with the RF divider at 32 instead of 2, so the output is low enough for a
+200 MHz oscilloscope. ADF4351 only, since the ADF4350 cannot divide by 32.
+Change the pin numbers for your board. With a 10 MHz reference (symbols as
+in docs/symbols.md):
 
-Hardware assumptions
---------------------
-- 10 MHz reference on REFIN (R counter = 1, no doubler).
-- Loop filter and VCO matching your board (example values encode only; lock
-  depends on the analog front end).
-- Probe RFOUTA (or your routed output). Expect about 132 MHz:
-
-      fPFD = REFIN / R = 10 MHz
-      fVCO = fPFD * (INT + FRAC/MOD) = 10 * 422.52 = 4225.2 MHz
-      fOUT = fVCO / RF_divider = 4225.2 / 32 ~= 131.9 MHz
-
-  The data-sheet example uses RF divide-by-2 for 2112.6 MHz; divide-by-32
-  keeps the same PLL numbers but brings the output into scope range.
-  Catalog slug: ``adf4351_scope_equiv_132p0375mhz`` (see ``examples/validate.py``;
-  ADF4351 only).
-
-Modify pin numbers to match your specific setup.
+    fPFD = REFIN / R = 10 MHz
+    fVCO = fPFD * (INT + FRAC/MOD) = 10 MHz * 422.52 = 4225.2 MHz
+    fOUT = fVCO / RF divider = 4225.2 MHz / 32 = 132.0375 MHz
 """
 
-from machine import SPI
+from machine import Pin, SPI
 
 from adf435x import consts
 from adf435x.device import ADF435xDevice
 from adf435x.profiles import ADF4351
 from adf435x.register_file import ADF435xRegisterFile
 
-# Default pin values, modify as needed
+# Pin numbers: change these to match your wiring.
 SPI_SCK_PIN = 10
 SPI_MOSI_PIN = 11
 ADF435X_LE_PIN = 13
@@ -40,12 +27,12 @@ ADF435X_CE_PIN = 14
 
 SPI_CHANNEL = 1
 
-# Expected RF output with 10 MHz REFIN and the configuration below.
-EXPECTED_RFOUT_HZ = 131_912_500
+# Expected output with a 10 MHz reference and the fields below.
+EXPECTED_RFOUT_HZ = 132_037_500
 
 
 def write_plan(device, regfile, plan):
-    """Write a commit plan to the chip and update the register-file cache."""
+    """Write *plan*, then tell the register file whether it worked."""
     try:
         device.write_registers(plan)
         regfile.mark_written()
@@ -65,14 +52,14 @@ spi = SPI(
     polarity=0,
     phase=0,
     bits=8,
-    sck=SPI_SCK_PIN,
-    mosi=SPI_MOSI_PIN,
+    sck=Pin(SPI_SCK_PIN),
+    mosi=Pin(SPI_MOSI_PIN),
 )
 
 adf = ADF435xDevice(
     spi,
-    load_enable_pin=ADF435X_LE_PIN,
-    chip_enable_pin=ADF435X_CE_PIN,
+    le_pin=ADF435X_LE_PIN,
+    ce_pin=ADF435X_CE_PIN,
 )
 
 regfile = ADF435xRegisterFile(ADF4351)
@@ -92,12 +79,12 @@ print("Powering on (CE high)")
 adf.chip_enable()
 
 print("Initial programming (R5..R0)")
-plan = regfile.commit_all_plan()
+plan = regfile.full_plan()
 write_plan(adf, regfile, plan)
 print("Wrote %d register words" % len(plan))
 
 print(
-    "RF output should be about %.3f MHz -- probe RFOUTA with your scope"
+    "RF output should be %.4f MHz -- probe RFOUTA with your scope"
     % (EXPECTED_RFOUT_HZ / 1e6)
 )
 

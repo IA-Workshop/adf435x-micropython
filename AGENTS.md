@@ -1,97 +1,107 @@
-# Agent guide — adf435x-micropython
+# adf435x-micropython agent guide
+
+MicroPython library for the ADF4350/ADF4351 wideband PLL synthesizers.
+Host-testable on CPython; runs on any MicroPython board with SPI and GPIO.
+
+## Commands
 
 ```bash
-pip install -e ".[test]"
-pytest
+pip install -e ".[dev]"          # pytest + black
+pytest -q                        # host suite, no hardware needed
+black adf435x examples bench tests
+python -m compileall -q adf435x examples bench tests
 ```
 
-On-board bench validation: [`examples/validate.py`](examples/validate.py)
-— host **Run current file** (not bulk-synced). See
-[agent/HARDWARE.md](agent/HARDWARE.md).
+CI also compiles `adf435x/` with `mpy-cross` and runs
+`micropython tests/micropython_smoke.py` on the MicroPython Unix port. Run
+that locally when a change might not be MicroPython-safe.
 
-## Scope
+## Source of truth, in order
 
-- ADF4350/ADF4351 only (not 4355/4356 family)
-- MicroPython on any board with SPI + GPIO; pin numbers live in caller /
-  examples / tests — never in `adf435x/` library modules
-- Host suite: CPython ≥ 3.10, no hardware required
+1. Passing tests and the `adf435x/` code.
+2. `WORKED_FIELDS` / `WORKED_WORDS` in `tests/conftest.py` (the data sheet
+   worked example).
+3. `.agents/datasheet.md` for PLL and register facts.
+4. Other docs, which never override tests.
 
-Humans: [agent/README.md](agent/README.md) (doc index). Layer overview:
-[agent/ARCHITECTURE.md](agent/ARCHITECTURE.md) (human reference — not required
-for implementation tasks).
+## Invariants
 
-## Critical gotchas
+Each one is covered by tests. Changing one means changing those tests and
+`.agents/engineering_guidelines.md`, which has the rationale.
 
-1. **`WORKED_WORDS[n]` = register Rn**; SPI and `commit_plan()` order is
-   **R5→R0**. Compare a full six-register write with `reversed(WORKED_WORDS)`.
-   Single source: `tests/conftest.py` — do not duplicate hex values in markdown.
+1. **Validate at setup, trust at encode.** `validate_config()` runs in
+   `configure()`; encoding only masks field widths.
+2. **Plans are bare words.** `commit_plan()` returns 32-bit ints; SPI order
+   is R5 to R0.
+3. **Double-buffer state comes from the encoded R2 word**, not a flag.
+4. **Plan/mark split.** The register file emits a plan and does no I/O; the
+   synthesizer writes, then calls `mark_written()` or `mark_write_failed()`.
+5. **Clocks live on the synthesizer** (`_last_write_us`); the register file
+   keeps `commit_count` and `config_version`.
+6. **Integer hertz only** in the solver. Floats raise `TypeError`.
+7. **ADF4350/ADF4351 only.** No ADF4355/4356 register map.
+8. **The solver returns fields, not words.** Encode through
+   `register_file.configure(**result.fields)`.
+9. **Host-safe package root.** `import adf435x` must not import `machine`;
+   only `adf435x.device` does.
+10. **One option bag:** `SolveOptions`. Bounds come from `ADF435xProfile`.
+11. **Explicit write verbs:** `_write_stale_registers`,
+    `_write_prebuilt_plan`. No generic `_program()`.
+12. **MicroPython-safe `adf435x/`.** No `dataclasses`, `pathlib`, `typing`
+    or other CPython-only stdlib.
+13. **Board-agnostic library.** Pin numbers live in examples, tests and
+    callers.
+14. **Tables store words; playback diffs.** `FrequencyTable` entries hold
+    all six words; `play_step()` calls `load_words()` and writes what
+    differs from `last_written`.
+15. **No SPI while powered down.** `set_frequency()` and output controls
+    stage settings; `power_up()` solves, raises CE, then writes.
 
-2. **`commit_plan()`** for retunes (minimal stale set).
-   **`commit_all_plan()`** only for power-up, divider boundaries, or full
-   reprogram.
+## Gotchas
 
-3. **Integer Hz only** in the solver; no float frequency arguments.
+- `WORKED_WORDS[n]` is register Rn. A full write is R5 first, so compare it
+  with `reversed(WORKED_WORDS)`.
+- Use `commit_plan()` for every retune and table hop, divider changes
+  included. `full_plan()` is for power-up or a full reprogram.
+- The prescaler must be 8/9 above 3.6 GHz (ADF4351) or 3.0 GHz (ADF4350).
+  R4 stores log2 of the RF divider, not the divider.
+- Register words appear in exactly one place, `tests/conftest.py`.
+  `tests/test_docs.py` fails if a 32-bit hex word shows up in any Markdown
+  file, so refer to `WORKED_*` by name.
+- Register fields are defined once in `config.FIELDS`; cross-field checks
+  live in `register_mapper._RULES`.
+- `.agents/journal.md` records past decisions and the states they replaced.
+  Append a dated entry for a non-obvious decision, but do not read it to
+  learn how the code works now; it describes code that may no longer exist.
 
-4. **Solver returns fields**, not register words. Encode only via
-   `register_file.configure(**result.fields)` (mapper validates at configure).
+## Writing
 
-5. **`import adf435x` must not import `machine`** (host-safe package root).
+Human-facing text (docs, README, changelog, docstrings, comments) follows
+`.agents/writing_style.md`: American English, a hobbyist reader, terms
+defined on first use, short docstrings, and no AI-writing patterns.
 
-## Source of truth
+Human docs (`README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `docs/**`) and
+agent docs (this file, `CLAUDE.md`, `.agents/`, `.claude/`, `.cursor/`)
+serve different readers. Either may cite the other, but each must be
+complete on its own: never leave a fact a user needs only in agent docs, or
+a rule an agent needs only in human docs.
 
-1. Passing tests + `adf435x/` code
-2. `WORKED_FIELDS` / `WORKED_WORDS` in `tests/conftest.py`
-3. [agent/DATASHEET.md](agent/DATASHEET.md)
-4. Other agent docs (not authoritative over tests)
+## Read on demand
 
-## Task routing
+- `.agents/context.md`: scope, which files to read and tests to run for each
+  kind of change, definition of done.
+- `.agents/engineering_guidelines.md`: Don't/Do table, invariant rationale,
+  naming.
+- `.agents/rules.md`: workflow, test conventions, which docs to update.
+- `.agents/datasheet.md`: PLL relationships, register facts with data
+  sheet pages.
+- `.agents/writing_style.md`: the writing rules above in full.
+- `.agents/status.md`: milestones, test baseline, open work.
 
-| Changing… | Read | Run |
-|-----------|------|-----|
-| Bit layout / encode | [DATASHEET](agent/DATASHEET.md), [DESIGN_DECISIONS](agent/DESIGN_DECISIONS.md) §1–3, [GLOSSARY](agent/GLOSSARY.md) | `test_register_mapper.py`, `test_register_file.py`, `test_validation.py` |
-| Frequency / MOD | [DATASHEET](agent/DATASHEET.md), [GLOSSARY](agent/GLOSSARY.md) | `test_solver.py` |
-| Synthesizer / SPI writes | [DESIGN_DECISIONS](agent/DESIGN_DECISIONS.md) §4–5, §11–13; `adf435x/synthesizer.py` | `test_synthesizer.py` |
-| Sweep / fast-hop | [DATASHEET](agent/DATASHEET.md) (int-N / fast-hop), [DESIGN_DECISIONS](agent/DESIGN_DECISIONS.md); `adf435x/sweep.py` | `test_sweep.py` |
-| Board pins / SPI wiring | [HARDWARE](agent/HARDWARE.md) | `test_device.py`; `examples/validate.py` on board |
-| New public names | [GLOSSARY](agent/GLOSSARY.md) | matching layer tests |
-| Test harness / fixtures | [TESTING](agent/TESTING.md) | touched `tests/` files |
-| Milestones only | [STATUS](agent/STATUS.md) | — |
+## Tool files
 
-Do not open [JOURNAL](agent/JOURNAL.md), [ARCHITECTURE](agent/ARCHITECTURE.md), or
-[agent/README](agent/README.md) for implementation work.
-
-## Don't → Do
-
-| Don't | Do instead |
-|-------|------------|
-| Re-validate ranges in `encode_register()` | `validate_config()` at `configure()`; encode masks widths only |
-| Return `(index, word)` or reorder writes in `device` | `commit_plan()` → bare 32-bit words, **R5→R0** |
-| Track DBB with a flag separate from encoded R2 | Read `double_buffer` from encoded R2; DBR/DBB logic in `register_file` only |
-| Call optimistic `commit()` from the synthesizer | `commit_plan()` → device write → `mark_written()` or `mark_write_failed()` |
-| Use float Hz or emit register words from `solve()` | Integer Hz; `solve()` → `configure(**result.fields)` |
-| `import machine` at package root | `adf435x.device` submodule only |
-| Hard-code board pins in `adf435x/` | Pass SPI/GPIO from caller or examples |
-| Add `SynthPolicy`, `DeviceLimits`, or a second options bag | `SolveOptions` + `ADF435xDeviceProfile` bounds |
-
-Full invariants: [agent/DESIGN_DECISIONS.md](agent/DESIGN_DECISIONS.md).
-
-## Vendor references
-
-- [ADF4350](https://www.analog.com/en/products/adf4350.html) ·
-  [ADF4351](https://www.analog.com/en/products/adf4351.html) ·
-  [cheat sheet](https://ez.analog.com/rf/w/documents/14697/adf4350-and-adf4351-common-questions-cheat-sheet)
-- Extracted PLL/register facts: [agent/DATASHEET.md](agent/DATASHEET.md)
-
-## Definition of done
-
-- [ ] `pytest` exits 0 (**299** collected; refresh with `pytest -q`)
-- [ ] Register / solver / datasheet edit: layer tests updated;
-      [DATASHEET.md](agent/DATASHEET.md) updated if an extracted fact changed
-- [ ] No new hex register values in markdown (reference `WORKED_*` by name)
-- [ ] `import adf435x` does not import `machine`
-- [ ] Doc edits follow the task-routing table above (no generic filler)
-
-## Cursor
-
-[`.cursor/rules/`](.cursor/rules/) ·
-[`.cursor/skills/adf435x-development/SKILL.md`](.cursor/skills/adf435x-development/SKILL.md)
+- Claude Code: `CLAUDE.md` imports this file; path-scoped rules in
+  `.claude/rules/`; skills in `.claude/skills/`.
+- Cursor: `.cursor/rules/*.mdc` point to the matching `.claude/rules/`
+  file. Cursor also reads `.claude/skills/`.
+- Codex and other tools read this file directly.
