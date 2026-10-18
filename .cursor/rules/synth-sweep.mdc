@@ -4,5 +4,5 @@ globs: adf435x/synthesizer.py,adf435x/sweep.py,adf435x/device.py
 alwaysApply: false
 ---
 
-Read and follow [.claude/rules/synth-sweep.md](../../.claude/rules/synth-sweep.md). It is the
-single copy of these conventions for both Claude Code and Cursor.
+Read and follow [.agents/rules/synth-sweep.md](../../.agents/rules/synth-sweep.md),
+the one copy of these conventions for every agent tool.

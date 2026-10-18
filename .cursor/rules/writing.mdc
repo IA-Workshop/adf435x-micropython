@@ -4,5 +4,5 @@ globs: README.md,CONTRIBUTING.md,CHANGELOG.md,docs/**,adf435x/**,examples/**,ben
 alwaysApply: false
 ---
 
-Read and follow [.claude/rules/writing.md](../../.claude/rules/writing.md). It is the
-single copy of these conventions for both Claude Code and Cursor.
+Read and follow [.agents/rules/writing.md](../../.agents/rules/writing.md),
+the one copy of these conventions for every agent tool.

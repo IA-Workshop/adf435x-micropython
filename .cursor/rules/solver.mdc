@@ -4,5 +4,5 @@ globs: adf435x/solver.py,tests/test_solver.py
 alwaysApply: false
 ---
 
-Read and follow [.claude/rules/solver.md](../../.claude/rules/solver.md). It is the
-single copy of these conventions for both Claude Code and Cursor.
+Read and follow [.agents/rules/solver.md](../../.agents/rules/solver.md),
+the one copy of these conventions for every agent tool.

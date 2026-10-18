@@ -2,7 +2,7 @@
 
 Maintainer milestone tracker. Living summary of completed work and open items.
 
-Host tests: refresh with `pytest -q` (conventions in [rules.md](rules.md)).
+Host tests: refresh with `pytest -q` (conventions in [workflow.md](workflow.md)).
 Baseline 2026-10-17, after the writing review and API renames: 612 passed,
 no known-bug xfails.
 
@@ -30,7 +30,8 @@ numbers come from bench step B7):
 - **Examples** — fixed frequency, solver demo, linear sweep, octave-crossing
   sweep, frequency table builder, raw device/register demos
 - **Agent documentation** — consolidated under `.agents/`; human docs in
-  `docs/`; path-scoped rules in `.claude/rules/` and `.cursor/rules/`
+  `docs/`; area rules and skills in `.agents/`, linked from `.claude/`
+  and `.cursor/`
 - **Docs refactor** — legacy `agent/` tree removed; human docs written in
   remediation step A9
 - **Bench validation example** — [`examples/validate.py`](../examples/validate.py)
@@ -69,6 +70,9 @@ numbers come from bench step B7):
 - **Agent docs alignment** (branch `agent-docs-alignment`): rules,
   skills and Cursor pointers reorganized to match Claude Code's loading
   model; writing rules in [writing_style.md](writing_style.md)
+- **One agent-file layout** (branch `agent-context-layout`): every rule,
+  skill and doc under `.agents/`; `.claude/` holds symlinks and `.cursor/`
+  holds pointers; `rules.md` renamed `workflow.md`
 
 ## Open work
 

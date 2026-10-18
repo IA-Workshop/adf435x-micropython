@@ -86,22 +86,32 @@ serve different readers. Either may cite the other, but each must be
 complete on its own: never leave a fact a user needs only in agent docs, or
 a rule an agent needs only in human docs.
 
-## Read on demand
+## Agent files
 
-- `.agents/context.md`: scope, which files to read and tests to run for each
-  kind of change, definition of done.
-- `.agents/engineering_guidelines.md`: Don't/Do table, invariant rationale,
-  naming.
-- `.agents/rules.md`: workflow, test conventions, which docs to update.
-- `.agents/datasheet.md`: PLL relationships, register facts with data
-  sheet pages.
-- `.agents/writing_style.md`: the writing rules above in full.
-- `.agents/status.md`: milestones, test baseline, open work.
+Every agent instruction lives in this file or under `.agents/`. The
+`.claude/` and `.cursor/` directories hold only links and pointers into
+`.agents/`, so edit the files under `.agents/` and never add content to
+the tool directories.
 
-## Tool files
+```text
+AGENTS.md                  this file; every tool reads it
+CLAUDE.md                  @AGENTS.md plus Claude Code notes
+.agents/
+  context.md               scope, task routing, definition of done
+  workflow.md              steps, tests by layer, docs to update, tool files
+  engineering_guidelines.md  Don't/Do table, invariant rationale, naming
+  datasheet.md             PLL and register facts with data sheet pages
+  writing_style.md         rules for text people read
+  status.md                milestones, test baseline, open work
+  journal.md               append-only decision log (not for orientation)
+  rules/<area>.md          conventions for one area, with `paths:` globs
+  skills/<name>/SKILL.md   skills
+.claude/rules              symlink to .agents/rules
+.claude/skills/<name>      symlink to .agents/skills/<name>
+.cursor/rules/<area>.mdc   pointer to .agents/rules/<area>.md, same globs
+```
 
-- Claude Code: `CLAUDE.md` imports this file; path-scoped rules in
-  `.claude/rules/`; skills in `.claude/skills/`.
-- Cursor: `.cursor/rules/*.mdc` point to the matching `.claude/rules/`
-  file. Cursor also reads `.claude/skills/`.
-- Codex and other tools read this file directly.
+Claude Code loads `.agents/rules/` files through the `.claude/rules`
+symlink when it reads or edits a matching file, and finds skills through
+`.claude/skills/`. Cursor reads `.agents/skills/` itself and the `.mdc`
+pointers. Codex reads this file.

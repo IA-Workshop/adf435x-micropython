@@ -17,7 +17,7 @@ always-loaded essentials; this file is the depth for planning a change.
 ## Task routing
 
 Read only the row for your change type. Path-scoped rules in
-`.claude/rules/` load on their own when you open matching files.
+`.agents/rules/` load on their own when you open matching files.
 
 | Changing | Read | Run |
 |----------|------|-----|
@@ -27,10 +27,10 @@ Read only the row for your change type. Path-scoped rules in
 | Sweep / tables | `.agents/datasheet.md` (double buffering); AGENTS.md invariant 14 | `test_sweep.py`, `test_regressions.py` |
 | Board pins / SPI wiring | `examples/` for pin conventions; `docs/hardware.md` cites the board wiring | `test_device.py`; `examples/validate.py` on a board |
 | New public names | `.agents/engineering_guidelines.md` (naming) | matching layer tests |
-| Test harness / fixtures | `.agents/rules.md` (tests by layer) | touched `tests/` files |
-| Human docs, docstrings, comments | `.agents/writing_style.md`; `.agents/rules.md` (documentation boundary) | `test_docs.py` |
-| Version / release | `.agents/rules.md` (versions and releases) | `test_packaging.py` |
-| Agent docs or tool files | `.agents/rules.md` (tool files) | `test_docs.py` |
+| Test harness / fixtures | `.agents/workflow.md` (tests by layer) | touched `tests/` files |
+| Human docs, docstrings, comments | `.agents/writing_style.md`; `.agents/workflow.md` (documentation boundary) | `test_docs.py` |
+| Version / release | `.agents/workflow.md` (versions and releases) | `test_packaging.py` |
+| Agent docs or tool files | `.agents/workflow.md` (tool files) | `test_docs.py` |
 | Milestones only | `.agents/status.md` | none |
 
 ## Definition of done
@@ -41,7 +41,7 @@ Read only the row for your change type. Path-scoped rules in
 - `import adf435x` does not import `machine`.
 - A change based on the data sheet updates `.agents/datasheet.md` and adds
   a test.
-- Docs are updated per `.agents/rules.md`, and human-facing text follows
+- Docs are updated per `.agents/workflow.md`, and human-facing text follows
   `.agents/writing_style.md`.
 - A change to what is written to the chip is flagged for a bench check.
 

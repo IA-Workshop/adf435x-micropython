@@ -14,4 +14,4 @@ paths:
   which fails the run, so remove the marker in the same change.
 - `test_docs.py` checks Markdown links and anchors, the register-word ban,
   and that the README and quickstart code runs.
-- Which test file covers which layer: `.agents/rules.md`.
+- Which test file covers which layer: `.agents/workflow.md`.

@@ -10,9 +10,9 @@ disable-model-invocation: true
 
 # Writing review pass
 
-Apply [.agents/writing_style.md](../../../.agents/writing_style.md) to the
-files the user names, or to all human-facing text if they name none.
-Change wording, docstrings, comments and layout only, never behavior.
+Apply `.agents/writing_style.md` to the files the user names, or to all
+human-facing text if they name none. Change wording, docstrings, comments
+and layout only, never behavior.
 
 1. List the files in scope. Agent docs (`AGENTS.md`, `CLAUDE.md`,
    `.agents/`, `.claude/`, `.cursor/`) are out of scope, and

@@ -19,6 +19,26 @@ belong in [engineering_guidelines.md](engineering_guidelines.md).
 
 ---
 
+## 2026-10-18 — One agent-file layout (agent-context-layout)
+
+**Context:** Instructions were split across `.agents/`, `.claude/rules/`,
+`.claude/skills/` and `.cursor/`, with `.cursor/` pointing at `.claude/`.
+**Decision:** All content under `.agents/` (docs, `rules/`, `skills/`).
+`.claude/rules` is a directory symlink and `.claude/skills/<name>` are
+per-skill symlinks, both documented as supported by Claude Code (memory and
+skills docs, checked 2026-10-18). `.cursor/rules/*.mdc` stay as pointer
+files because Cursor needs `.mdc` frontmatter and its docs say nothing
+about symlinks. `.agents/rules.md` became `workflow.md` to avoid clashing
+with `rules/`. Skills and rules use repo-root paths in backticks, since
+they are read through more than one path.
+**Alternatives rejected:** canonical files in `.claude/` (splits content
+across two trees); symlinking the `.mdc` files (unverified in Cursor).
+**Files affected:** `AGENTS.md`, `CLAUDE.md`, `.agents/**`, `.claude/`,
+`.cursor/rules/`, `tests/test_docs.py`
+**Follow-ups:** Cursor may list each skill twice (it reads both
+`.agents/skills/` and `.claude/skills/`); Windows clones need
+`core.symlinks=true` (Developer Mode) for the `.claude/` links to work.
+
 ---
 
 ## 2026-10-17 — Human docs written; datasheet facts corrected (docs-refactor, A7–A9)

@@ -10,8 +10,9 @@ HUMAN_DOCS = sorted(
     [ROOT / "README.md", ROOT / "CONTRIBUTING.md", ROOT / "CHANGELOG.md"]
     + list((ROOT / "docs").rglob("*.md"))
 )
-# Generated or nested checkouts, not project docs.
-_SKIP_DIRS = {".git", "node_modules", ".pytest_cache", "worktrees", "build-mpy"}
+# Generated or nested checkouts, not project docs. .claude/ holds only
+# symlinks into .agents/, so scanning it would count those files twice.
+_SKIP_DIRS = {".git", "node_modules", ".pytest_cache", "build-mpy", ".claude"}
 
 
 def _project(paths):
@@ -24,9 +25,7 @@ def _project(paths):
 # is append-only history and may cite files that no longer exist.
 AGENT_DOCS = _project(
     [ROOT / "AGENTS.md", ROOT / "CLAUDE.md"]
-    + [p for p in (ROOT / ".agents").glob("*.md") if p.name != "journal.md"]
-    + list((ROOT / ".claude").rglob("*.md"))
-    + list((ROOT / ".cursor").rglob("*.md"))
+    + [p for p in (ROOT / ".agents").rglob("*.md") if p.name != "journal.md"]
     + list((ROOT / ".cursor").rglob("*.mdc"))
 )
 ALL_MARKDOWN = _project(ROOT.rglob("*.md"))
@@ -101,11 +100,12 @@ def test_quickstart_code_runs(doc, mock_machine, monkeypatch):
     assert namespace["synth"].achieved_hz in (200_000_000, 433_920_000)
 
 
-# Agent tool files. Each .cursor rule points to the .claude rule of the same
-# name and uses the same globs, so the two tools share one copy.
+# Agent tool files. Content lives in .agents/; .claude/ holds symlinks to it
+# and .cursor/ holds pointer files with the same globs.
 
-CLAUDE_RULES = sorted((ROOT / ".claude" / "rules").glob("*.md"))
-SKILLS = sorted((ROOT / ".claude" / "skills").glob("*/SKILL.md"))
+AGENTS = ROOT / ".agents"
+AREA_RULES = sorted((AGENTS / "rules").glob("*.md"))
+SKILLS = sorted((AGENTS / "skills").glob("*/SKILL.md"))
 
 
 def _frontmatter(path):
@@ -115,7 +115,7 @@ def _frontmatter(path):
     return lines[1 : lines.index("---", 1)]
 
 
-def _claude_paths(path):
+def _rule_paths(path):
     return {
         line.strip()[2:].strip('"')
         for line in _frontmatter(path)
@@ -131,18 +131,22 @@ def _cursor_globs(path):
 
 
 class TestToolFiles:
-    @pytest.mark.parametrize("rule", CLAUDE_RULES, ids=_ids(CLAUDE_RULES))
-    def test_claude_rule_has_paths(self, rule):
-        assert _claude_paths(rule)
+    @pytest.mark.parametrize("rule", AREA_RULES, ids=_ids(AREA_RULES))
+    def test_rule_has_paths(self, rule):
+        assert _rule_paths(rule)
 
-    @pytest.mark.parametrize("rule", CLAUDE_RULES, ids=_ids(CLAUDE_RULES))
-    def test_cursor_rule_matches_claude_rule(self, rule):
+    def test_claude_rules_link_to_agents(self):
+        link = ROOT / ".claude" / "rules"
+        assert link.is_symlink() and link.resolve() == AGENTS / "rules"
+
+    @pytest.mark.parametrize("rule", AREA_RULES, ids=_ids(AREA_RULES))
+    def test_cursor_pointer_matches_rule(self, rule):
         cursor = ROOT / ".cursor" / "rules" / (rule.stem + ".mdc")
-        assert _cursor_globs(cursor) == _claude_paths(rule)
+        assert _cursor_globs(cursor) == _rule_paths(rule)
 
     def test_no_orphan_cursor_rules(self):
         cursor = {p.stem for p in (ROOT / ".cursor" / "rules").glob("*.mdc")}
-        assert cursor == {p.stem for p in CLAUDE_RULES}
+        assert cursor == {p.stem for p in AREA_RULES}
 
     @pytest.mark.parametrize("skill", SKILLS, ids=_ids(SKILLS))
     def test_skill_name_matches_directory(self, skill):
@@ -157,3 +161,22 @@ class TestToolFiles:
             if line and not line.startswith(" ")
         }
         assert keys <= allowed
+
+    def test_claude_skills_link_to_agents(self):
+        links = {p.name: p.resolve() for p in (ROOT / ".claude" / "skills").iterdir()}
+        assert links == {s.parent.name: s.parent for s in SKILLS}
+
+    def test_claude_dir_holds_only_links(self):
+        # Local files (settings.local.json, worktrees/) are gitignored.
+        allowed = {"rules", "skills", "settings.json", "settings.local.json"}
+        extra = {
+            p.name
+            for p in (ROOT / ".claude").iterdir()
+            if p.name not in allowed and p.name != "worktrees"
+        }
+        assert extra == set()
+
+    @pytest.mark.parametrize("doc", AREA_RULES + SKILLS, ids=_ids(AREA_RULES + SKILLS))
+    def test_no_relative_links_in_linked_files(self, doc):
+        """These files are read through symlinks too, so relative links break."""
+        assert _links(doc) == []

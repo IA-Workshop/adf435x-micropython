@@ -12,20 +12,18 @@ description: >-
 ## 1. Orient
 
 `AGENTS.md` is already loaded. Open the row for your kind of change in
-[.agents/context.md](../../../.agents/context.md#task-routing) and read only
-the files it lists. If the change depends on a data sheet fact, check
-[.agents/datasheet.md](../../../.agents/datasheet.md) and cite the page.
+`.agents/context.md` (task routing) and read only the files it lists. If
+the change depends on a data sheet fact, check `.agents/datasheet.md` and
+cite the page.
 
 ## 2. Change
 
 - Keep the diff to what the task needs.
 - `adf435x/` must still run on MicroPython: no CPython-only stdlib, no
   board pins.
-- A new public name follows
-  [.agents/engineering_guidelines.md](../../../.agents/engineering_guidelines.md#naming)
+- A new public name follows `.agents/engineering_guidelines.md` (naming)
   and gets a changelog entry.
-- Docstrings, comments and docs follow
-  [.agents/writing_style.md](../../../.agents/writing_style.md).
+- Docstrings, comments and docs follow `.agents/writing_style.md`.
 
 ## 3. Verify
 
@@ -41,10 +39,9 @@ with `examples/validate.py` before release.
 
 ## 4. Record
 
-Update the docs listed in
-[.agents/rules.md](../../../.agents/rules.md#documentation-update-obligations)
-for your change. Append a dated entry to `.agents/journal.md` only for a
-decision that is not obvious from the code and tests.
+Update the docs listed in `.agents/workflow.md` (documentation update
+obligations) for your change. Append a dated entry to `.agents/journal.md`
+only for a decision that is not obvious from the code and tests.
 
-Done means every item in
-[.agents/context.md](../../../.agents/context.md#definition-of-done) is true.
+Done means every item in `.agents/context.md` (definition of done) is
+true.

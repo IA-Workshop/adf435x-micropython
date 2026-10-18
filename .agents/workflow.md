@@ -28,7 +28,7 @@ What to run, what to update, and how the tool files fit together.
 | Version / `package.json` | `test_packaging.py` |
 | Any fixed bug | `test_regressions.py` |
 
-Conventions for writing tests are in `.claude/rules/tests.md`. Record the
+Conventions for writing tests are in `.agents/rules/tests.md`. Record the
 current test count in `.agents/status.md` when it changes at a milestone;
 do not repeat it elsewhere. Bench validation is not pytest:
 `examples/validate.py`, described in `docs/examples/validation.md`.
@@ -81,7 +81,7 @@ do not repeat it elsewhere. Bench validation is not pytest:
 | New names | `.agents/engineering_guidelines.md` |
 | Data sheet fact | `.agents/datasheet.md`, plus a test |
 | Permanent invariant | `AGENTS.md` and `.agents/engineering_guidelines.md` |
-| Test conventions | `.claude/rules/tests.md` and this file |
+| Test conventions | `.agents/rules/tests.md` and this file |
 | Writing rules | `.agents/writing_style.md` |
 | Milestone | `.agents/status.md` |
 | Non-obvious decision | `.agents/journal.md` (append only) |
@@ -97,25 +97,34 @@ do not repeat it elsewhere. Bench validation is not pytest:
 
 ## Tool files
 
-- `AGENTS.md` is the shared entry point. Codex and Cursor read it directly;
-  `CLAUDE.md` imports it with `@AGENTS.md` and adds Claude Code notes. Keep
-  shared policy out of `CLAUDE.md`.
-- `.claude/rules/*.md` hold the conventions for one area of code, loaded
-  when Claude reads or edits a file matching their `paths`. They add detail
-  to `AGENTS.md` and do not repeat it.
-- `.cursor/rules/*.mdc` have the same globs and only point to the matching
-  `.claude/rules/` file, so each convention has one copy.
-- `.claude/skills/` holds the skills; Cursor reads that directory too. Keep
-  skill frontmatter to `name`, `description` and, for user-only skills,
-  `disable-model-invocation`.
-- When you rename or move a file these name, update every pointer. The
-  docs tests check that links resolve.
+The layout is drawn in `AGENTS.md` (agent files). The rules for keeping it
+consistent:
+
+- Content lives in `AGENTS.md` and `.agents/` only. `.claude/` and
+  `.cursor/` hold links and pointers, so every instruction has one copy.
+- `CLAUDE.md` is `@AGENTS.md` plus notes that only apply to Claude Code.
+  Keep shared policy out of it.
+- An area rule is `.agents/rules/<area>.md` with a `paths:` list in its
+  frontmatter. It adds conventions for that code and does not repeat
+  `AGENTS.md`. Add a matching `.cursor/rules/<area>.mdc` pointer with the
+  same globs; `.claude/rules` is a symlink to the whole directory.
+- A skill is `.agents/skills/<name>/SKILL.md`, plus a symlink
+  `.claude/skills/<name>` pointing to `../../.agents/skills/<name>`. Keep
+  its frontmatter to `name` (matching the directory), `description`, and
+  `disable-model-invocation` for user-only skills. Write paths in skills
+  and rules from the repository root in backticks, not as relative links,
+  because the same file is read through more than one path.
+- Settings: `.claude/settings.json` (shared, committed) when the project
+  has any; personal settings go in `.claude/settings.local.json` and
+  `CLAUDE.local.md`, both gitignored.
+- `tests/test_docs.py` (`TestToolFiles`) checks the links, pointers,
+  globs and skill names. Run it after changing any of these files.
 
 ## Documentation boundary
 
 Human docs (`README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `docs/**`) and
-agent docs (`AGENTS.md`, `CLAUDE.md`, `.agents/**`, `.claude/**`,
-`.cursor/**`) serve different readers and purposes.
+agent docs (`AGENTS.md`, `CLAUDE.md`, `.agents/**`, and the links in
+`.claude/` and `.cursor/`) serve different readers and purposes.
 
 - Either side may cite the other, for example a human page linking the
   data sheet fact list as a source.
